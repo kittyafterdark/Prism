@@ -1,4 +1,4 @@
-# Lumi Dialogue Colors
+# Prism
 
 A small Spindle extension for binding per-speaker dialogue colors in Lumiverse.
 
