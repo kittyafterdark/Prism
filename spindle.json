@@ -1,0 +1,21 @@
+{
+  "version": "0.1.0",
+  "name": "Lumi Dialogue Colors",
+  "identifier": "lumi_dialogue_colors",
+  "author": "kittyafterdark",
+  "description": "Bind dialogue colors to Cortex characters and the active persona, recolor existing chats, and inject color rules automatically.",
+  "github": "https://github.com/kittyafterdark/LumiDialogueColors",
+  "homepage": "https://github.com/kittyafterdark/LumiDialogueColors",
+  "permissions": [
+    "chats",
+    "characters",
+    "personas",
+    "memories",
+    "chat_mutation",
+    "interceptor",
+    "ui_panels"
+  ],
+  "entry_backend": "dist/backend.js",
+  "entry_frontend": "dist/frontend.js",
+  "interceptor_timeout_ms": 3000
+}
