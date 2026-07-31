@@ -67,7 +67,7 @@ function safeConfig(raw) {
                     .map(normalizeHex)
                     .filter(Boolean)
                     .filter((hex) => hex !== color),
-                source: value.source === 'cortex' ? 'cortex' : 'manual',
+                source: ['cortex', 'transcript', 'preset'].includes(value.source) ? value.source : 'manual',
             };
         }
     }
@@ -134,20 +134,42 @@ function findBinding(config, kind, targetId, name, aliases = []) {
     }
     return null;
 }
+function stripStructuredText(value) {
+    let text = String(value || '').replace(/```[\s\S]*?```/g, ' ');
+    const trimmed = text.trim();
+    if ((trimmed.startsWith('{') || trimmed.startsWith('['))) {
+        try {
+            JSON.parse(trimmed);
+            return '';
+        }
+        catch { }
+    }
+    text = text.split(/\r?\n/).map((line) => {
+        const clean = line.trim();
+        if (!clean)
+            return line;
+        if (/^[{}\[\],]+$/.test(clean))
+            return '';
+        if (/^\s*["'][^"']+["']\s*:\s*(?:["'{\[\d-]|true\b|false\b|null\b)/i.test(clean))
+            return '';
+        return line;
+    }).join('\n');
+    return text;
+}
 function cleanSceneName(value) {
     const name = String(value || '')
         .replace(/^[\s*_\[\]]+/, '')
         .replace(/[\s*_\[\]]+$/, '')
         .replace(/\s+/g, ' ')
         .trim();
-    if (!name || name.length > 80 || /[<>\n\r{}]/.test(name))
+    if (!name || name.length > 80 || /[<>\n\r{}"`=_]/.test(name))
         return '';
     if (/^(?:character|characters|cast|speaker|speakers|npc|npcs|assistant|user|scenario|setting|scene|card)$/i.test(name))
         return '';
     return name;
 }
 function extractSceneNamesFromText(value) {
-    const text = String(value || '');
+    const text = stripStructuredText(value);
     if (!text.trim())
         return [];
     const names = [];
@@ -319,6 +341,166 @@ async function getSceneCharacters(chat, cardCharacters, userId) {
     });
     return { characters, cortexAvailable };
 }
+function sceneReferenceNames(character, characters) {
+    const names = uniqueStrings([character.name, ...(character.aliases || [])]);
+    const canonicalParts = String(character.name || '').split(/\s+/).map(cleanSceneName).filter((part) => part.length >= 2);
+    for (const part of [canonicalParts[0], canonicalParts.at(-1)].filter(Boolean)) {
+        const owners = characters.filter((candidate) => (String(candidate.name || '').split(/\s+/).some((token) => normalizeName(token) === normalizeName(part))));
+        if (owners.length === 1)
+            names.push(part);
+    }
+    return uniqueStrings(names);
+}
+function matchSceneCharacter(characters, name) {
+    const needle = normalizeName(name);
+    if (!needle)
+        return null;
+    const exact = characters.find((character) => ([character.name, ...(character.aliases || [])].map(normalizeName).includes(needle)));
+    if (exact)
+        return exact;
+    const partial = characters.filter((character) => sceneReferenceNames(character, characters).map(normalizeName).includes(needle));
+    return partial.length === 1 ? partial[0] : null;
+}
+function characterNearStyledRange(text, start, end, characters, messageName) {
+    const lower = text.toLocaleLowerCase();
+    const beforeWindow = lower.slice(Math.max(0, start - 140), start);
+    const afterWindow = lower.slice(end, Math.min(lower.length, end + 100));
+    const before = beforeWindow.slice(beforeWindow.lastIndexOf('\n') + 1);
+    const nextLineBreak = afterWindow.indexOf('\n');
+    const after = nextLineBreak >= 0 ? afterWindow.slice(0, nextLineBreak) : afterWindow;
+    let winner = null;
+    let winnerScore = -Infinity;
+    for (const character of characters) {
+        for (const rawName of sceneReferenceNames(character, characters)) {
+            const name = normalizeName(rawName);
+            if (!name)
+                continue;
+            const beforeIndex = before.lastIndexOf(name);
+            if (beforeIndex >= 0) {
+                const score = 140 - (before.length - beforeIndex - name.length);
+                if (score > winnerScore) {
+                    winner = character;
+                    winnerScore = score;
+                }
+            }
+            const afterIndex = after.indexOf(name);
+            if (afterIndex >= 0) {
+                const score = 155 - afterIndex;
+                if (score > winnerScore) {
+                    winner = character;
+                    winnerScore = score;
+                }
+            }
+        }
+    }
+    return winner || matchSceneCharacter(characters, messageName);
+}
+function styledColorRanges(value) {
+    const text = String(value || '')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'");
+    const ranges = [];
+    const patterns = [
+        /<font\b[^>]*\bcolor\s*=\s*["']?(#[0-9a-f]{6}|#[0-9a-f]{3})["']?[^>]*>[\s\S]*?<\/font>/gi,
+        /<span\b[^>]*\bstyle\s*=\s*["'][^"']*\bcolor\s*:\s*(#[0-9a-f]{6}|#[0-9a-f]{3})[^"']*["'][^>]*>[\s\S]*?<\/span>/gi,
+        /\[color\s*=\s*["']?(#[0-9a-f]{6}|#[0-9a-f]{3})["']?\][\s\S]*?\[\/color\]/gi,
+    ];
+    for (const pattern of patterns) {
+        let match;
+        while ((match = pattern.exec(text))) {
+            const color = normalizeHex(match[1]);
+            if (color)
+                ranges.push({ color, start: match.index, end: match.index + match[0].length });
+        }
+    }
+    return { text, ranges };
+}
+async function importTranscriptRegistry(chat, characters, config, userId) {
+    let messages = [];
+    try {
+        messages = await spindle.chat.getMessages(chat.id, userId);
+    }
+    catch (error) {
+        spindle.log.warn(`Existing dialogue colors could not be scanned: ${error?.message || error}`);
+        return { config, imported: 0, detected: 0 };
+    }
+    const votes = new Map();
+    const detectedColors = new Set();
+    const vote = (character, color, weight = 1) => {
+        if (!character || !color)
+            return;
+        const key = normalizeName(character.name);
+        if (!votes.has(color))
+            votes.set(color, new Map());
+        votes.get(color).set(key, (votes.get(color).get(key) || 0) + weight);
+    };
+    for (const message of messages || []) {
+        const isUser = message?.role === 'user' || message?.is_user === true;
+        if (isUser)
+            continue;
+        const variants = Array.isArray(message.swipes) && message.swipes.length ? message.swipes : [message.content];
+        for (const variant of variants) {
+            for (const item of parseCortexColorMacro(variant)) {
+                const character = matchSceneCharacter(characters, item.name);
+                if (character) {
+                    detectedColors.add(item.color);
+                    vote(character, item.color, 5);
+                }
+            }
+            const styled = styledColorRanges(variant);
+            const messageColors = new Set(styled.ranges.map((range) => range.color));
+            for (const range of styled.ranges) {
+                detectedColors.add(range.color);
+                vote(characterNearStyledRange(styled.text, range.start, range.end, characters, message.name), range.color, 2);
+            }
+            if (messageColors.size === 1) {
+                const messageCharacter = matchSceneCharacter(characters, message.name);
+                if (messageCharacter)
+                    vote(messageCharacter, [...messageColors][0], 2);
+            }
+        }
+    }
+    const assignments = new Map();
+    for (const [color, colorVotes] of votes) {
+        const ranked = [...colorVotes.entries()].sort((a, b) => b[1] - a[1]);
+        if (ranked[0])
+            assignments.set(color, ranked[0][0]);
+    }
+    for (const binding of Object.values(config.bindings)) {
+        if (binding.kind === 'character' && normalizeHex(binding.color)) {
+            assignments.set(normalizeHex(binding.color), normalizeName(binding.name));
+        }
+    }
+    const assignedNames = new Set(assignments.values());
+    const remainingColors = [...detectedColors].filter((color) => !assignments.has(color));
+    const remainingCharacters = characters.filter((character) => (!assignedNames.has(normalizeName(character.name))
+        && !findBinding(config, 'character', character.id, character.name, character.aliases)));
+    if (assignments.size > 0 && remainingColors.length === 1 && remainingCharacters.length === 1) {
+        assignments.set(remainingColors[0], normalizeName(remainingCharacters[0].name));
+    }
+    let imported = 0;
+    for (const [color, normalizedName] of assignments) {
+        const character = matchSceneCharacter(characters, normalizedName);
+        if (!character || findBinding(config, 'character', character.id, character.name, character.aliases))
+            continue;
+        const targetId = String(character.entityId || character.characterId || character.id);
+        config.bindings[`character:${targetId}`] = {
+            kind: 'character',
+            targetId,
+            name: character.name,
+            aliases: uniqueStrings(character.aliases),
+            color,
+            previousColors: [],
+            source: 'transcript',
+        };
+        imported += 1;
+    }
+    if (imported > 0)
+        await saveConfig(chat.id, config);
+    return { config, imported, detected: detectedColors.size };
+}
 async function importCortexRegistry(chat, primaryCharacter, characters, config, userId) {
     let imported = 0;
     let macroText = '';
@@ -379,12 +561,18 @@ async function buildState(options = {}, userId) {
     const scene = await getSceneCharacters(chat, cardCharacters, userId);
     let config = await loadConfig(chat.id);
     let cortexImportedCount = 0;
+    let transcriptImportedCount = 0;
+    let transcriptColorsDetected = 0;
     let cortexMacroText = '';
     if (options.importCortex !== false) {
         const imported = await importCortexRegistry(chat, primaryCharacter, scene.characters, config, userId);
         config = imported.config;
         cortexImportedCount = imported.imported;
         cortexMacroText = imported.macroText;
+        const transcriptImported = await importTranscriptRegistry(chat, scene.characters, config, userId);
+        config = transcriptImported.config;
+        transcriptImportedCount = transcriptImported.imported;
+        transcriptColorsDetected = transcriptImported.detected;
     }
     const characters = scene.characters.map((character) => ({
         ...character,
@@ -409,6 +597,8 @@ async function buildState(options = {}, userId) {
         config,
         cortexAvailable: scene.cortexAvailable,
         cortexImportedCount,
+        transcriptImportedCount,
+        transcriptColorsDetected,
         cortexRegistryDetected: parseCortexColorMacro(cortexMacroText).length,
         cortexBridge: 'macro-import + transcript-learning',
     };

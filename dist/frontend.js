@@ -15,7 +15,7 @@ const CSS = `
 .ldc-launcher{width:42px;height:42px;border:1px solid var(--lumiverse-border);border-radius:14px;background:color-mix(in srgb,var(--lumiverse-bg-elevated) 88%,transparent);color:var(--lumiverse-primary);display:grid;place-items:center;box-shadow:0 8px 24px rgba(0,0,0,.25);backdrop-filter:blur(12px);cursor:pointer;transition:transform .16s ease,border-color .16s ease}.ldc-launcher:hover{transform:translateY(-1px);border-color:var(--lumiverse-primary)}.ldc-launcher svg{width:21px;height:21px}.ldc-shell,.ldc-shell *{box-sizing:border-box}.ldc-shell{display:flex;flex-direction:column;min-height:420px;color:var(--lumiverse-text)}.ldc-tabs{display:flex;gap:6px;padding:0 0 12px;border-bottom:1px solid var(--lumiverse-border)}.ldc-tab{appearance:none;border:0;border-radius:10px;padding:8px 13px;background:transparent;color:var(--lumiverse-text-muted);font-weight:700;cursor:pointer}.ldc-tab[data-active="true"]{background:var(--lumiverse-primary-015,rgba(128,90,255,.15));color:var(--lumiverse-primary)}.ldc-main{display:grid;grid-template-columns:minmax(145px,190px) minmax(0,1fr);min-height:330px}.ldc-sidebar{padding:12px 10px 12px 0;border-right:1px solid var(--lumiverse-border);overflow:auto;max-height:430px}.ldc-person{width:100%;display:flex;align-items:center;gap:9px;padding:9px;border:1px solid transparent;border-radius:11px;background:transparent;color:var(--lumiverse-text);text-align:left;cursor:pointer}.ldc-person:hover{background:var(--lumiverse-fill-subtle)}.ldc-person[data-active="true"]{border-color:var(--lumiverse-primary-050,rgba(128,90,255,.5));background:var(--lumiverse-primary-015,rgba(128,90,255,.15))}.ldc-swatch{width:13px;height:13px;border-radius:50%;border:1px solid rgba(255,255,255,.35);box-shadow:0 0 0 2px rgba(0,0,0,.15);flex:0 0 auto}.ldc-person-copy{min-width:0}.ldc-person-name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;font-weight:700}.ldc-person-source{display:block;margin-top:2px;font-size:10.5px;color:var(--lumiverse-text-dim)}.ldc-panel{padding:16px 2px 10px 18px;min-width:0}.ldc-empty{padding:34px 12px;text-align:center;color:var(--lumiverse-text-dim)}.ldc-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:15px}.ldc-heading h3{margin:0;font-size:17px}.ldc-sub{margin-top:4px;color:var(--lumiverse-text-dim);font-size:11.5px}.ldc-source-chip,.ldc-bridge{display:inline-flex;align-items:center;border:1px solid var(--lumiverse-border);border-radius:999px;padding:4px 8px;font-size:10px;color:var(--lumiverse-text-dim);background:var(--lumiverse-fill-subtle)}.ldc-field{display:block;margin:0 0 13px}.ldc-field>span{display:block;margin-bottom:6px;font-size:11.5px;font-weight:700;color:var(--lumiverse-text-muted)}.ldc-field input[type="text"],.ldc-field select{width:100%;border:1px solid var(--lumiverse-border);border-radius:10px;background:var(--lumiverse-fill);color:var(--lumiverse-text);padding:9px 10px;outline:none}.ldc-field input:focus,.ldc-field select:focus{border-color:var(--lumiverse-primary)}.ldc-color-row{display:grid;grid-template-columns:68px 1fr;gap:10px}.ldc-color{width:68px;height:40px;border:1px solid var(--lumiverse-border);border-radius:10px;background:var(--lumiverse-fill);padding:3px;cursor:pointer}.ldc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}.ldc-btn{appearance:none;border:1px solid var(--lumiverse-border);border-radius:10px;padding:9px 12px;background:var(--lumiverse-fill-subtle);color:var(--lumiverse-text);font-weight:700;cursor:pointer}.ldc-btn:hover{border-color:var(--lumiverse-primary)}.ldc-btn-primary{border-color:transparent;background:var(--lumiverse-primary);color:var(--lumiverse-primary-contrast,#fff)}.ldc-btn:disabled{opacity:.55;cursor:wait}.ldc-options{margin-top:14px;padding-top:13px;border-top:1px solid var(--lumiverse-border)}.ldc-check{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--lumiverse-text-muted)}.ldc-note{margin:11px 0 0;font-size:10.5px;line-height:1.45;color:var(--lumiverse-text-dim)}.ldc-status{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:10px;border-top:1px solid var(--lumiverse-border);font-size:10.5px;color:var(--lumiverse-text-dim)}.ldc-loading{display:grid;place-items:center;min-height:300px;color:var(--lumiverse-text-dim)}.ldc-error{padding:18px;border:1px solid color-mix(in srgb,var(--lumiverse-danger) 50%,var(--lumiverse-border));border-radius:12px;color:var(--lumiverse-danger)}@media(max-width:620px){.ldc-main{grid-template-columns:112px minmax(0,1fr)}.ldc-panel{padding-left:12px}.ldc-person-source{display:none}.ldc-color-row{grid-template-columns:54px 1fr}.ldc-color{width:54px}}
 `;
 const EXTRA_CSS = `
-.ldc-toolbar-host{display:flex;align-items:center}.ldc-toolbar-button{display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--lumiverse-text-dim);opacity:.65;cursor:pointer;transition:all var(--lumiverse-transition-fast,120ms)}.ldc-toolbar-button:hover{opacity:1;color:var(--lumiverse-text);border-color:var(--lumiverse-border-hover,var(--lumiverse-border));background:var(--lumiverse-fill-subtle)}.ldc-toolbar-button svg{width:15px;height:15px}.ldc-tabbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 0 12px;border-bottom:1px solid var(--lumiverse-border)}.ldc-tabbar .ldc-tabs{padding:0;border:0}.ldc-settings-toggle{display:grid;place-items:center;width:32px;height:32px;padding:0}.ldc-settings-toggle svg{width:16px;height:16px}.ldc-settings{padding:16px 2px 8px}.ldc-engine-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.ldc-engine{display:block;padding:14px;border:1px solid var(--lumiverse-border);border-radius:12px;background:var(--lumiverse-fill-subtle);cursor:pointer}.ldc-engine:has(input:checked){border-color:var(--lumiverse-primary);background:var(--lumiverse-primary-015,rgba(128,90,255,.15))}.ldc-engine input{position:absolute;opacity:0;pointer-events:none}.ldc-engine-title{display:flex;align-items:center;gap:8px;font-weight:800;font-size:13px}.ldc-engine-title svg{width:15px;height:15px}.ldc-engine-copy{display:block;margin-top:6px;font-size:11px;line-height:1.45;color:var(--lumiverse-text-dim)}.ldc-dom-dialogue{color:var(--ldc-dom-color)!important}.ldc-dom-whole,.ldc-dom-whole *:not(a):not(button){color:var(--ldc-dom-color)!important}@media(max-width:620px){.ldc-engine-grid{grid-template-columns:1fr}}
+.ldc-toolbar-host{display:flex;align-items:center}.ldc-toolbar-button{display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--lumiverse-text-dim);opacity:.65;cursor:pointer;transition:all var(--lumiverse-transition-fast,120ms)}.ldc-toolbar-button:hover{opacity:1;color:var(--lumiverse-text);border-color:var(--lumiverse-border-hover,var(--lumiverse-border));background:var(--lumiverse-fill-subtle)}.ldc-toolbar-button svg{width:15px;height:15px}.ldc-shell{font-size:12.5px;min-height:380px}.ldc-main{min-height:300px}.ldc-tabbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 0 10px;border-bottom:1px solid var(--lumiverse-border)}.ldc-tabbar .ldc-tabs{padding:0;border:0}.ldc-tab{padding:7px 11px;font-size:12px}.ldc-settings-toggle{display:grid;place-items:center;width:30px;height:30px;padding:0}.ldc-settings-toggle svg{width:15px;height:15px}.ldc-person{padding:7px 8px}.ldc-person-name{font-size:11.5px}.ldc-person-source{font-size:9.5px}.ldc-panel{padding-top:14px}.ldc-heading h3{font-size:15px}.ldc-sub,.ldc-field>span{font-size:10.5px}.ldc-field input[type="text"],.ldc-field select{font-size:12.5px;padding:8px 9px}.ldc-btn{font-size:12px;padding:8px 11px}.ldc-settings{padding:14px 2px 8px}.ldc-engine-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.ldc-engine{display:block;padding:12px;border:1px solid var(--lumiverse-border);border-radius:12px;background:var(--lumiverse-fill-subtle);cursor:pointer}.ldc-engine:has(input:checked){border-color:var(--lumiverse-primary);background:var(--lumiverse-primary-015,rgba(128,90,255,.15))}.ldc-engine input{position:absolute;opacity:0;pointer-events:none}.ldc-engine-title{display:flex;align-items:center;gap:8px;font-weight:800;font-size:12px}.ldc-engine-title svg{width:14px;height:14px}.ldc-engine-copy{display:block;margin-top:5px;font-size:10.5px;line-height:1.4;color:var(--lumiverse-text-dim)}.ldc-dom-dialogue,.ldc-inline-color{color:var(--ldc-dom-color)!important}.ldc-dom-whole,.ldc-dom-whole *:not(a):not(button){color:var(--ldc-dom-color)!important}@media(max-width:620px){.ldc-engine-grid{grid-template-columns:1fr}}
 `;
 function uid() {
     return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
@@ -43,6 +43,7 @@ export function setup(ctx) {
     let state = null;
     let activeTab = 'character';
     let selectedCharacterId = null;
+    let sidebarScrollTop = 0;
     let settingsOpen = false;
     let busy = false;
     let toolbarInjection = null;
@@ -131,6 +132,9 @@ export function setup(ctx) {
     function render() {
         if (!modal)
             return;
+        const previousSidebar = modal.root.querySelector('.ldc-sidebar');
+        if (previousSidebar && activeTab === 'character')
+            sidebarScrollTop = previousSidebar.scrollTop;
         if (!state) {
             modal.root.innerHTML = '<div class="ldc-loading">Reading the scene registry…</div>';
             return;
@@ -146,9 +150,12 @@ export function setup(ctx) {
       ${settingsOpen ? settingsPanel() : `<div class="ldc-main">
         ${activeTab === 'character' ? `<aside class="ldc-sidebar">${characterSidebar()}</aside><section class="ldc-panel">${characterPanel(currentCharacter())}</section>` : `<aside class="ldc-sidebar"><button class="ldc-person" data-active="true"><span class="ldc-swatch" style="background:${escapeHtml(state.persona?.binding?.color || '#777777')}"></span><span class="ldc-person-copy"><span class="ldc-person-name">${escapeHtml(state.persona?.name || 'No persona')}</span><span class="ldc-person-source">currently applied</span></span></button></aside><section class="ldc-panel">${personaPanel()}</section>`}
       </div>`}
-      <div class="ldc-status"><span>${escapeHtml(state.chat.name)}</span><span class="ldc-bridge">${state.config.engine === 'dom' ? 'DOM only' : 'LLM sidecar'} · Cortex: ${state.cortexAvailable ? 'linked' : 'permission unavailable'}${state.cortexImportedCount ? ` · imported ${state.cortexImportedCount}` : ''}</span></div>
+      <div class="ldc-status"><span>${escapeHtml(state.chat.name)}</span><span class="ldc-bridge">${state.config.engine === 'dom' ? 'DOM only' : 'LLM sidecar'} · Cortex: ${state.cortexAvailable ? 'linked' : 'permission unavailable'}${state.cortexImportedCount ? ` · cortex ${state.cortexImportedCount}` : ''}${state.transcriptImportedCount ? ` · styled ${state.transcriptImportedCount}` : ''}</span></div>
     </div>`;
         wireModal();
+        const nextSidebar = modal.root.querySelector('.ldc-sidebar');
+        if (nextSidebar && activeTab === 'character')
+            nextSidebar.scrollTop = sidebarScrollTop;
         setBusy(busy);
     }
     function syncColorInputs(root) {
@@ -196,6 +203,9 @@ export function setup(ctx) {
         });
         modal.root.querySelectorAll('[data-character-id]').forEach((button) => {
             button.addEventListener('click', () => {
+                const sidebar = modal.root.querySelector('.ldc-sidebar');
+                if (sidebar)
+                    sidebarScrollTop = sidebar.scrollTop;
                 selectedCharacterId = button.dataset.characterId;
                 render();
             });
@@ -284,6 +294,9 @@ export function setup(ctx) {
         }));
     }
     function unwrapDomColors() {
+        document.querySelectorAll('.ldc-inline-color').forEach((span) => {
+            span.replaceWith(document.createTextNode(span.dataset.prismOriginal || span.textContent || ''));
+        });
         document.querySelectorAll('.ldc-dom-dialogue').forEach((span) => {
             span.replaceWith(document.createTextNode(span.textContent || ''));
         });
@@ -292,17 +305,74 @@ export function setup(ctx) {
             element.style.removeProperty('--ldc-dom-color');
         });
     }
+    function inlineColorMatches(text) {
+        const matches = [];
+        const patterns = [
+            /<font\b[^>]*\bcolor\s*=\s*["']?(#[0-9a-f]{6}|#[0-9a-f]{3})["']?[^>]*>([\s\S]*?)<\/font>/gi,
+            /<span\b[^>]*\bstyle\s*=\s*["'][^"']*\bcolor\s*:\s*(#[0-9a-f]{6}|#[0-9a-f]{3})[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi,
+            /\[color\s*=\s*["']?(#[0-9a-f]{6}|#[0-9a-f]{3})["']?\]([\s\S]*?)\[\/color\]/gi,
+        ];
+        for (const pattern of patterns) {
+            let match;
+            while ((match = pattern.exec(text))) {
+                const color = normalizeHex(match[1]);
+                if (color)
+                    matches.push({ start: match.index, end: match.index + match[0].length, original: match[0], color, content: match[2] });
+            }
+        }
+        return matches
+            .sort((a, b) => a.start - b.start || b.end - a.end)
+            .filter((match, index, list) => !list.slice(0, index).some((prior) => match.start < prior.end));
+    }
+    function renderExistingInlineColors(root) {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+            acceptNode(node) {
+                const parent = node.parentElement;
+                if (!node.data || parent?.closest('code,pre,textarea,script,style,.ldc-inline-color'))
+                    return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+            },
+        });
+        const nodes = [];
+        while (walker.nextNode())
+            nodes.push(walker.currentNode);
+        for (let nodeIndex = nodes.length - 1; nodeIndex >= 0; nodeIndex -= 1) {
+            const node = nodes[nodeIndex];
+            const matches = inlineColorMatches(node.data);
+            for (let index = matches.length - 1; index >= 0; index -= 1) {
+                const match = matches[index];
+                const middle = node.splitText(match.start);
+                middle.splitText(match.end - match.start);
+                const span = document.createElement('span');
+                span.className = 'ldc-inline-color';
+                span.dataset.prismOriginal = match.original;
+                span.style.setProperty('--ldc-dom-color', match.color);
+                span.textContent = match.content;
+                middle.replaceWith(span);
+            }
+        }
+    }
     function domCandidates() {
-        return (state?.characters || [])
+        const sceneCharacters = state?.characters || [];
+        return sceneCharacters
             .filter((character) => normalizeHex(character.binding?.color))
-            .map((character) => ({
-            name: character.name,
-            names: [character.name, ...(character.binding?.aliases || character.aliases || [])]
-                .map((name) => String(name || '').trim().toLocaleLowerCase())
-                .filter(Boolean),
-            color: normalizeHex(character.binding.color),
-            primary: String(character.characterId || '') === String(state?.chat?.characterId || ''),
-        }));
+            .map((character) => {
+            const referenceNames = [character.name, ...(character.binding?.aliases || character.aliases || [])];
+            const parts = String(character.name || '').split(/\s+/).filter((part) => part.length >= 2);
+            for (const part of [parts[0], parts.at(-1)].filter(Boolean)) {
+                const owners = sceneCharacters.filter((candidate) => String(candidate.name || '').split(/\s+/).some((token) => token.toLocaleLowerCase() === part.toLocaleLowerCase()));
+                if (owners.length === 1)
+                    referenceNames.push(part);
+            }
+            return {
+                name: character.name,
+                names: referenceNames
+                    .map((name) => String(name || '').trim().toLocaleLowerCase())
+                    .filter(Boolean),
+                color: normalizeHex(character.binding.color),
+                primary: String(character.characterId || '') === String(state?.chat?.characterId || ''),
+            };
+        });
     }
     function attributedCandidate(text, start, end, candidates, fallback) {
         const lower = text.toLocaleLowerCase();
@@ -341,7 +411,7 @@ export function setup(ctx) {
         const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
             acceptNode(node) {
                 const parent = node.parentElement;
-                if (!node.data.trim() || parent?.closest('font,code,pre,textarea,button,.ldc-dom-dialogue'))
+                if (!node.data.trim() || parent?.closest('font,code,pre,textarea,button,.ldc-dom-dialogue,.ldc-inline-color'))
                     return NodeFilter.FILTER_REJECT;
                 return NodeFilter.FILTER_ACCEPT;
             },
@@ -381,12 +451,18 @@ export function setup(ctx) {
         domObserver?.disconnect();
         try {
             unwrapDomColors();
+            const mountedMessages = ctx.dom.listMessageElements();
+            for (const { element } of mountedMessages) {
+                const content = element.querySelector('[data-component="MessageContent"]');
+                if (content)
+                    renderExistingInlineColors(content);
+            }
             if (!state?.ok || state.config.engine !== 'dom')
                 return;
             const candidates = domCandidates();
             const fallback = candidates.find((candidate) => candidate.primary) || candidates[0] || null;
             const personaColor = normalizeHex(state.persona?.binding?.color);
-            for (const { element } of ctx.dom.listMessageElements()) {
+            for (const { element } of mountedMessages) {
                 const content = element.querySelector('[data-component="MessageContent"]');
                 if (!content)
                     continue;
@@ -441,6 +517,7 @@ export function setup(ctx) {
             modal = null;
         }
         state = null;
+        sidebarScrollTop = 0;
         modal = ctx.ui.showModal({ title: 'Prism', width: 720, maxHeight: 620 });
         modal.onDismiss(() => { modal = null; });
         render();

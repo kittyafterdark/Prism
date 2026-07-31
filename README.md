@@ -13,6 +13,8 @@ A small Spindle extension for binding per-speaker dialogue colors in Lumiverse.
 - Offers **DOM only** and **LLM sidecar** engines from the modal's settings cog.
 - In DOM-only mode, colors rendered dialogue reversibly without changing saved messages or model context.
 - In LLM-sidecar mode, injects the active registry so models emit the correct `<font color="#RRGGBB">...</font>` tags.
+- Imports attributable colors from existing `<font color>`, inline `style="color:…"`, and `[color=…]` dialogue, including preset-produced transcripts.
+- Renders escaped legacy color tags visually in both engines without mutating the saved message.
 - Can rewrite matching colors and persona dialogue in existing messages, including swipe variants.
 
 ## Cortex integration
@@ -43,6 +45,7 @@ Grant the requested permissions when prompted. The toolbar button and input-bar 
 - Existing untagged assistant prose is not heuristically recolored because speaker attribution would be unsafe. Existing known color tags are migrated when a binding changes.
 - Existing-tag migration is role-scoped: character color history can only rewrite assistant messages, while persona color history can only rewrite user messages.
 - Scenario, setting, and multi-character container cards are treated as cast sources instead of automatically being mistaken for speakers when a real cast can be identified.
+- JSON objects, JSON-property lines, fenced code, and identifier-like structured keys are excluded from speaker discovery.
 - Change the `github` and `homepage` fields in `spindle.json` if you publish under a different repository URL.
 
 ## Operator-scoped installs

@@ -21,7 +21,7 @@ const CSS = `
 `;
 
 const EXTRA_CSS = `
-.ldc-toolbar-host{display:flex;align-items:center}.ldc-toolbar-button{display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--lumiverse-text-dim);opacity:.65;cursor:pointer;transition:all var(--lumiverse-transition-fast,120ms)}.ldc-toolbar-button:hover{opacity:1;color:var(--lumiverse-text);border-color:var(--lumiverse-border-hover,var(--lumiverse-border));background:var(--lumiverse-fill-subtle)}.ldc-toolbar-button svg{width:15px;height:15px}.ldc-tabbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 0 12px;border-bottom:1px solid var(--lumiverse-border)}.ldc-tabbar .ldc-tabs{padding:0;border:0}.ldc-settings-toggle{display:grid;place-items:center;width:32px;height:32px;padding:0}.ldc-settings-toggle svg{width:16px;height:16px}.ldc-settings{padding:16px 2px 8px}.ldc-engine-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.ldc-engine{display:block;padding:14px;border:1px solid var(--lumiverse-border);border-radius:12px;background:var(--lumiverse-fill-subtle);cursor:pointer}.ldc-engine:has(input:checked){border-color:var(--lumiverse-primary);background:var(--lumiverse-primary-015,rgba(128,90,255,.15))}.ldc-engine input{position:absolute;opacity:0;pointer-events:none}.ldc-engine-title{display:flex;align-items:center;gap:8px;font-weight:800;font-size:13px}.ldc-engine-title svg{width:15px;height:15px}.ldc-engine-copy{display:block;margin-top:6px;font-size:11px;line-height:1.45;color:var(--lumiverse-text-dim)}.ldc-dom-dialogue{color:var(--ldc-dom-color)!important}.ldc-dom-whole,.ldc-dom-whole *:not(a):not(button){color:var(--ldc-dom-color)!important}@media(max-width:620px){.ldc-engine-grid{grid-template-columns:1fr}}
+.ldc-toolbar-host{display:flex;align-items:center}.ldc-toolbar-button{display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--lumiverse-text-dim);opacity:.65;cursor:pointer;transition:all var(--lumiverse-transition-fast,120ms)}.ldc-toolbar-button:hover{opacity:1;color:var(--lumiverse-text);border-color:var(--lumiverse-border-hover,var(--lumiverse-border));background:var(--lumiverse-fill-subtle)}.ldc-toolbar-button svg{width:15px;height:15px}.ldc-shell{font-size:12.5px;min-height:380px}.ldc-main{min-height:300px}.ldc-tabbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 0 10px;border-bottom:1px solid var(--lumiverse-border)}.ldc-tabbar .ldc-tabs{padding:0;border:0}.ldc-tab{padding:7px 11px;font-size:12px}.ldc-settings-toggle{display:grid;place-items:center;width:30px;height:30px;padding:0}.ldc-settings-toggle svg{width:15px;height:15px}.ldc-person{padding:7px 8px}.ldc-person-name{font-size:11.5px}.ldc-person-source{font-size:9.5px}.ldc-panel{padding-top:14px}.ldc-heading h3{font-size:15px}.ldc-sub,.ldc-field>span{font-size:10.5px}.ldc-field input[type="text"],.ldc-field select{font-size:12.5px;padding:8px 9px}.ldc-btn{font-size:12px;padding:8px 11px}.ldc-settings{padding:14px 2px 8px}.ldc-engine-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.ldc-engine{display:block;padding:12px;border:1px solid var(--lumiverse-border);border-radius:12px;background:var(--lumiverse-fill-subtle);cursor:pointer}.ldc-engine:has(input:checked){border-color:var(--lumiverse-primary);background:var(--lumiverse-primary-015,rgba(128,90,255,.15))}.ldc-engine input{position:absolute;opacity:0;pointer-events:none}.ldc-engine-title{display:flex;align-items:center;gap:8px;font-weight:800;font-size:12px}.ldc-engine-title svg{width:14px;height:14px}.ldc-engine-copy{display:block;margin-top:5px;font-size:10.5px;line-height:1.4;color:var(--lumiverse-text-dim)}.ldc-dom-dialogue,.ldc-inline-color{color:var(--ldc-dom-color)!important}.ldc-dom-whole,.ldc-dom-whole *:not(a):not(button){color:var(--ldc-dom-color)!important}@media(max-width:620px){.ldc-engine-grid{grid-template-columns:1fr}}
 `;
 
 function uid() {
@@ -52,6 +52,7 @@ export function setup(ctx: SpindleFrontendContext) {
   let state = null;
   let activeTab = 'character';
   let selectedCharacterId = null;
+  let sidebarScrollTop = 0;
   let settingsOpen = false;
   let busy = false;
   let toolbarInjection = null;
@@ -142,6 +143,8 @@ export function setup(ctx: SpindleFrontendContext) {
 
   function render() {
     if (!modal) return;
+    const previousSidebar = modal.root.querySelector('.ldc-sidebar');
+    if (previousSidebar && activeTab === 'character') sidebarScrollTop = previousSidebar.scrollTop;
     if (!state) {
       modal.root.innerHTML = '<div class="ldc-loading">Reading the scene registry…</div>';
       return;
@@ -157,10 +160,12 @@ export function setup(ctx: SpindleFrontendContext) {
       ${settingsOpen ? settingsPanel() : `<div class="ldc-main">
         ${activeTab === 'character' ? `<aside class="ldc-sidebar">${characterSidebar()}</aside><section class="ldc-panel">${characterPanel(currentCharacter())}</section>` : `<aside class="ldc-sidebar"><button class="ldc-person" data-active="true"><span class="ldc-swatch" style="background:${escapeHtml(state.persona?.binding?.color || '#777777')}"></span><span class="ldc-person-copy"><span class="ldc-person-name">${escapeHtml(state.persona?.name || 'No persona')}</span><span class="ldc-person-source">currently applied</span></span></button></aside><section class="ldc-panel">${personaPanel()}</section>`}
       </div>`}
-      <div class="ldc-status"><span>${escapeHtml(state.chat.name)}</span><span class="ldc-bridge">${state.config.engine === 'dom' ? 'DOM only' : 'LLM sidecar'} · Cortex: ${state.cortexAvailable ? 'linked' : 'permission unavailable'}${state.cortexImportedCount ? ` · imported ${state.cortexImportedCount}` : ''}</span></div>
+      <div class="ldc-status"><span>${escapeHtml(state.chat.name)}</span><span class="ldc-bridge">${state.config.engine === 'dom' ? 'DOM only' : 'LLM sidecar'} · Cortex: ${state.cortexAvailable ? 'linked' : 'permission unavailable'}${state.cortexImportedCount ? ` · cortex ${state.cortexImportedCount}` : ''}${state.transcriptImportedCount ? ` · styled ${state.transcriptImportedCount}` : ''}</span></div>
     </div>`;
 
     wireModal();
+    const nextSidebar = modal.root.querySelector('.ldc-sidebar');
+    if (nextSidebar && activeTab === 'character') nextSidebar.scrollTop = sidebarScrollTop;
     setBusy(busy);
   }
 
@@ -204,6 +209,8 @@ export function setup(ctx: SpindleFrontendContext) {
     });
     modal.root.querySelectorAll('[data-character-id]').forEach((button) => {
       button.addEventListener('click', () => {
+        const sidebar = modal.root.querySelector('.ldc-sidebar');
+        if (sidebar) sidebarScrollTop = sidebar.scrollTop;
         selectedCharacterId = button.dataset.characterId;
         render();
       });
@@ -295,6 +302,9 @@ export function setup(ctx: SpindleFrontendContext) {
   }
 
   function unwrapDomColors() {
+    document.querySelectorAll('.ldc-inline-color').forEach((span) => {
+      span.replaceWith(document.createTextNode(span.dataset.prismOriginal || span.textContent || ''));
+    });
     document.querySelectorAll('.ldc-dom-dialogue').forEach((span) => {
       span.replaceWith(document.createTextNode(span.textContent || ''));
     });
@@ -304,17 +314,72 @@ export function setup(ctx: SpindleFrontendContext) {
     });
   }
 
+  function inlineColorMatches(text) {
+    const matches = [];
+    const patterns = [
+      /<font\b[^>]*\bcolor\s*=\s*["']?(#[0-9a-f]{6}|#[0-9a-f]{3})["']?[^>]*>([\s\S]*?)<\/font>/gi,
+      /<span\b[^>]*\bstyle\s*=\s*["'][^"']*\bcolor\s*:\s*(#[0-9a-f]{6}|#[0-9a-f]{3})[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi,
+      /\[color\s*=\s*["']?(#[0-9a-f]{6}|#[0-9a-f]{3})["']?\]([\s\S]*?)\[\/color\]/gi,
+    ];
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(text))) {
+        const color = normalizeHex(match[1]);
+        if (color) matches.push({ start: match.index, end: match.index + match[0].length, original: match[0], color, content: match[2] });
+      }
+    }
+    return matches
+      .sort((a, b) => a.start - b.start || b.end - a.end)
+      .filter((match, index, list) => !list.slice(0, index).some((prior) => match.start < prior.end));
+  }
+
+  function renderExistingInlineColors(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!node.data || parent?.closest('code,pre,textarea,script,style,.ldc-inline-color')) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (let nodeIndex = nodes.length - 1; nodeIndex >= 0; nodeIndex -= 1) {
+      const node = nodes[nodeIndex];
+      const matches = inlineColorMatches(node.data);
+      for (let index = matches.length - 1; index >= 0; index -= 1) {
+        const match = matches[index];
+        const middle = node.splitText(match.start);
+        middle.splitText(match.end - match.start);
+        const span = document.createElement('span');
+        span.className = 'ldc-inline-color';
+        span.dataset.prismOriginal = match.original;
+        span.style.setProperty('--ldc-dom-color', match.color);
+        span.textContent = match.content;
+        middle.replaceWith(span);
+      }
+    }
+  }
+
   function domCandidates() {
-    return (state?.characters || [])
+    const sceneCharacters = state?.characters || [];
+    return sceneCharacters
       .filter((character) => normalizeHex(character.binding?.color))
-      .map((character) => ({
+      .map((character) => {
+        const referenceNames = [character.name, ...(character.binding?.aliases || character.aliases || [])];
+        const parts = String(character.name || '').split(/\s+/).filter((part) => part.length >= 2);
+        for (const part of [parts[0], parts.at(-1)].filter(Boolean)) {
+          const owners = sceneCharacters.filter((candidate) => String(candidate.name || '').split(/\s+/).some((token) => token.toLocaleLowerCase() === part.toLocaleLowerCase()));
+          if (owners.length === 1) referenceNames.push(part);
+        }
+        return {
         name: character.name,
-        names: [character.name, ...(character.binding?.aliases || character.aliases || [])]
+        names: referenceNames
           .map((name) => String(name || '').trim().toLocaleLowerCase())
           .filter(Boolean),
         color: normalizeHex(character.binding.color),
         primary: String(character.characterId || '') === String(state?.chat?.characterId || ''),
-      }));
+      };
+      });
   }
 
   function attributedCandidate(text, start, end, candidates, fallback) {
@@ -349,7 +414,7 @@ export function setup(ctx: SpindleFrontendContext) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
         const parent = node.parentElement;
-        if (!node.data.trim() || parent?.closest('font,code,pre,textarea,button,.ldc-dom-dialogue')) return NodeFilter.FILTER_REJECT;
+        if (!node.data.trim() || parent?.closest('font,code,pre,textarea,button,.ldc-dom-dialogue,.ldc-inline-color')) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       },
     });
@@ -388,11 +453,16 @@ export function setup(ctx: SpindleFrontendContext) {
     domObserver?.disconnect();
     try {
       unwrapDomColors();
+      const mountedMessages = ctx.dom.listMessageElements();
+      for (const { element } of mountedMessages) {
+        const content = element.querySelector('[data-component="MessageContent"]');
+        if (content) renderExistingInlineColors(content);
+      }
       if (!state?.ok || state.config.engine !== 'dom') return;
       const candidates = domCandidates();
       const fallback = candidates.find((candidate) => candidate.primary) || candidates[0] || null;
       const personaColor = normalizeHex(state.persona?.binding?.color);
-      for (const { element } of ctx.dom.listMessageElements()) {
+      for (const { element } of mountedMessages) {
         const content = element.querySelector('[data-component="MessageContent"]');
         if (!content) continue;
         if (element.dataset.part === 'user') {
@@ -444,6 +514,7 @@ export function setup(ctx: SpindleFrontendContext) {
       modal = null;
     }
     state = null;
+    sidebarScrollTop = 0;
     modal = ctx.ui.showModal({ title: 'Prism', width: 720, maxHeight: 620 });
     modal.onDismiss(() => { modal = null; });
     render();
