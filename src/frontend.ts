@@ -161,7 +161,7 @@ export function setup(ctx: SpindleFrontendContext) {
       await task();
     } catch (error) {
       const message = error?.message || String(error);
-      await ctx.ui.showConfirm({ title: 'Dialogue Colors', message, confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'warning' });
+      await ctx.ui.showConfirm({ title: 'Prism', message, confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'warning' });
     } finally {
       setBusy(false);
     }
@@ -250,7 +250,7 @@ export function setup(ctx: SpindleFrontendContext) {
       modal = null;
     }
     state = null;
-    modal = ctx.ui.showModal({ title: 'Dialogue Colors', width: 720, maxHeight: 620 });
+    modal = ctx.ui.showModal({ title: 'Prism', width: 720, maxHeight: 620 });
     modal.onDismiss(() => { modal = null; });
     render();
     try {
@@ -271,18 +271,18 @@ export function setup(ctx: SpindleFrontendContext) {
       height: 46,
       initialPosition: { x: Math.max(12, window.innerWidth - 78), y: 76 },
       snapToEdge: true,
-      tooltip: 'Dialogue Colors',
+      tooltip: 'Prism',
       chromeless: true,
     });
-    widget.root.innerHTML = `<button class="ldc-launcher" aria-label="Open Dialogue Colors">${PALETTE_ICON}</button>`;
+    widget.root.innerHTML = `<button class="ldc-launcher" aria-label="Open Prism">${PALETTE_ICON}</button>`;
     widget.root.querySelector('button')?.addEventListener('click', openPalette);
   } catch (error) {
-    console.warn('[Lumi Dialogue Colors] Float widget unavailable:', error);
+    console.warn('[Lumi Prism] Float widget unavailable:', error);
   }
 
   const inputAction = ctx.ui.registerInputBarAction({
     id: 'open-dialogue-colors',
-    label: 'Dialogue Colors',
+    label: 'Prism',
     iconSvg: PALETTE_ICON,
     enabled: true,
   });

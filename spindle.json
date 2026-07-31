@@ -1,11 +1,11 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "Prism",
-  "identifier": "prism",
+  "identifier": "lumi_dialogue_colors",
   "author": "kittyafterdark",
   "description": "Bind dialogue colors to Cortex characters and the active persona, recolor existing chats, and inject color rules automatically.",
-  "github": "https://github.com/kittyafterdark/LumiDialogueColors",
-  "homepage": "https://github.com/kittyafterdark/LumiDialogueColors",
+  "github": "https://github.com/kittyafterdark/Prism",
+  "homepage": "https://github.com/kittyafterdark/Prism",
   "permissions": [
     "chats",
     "characters",

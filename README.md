@@ -5,7 +5,7 @@ A small Spindle extension for binding per-speaker dialogue colors in Lumiverse.
 ## What it does
 
 - Adds a draggable palette button near the top edge of the chat UI.
-- Also registers **Dialogue Colors** in the input-bar Extras menu as a fallback.
+- Also registers **Prism** in the input-bar Extras menu as a fallback.
 - Opens a native Lumiverse modal with **Character** and **Persona** tabs.
 - Lists character entities currently known to the active chat's Memory Cortex.
 - Lets you bind a hex color and aliases to each character.
@@ -40,3 +40,7 @@ Grant the requested permissions when prompted. If `ui_panels` is denied, the flo
 - Character output is guided at prompt time rather than post-processed. That avoids guessing who spoke when one assistant message contains several speakers.
 - Existing untagged assistant prose is not heuristically recolored because speaker attribution would be unsafe. Existing known color tags are migrated when a binding changes.
 - Change the `github` and `homepage` fields in `spindle.json` if you publish under a different repository URL.
+
+## Operator-scoped installs
+
+Prism forwards the originating `userId` through active-chat, persona, Cortex, chat-mutation, macro, toast, and frontend-reply calls. This keeps globally installed/operator-scoped copies isolated to the user who opened the palette.

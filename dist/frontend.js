@@ -1,3 +1,4 @@
+
 const PALETTE_ICON = `
 <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path d="M12 3.25a8.75 8.75 0 1 0 0 17.5h1.25a1.75 1.75 0 0 0 0-3.5H12a1.5 1.5 0 0 1 0-3h2.75A6 6 0 0 0 20.75 8.25C20.75 5.49 17.04 3.25 12 3.25Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
@@ -32,7 +33,7 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;');
 }
 
-export function setup(ctx) {
+function setup(ctx) {
   const removeStyle = ctx.dom.addStyle(CSS);
   const pending = new Map();
   let modal = null;
@@ -158,7 +159,7 @@ export function setup(ctx) {
       await task();
     } catch (error) {
       const message = error?.message || String(error);
-      await ctx.ui.showConfirm({ title: 'Dialogue Colors', message, confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'warning' });
+      await ctx.ui.showConfirm({ title: 'Prism', message, confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'warning' });
     } finally {
       setBusy(false);
     }
@@ -247,7 +248,7 @@ export function setup(ctx) {
       modal = null;
     }
     state = null;
-    modal = ctx.ui.showModal({ title: 'Dialogue Colors', width: 720, maxHeight: 620 });
+    modal = ctx.ui.showModal({ title: 'Prism', width: 720, maxHeight: 620 });
     modal.onDismiss(() => { modal = null; });
     render();
     try {
@@ -268,18 +269,18 @@ export function setup(ctx) {
       height: 46,
       initialPosition: { x: Math.max(12, window.innerWidth - 78), y: 76 },
       snapToEdge: true,
-      tooltip: 'Dialogue Colors',
+      tooltip: 'Prism',
       chromeless: true,
     });
-    widget.root.innerHTML = `<button class="ldc-launcher" aria-label="Open Dialogue Colors">${PALETTE_ICON}</button>`;
+    widget.root.innerHTML = `<button class="ldc-launcher" aria-label="Open Prism">${PALETTE_ICON}</button>`;
     widget.root.querySelector('button')?.addEventListener('click', openPalette);
   } catch (error) {
-    console.warn('[Lumi Dialogue Colors] Float widget unavailable:', error);
+    console.warn('[Lumi Prism] Float widget unavailable:', error);
   }
 
   const inputAction = ctx.ui.registerInputBarAction({
     id: 'open-dialogue-colors',
-    label: 'Dialogue Colors',
+    label: 'Prism',
     iconSvg: PALETTE_ICON,
     enabled: true,
   });

@@ -138,13 +138,14 @@ function findBinding(config, kind, targetId, name, aliases = []) {
   return null;
 }
 
-async function getSceneCharacters(chat, primaryCharacter) {
+async function getSceneCharacters(chat, primaryCharacter, userId) {
   let entities = [];
   let cortexAvailable = true;
   try {
     entities = await spindle.memories.entities.list(chat.id, {
       activeOnly: false,
       limit: 200,
+      userId,
     });
   } catch (error) {
     cortexAvailable = false;
@@ -196,7 +197,7 @@ async function getSceneCharacters(chat, primaryCharacter) {
   return { characters, cortexAvailable };
 }
 
-async function importCortexRegistry(chat, primaryCharacter, characters, config) {
+async function importCortexRegistry(chat, primaryCharacter, characters, config, userId) {
   let imported = 0;
   let macroText = '';
   try {
@@ -204,6 +205,7 @@ async function importCortexRegistry(chat, primaryCharacter, characters, config) 
       chatId: chat.id,
       characterId: primaryCharacter?.id || chat.character_id,
       commit: false,
+      userId,
     });
     macroText = result?.text || '';
   } catch (error) {
@@ -244,18 +246,18 @@ async function importCortexRegistry(chat, primaryCharacter, characters, config) 
   return { config, imported, macroText };
 }
 
-async function buildState(options = {}) {
-  const chat = await spindle.chats.getActive();
+async function buildState(options = {}, userId) {
+  const chat = await spindle.chats.getActive(userId);
   if (!chat) {
     return { ok: false, error: 'Open a chat first.' };
   }
 
   const [primaryCharacter, persona] = await Promise.all([
-    chat.character_id ? spindle.characters.get(chat.character_id).catch(() => null) : null,
-    spindle.personas.getActive().catch(() => null),
+    chat.character_id ? spindle.characters.get(chat.character_id, userId).catch(() => null) : null,
+    spindle.personas.getActive(userId).catch(() => null),
   ]);
 
-  const scene = await getSceneCharacters(chat, primaryCharacter);
+  const scene = await getSceneCharacters(chat, primaryCharacter, userId);
   let config = await loadConfig(chat.id);
   let cortexImportedCount = 0;
   let cortexMacroText = '';
@@ -265,6 +267,7 @@ async function buildState(options = {}) {
       primaryCharacter,
       scene.characters,
       config,
+      userId,
     );
     config = imported.config;
     cortexImportedCount = imported.imported;
@@ -355,8 +358,8 @@ function applyPersonaColor(content, color, mode) {
   return wrapQuotedDialogue(source, normalized);
 }
 
-async function saveBinding(payload) {
-  const chat = await spindle.chats.getActive();
+async function saveBinding(payload, userId) {
+  const chat = await spindle.chats.getActive(userId);
   if (!chat || (payload.chatId && payload.chatId !== chat.id)) {
     throw new Error('The active chat changed. Reopen the palette and try again.');
   }
@@ -390,7 +393,7 @@ async function saveBinding(payload) {
         type: 'character',
         aliases,
         confidence: 1,
-      });
+      }, { userId });
       if (entity?.id) resolvedTargetId = String(entity.id);
     } catch (error) {
       spindle.log.warn(`Cortex alias upsert skipped: ${error?.message || error}`);
@@ -402,7 +405,7 @@ async function saveBinding(payload) {
         type: 'character',
         aliases: [],
         confidence: 1,
-      });
+      }, { userId });
     } catch (error) {
       spindle.log.warn(`Persona Cortex upsert skipped: ${error?.message || error}`);
     }
@@ -424,13 +427,13 @@ async function saveBinding(payload) {
     source: 'manual',
   };
   await saveConfig(chat.id, config);
-  await spindle.memories.cortex.invalidateCache(chat.id).catch(() => {});
+  await spindle.memories.cortex.invalidateCache(chat.id, userId).catch(() => {});
 
-  return buildState({ importCortex: false });
+  return buildState({ importCortex: false }, userId);
 }
 
-async function updateOptions(payload) {
-  const chat = await spindle.chats.getActive();
+async function updateOptions(payload, userId) {
+  const chat = await spindle.chats.getActive(userId);
   if (!chat) throw new Error('Open a chat first.');
   const config = await loadConfig(chat.id);
   if (['off', 'quoted', 'whole'].includes(payload.autoUserMode)) {
@@ -440,18 +443,18 @@ async function updateOptions(payload) {
     config.promptCharacterColors = payload.promptCharacterColors;
   }
   await saveConfig(chat.id, config);
-  return buildState({ importCortex: false });
+  return buildState({ importCortex: false }, userId);
 }
 
-async function recolorExisting(chatId) {
-  const chat = await spindle.chats.getActive();
+async function recolorExisting(chatId, userId) {
+  const chat = await spindle.chats.getActive(userId);
   if (!chat || chat.id !== chatId) throw new Error('The active chat changed.');
   const config = await loadConfig(chat.id);
-  const persona = await spindle.personas.getActive().catch(() => null);
+  const persona = await spindle.personas.getActive(userId).catch(() => null);
   const personaBinding = persona
     ? findBinding(config, 'persona', persona.id, persona.name, [])
     : null;
-  const messages = await spindle.chat.getMessages(chat.id);
+  const messages = await spindle.chat.getMessages(chat.id, userId);
   let changed = 0;
 
   for (const message of messages) {
@@ -474,7 +477,7 @@ async function recolorExisting(chatId) {
         ...(message.metadata || {}),
         lumi_dialogue_colors_applied: true,
       },
-    });
+    }, userId);
     changed += 1;
   }
 
@@ -520,7 +523,7 @@ spindle.registerInterceptor(async (messages, context) => {
   };
 }, 175);
 
-spindle.on('MESSAGE_SENT', async (payload) => {
+spindle.on('MESSAGE_SENT', async (payload, userId) => {
   try {
     const chatId = String(payload?.chatId || '');
     const message = payload?.message;
@@ -529,7 +532,7 @@ spindle.on('MESSAGE_SENT', async (payload) => {
 
     const config = await loadConfig(chatId);
     if (config.autoUserMode === 'off') return;
-    const persona = await spindle.personas.getActive().catch(() => null);
+    const persona = await spindle.personas.getActive(userId).catch(() => null);
     if (!persona) return;
     const binding = findBinding(config, 'persona', persona.id, persona.name, []);
     if (!binding) return;
@@ -543,7 +546,7 @@ spindle.on('MESSAGE_SENT', async (payload) => {
         lumi_dialogue_colors_applied: true,
         lumi_dialogue_color: binding.color,
       },
-    });
+    }, userId);
   } catch (error) {
     spindle.log.error(`Automatic user dialogue coloring failed: ${error?.message || error}`);
   }
@@ -555,25 +558,25 @@ spindle.onFrontendMessage(async (payload, userId) => {
   try {
     switch (payload?.type) {
       case 'ldc_load_state': {
-        const state = await buildState({ importCortex: payload.importCortex !== false });
+        const state = await buildState({ importCortex: payload.importCortex !== false }, userId);
         reply('ldc_state', { state });
         break;
       }
       case 'ldc_save_binding': {
-        const state = await saveBinding(payload);
+        const state = await saveBinding(payload, userId);
         reply('ldc_state', { state, saved: true });
-        spindle.toast.success('Dialogue color bound.');
+        spindle.toast.success('Dialogue color bound.', { userId });
         break;
       }
       case 'ldc_update_options': {
-        const state = await updateOptions(payload);
+        const state = await updateOptions(payload, userId);
         reply('ldc_state', { state, saved: true });
         break;
       }
       case 'ldc_recolor_existing': {
-        const result = await recolorExisting(String(payload.chatId || ''));
+        const result = await recolorExisting(String(payload.chatId || ''), userId);
         reply('ldc_recolor_result', result);
-        spindle.toast.success(`Updated ${result.changed} message${result.changed === 1 ? '' : 's'}.`);
+        spindle.toast.success(`Updated ${result.changed} message${result.changed === 1 ? '' : 's'}.`, { userId });
         break;
       }
       default:
@@ -581,8 +584,8 @@ spindle.onFrontendMessage(async (payload, userId) => {
     }
   } catch (error) {
     reply('ldc_error', { error: error?.message || String(error) });
-    spindle.toast.error(error?.message || 'Dialogue Colors failed.');
+    spindle.toast.error(error?.message || 'Prism failed.', { userId });
   }
 });
 
-spindle.log.info('Lumi Dialogue Colors loaded.');
+spindle.log.info('Prism loaded.');
