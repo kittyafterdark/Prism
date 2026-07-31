@@ -134,7 +134,81 @@ function findBinding(config, kind, targetId, name, aliases = []) {
     }
     return null;
 }
-async function getSceneCharacters(chat, primaryCharacter, userId) {
+function cleanSceneName(value) {
+    const name = String(value || '')
+        .replace(/^[\s*_\[\]]+/, '')
+        .replace(/[\s*_\[\]]+$/, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!name || name.length > 80 || /[<>\n\r{}]/.test(name))
+        return '';
+    if (/^(?:character|characters|cast|speaker|speakers|npc|npcs|assistant|user|scenario|setting|scene|card)$/i.test(name))
+        return '';
+    return name;
+}
+function extractSceneNamesFromText(value) {
+    const text = String(value || '');
+    if (!text.trim())
+        return [];
+    const names = [];
+    const add = (value) => {
+        const name = cleanSceneName(value);
+        if (name)
+            names.push(name);
+    };
+    const labelPattern = /(?:^|\n)\s*(?:[-*]\s+)?(?:\*\*|\[)?([^:\]\n]{1,80})(?:\*\*|\])?\s*:\s*(?=["“])/gmu;
+    let match;
+    while ((match = labelPattern.exec(text)))
+        add(match[1]);
+    const speechPattern = /(?:^|[\n.!?]\s+)([\p{Lu}][\p{L}\p{N}'’. -]{0,60}?)\s+(?:said|says|asked|asks|replied|replies|whispered|whispers|shouted|shouts|murmured|murmurs)\s*[,.:]\s*(?=["“])/gmu;
+    while ((match = speechPattern.exec(text)))
+        add(match[1]);
+    const castPattern = /(?:^|\n)\s*(?:cast|characters|speakers|npcs)\s*:\s*([^\n]{1,240})/gimu;
+    while ((match = castPattern.exec(text))) {
+        for (const item of match[1].split(/[,;|/]/))
+            add(item.replace(/\s*\([^)]*\)\s*$/, ''));
+    }
+    return uniqueStrings(names);
+}
+function extractSceneNamesFromCard(card) {
+    const names = [];
+    const extensions = card?.extensions && typeof card.extensions === 'object' ? card.extensions : {};
+    for (const key of ['character_names', 'characterNames', 'cast_names', 'castNames', 'characters', 'cast']) {
+        const value = extensions[key];
+        if (!Array.isArray(value))
+            continue;
+        for (const item of value)
+            names.push(cleanSceneName(typeof item === 'string' ? item : item?.name));
+    }
+    for (const field of ['description', 'personality', 'scenario', 'first_mes', 'mes_example', 'system_prompt', 'post_history_instructions']) {
+        names.push(...extractSceneNamesFromText(card?.[field]));
+    }
+    return uniqueStrings(names.filter(Boolean));
+}
+function mergeSceneCharacter(characters, candidate) {
+    const candidateNames = new Set([candidate.name, ...(candidate.aliases || [])].map(normalizeName).filter(Boolean));
+    const existing = characters.find((entry) => {
+        const entryNames = [entry.name, ...(entry.aliases || [])].map(normalizeName);
+        return entryNames.some((name) => candidateNames.has(name));
+    });
+    if (!existing) {
+        characters.push(candidate);
+        return candidate;
+    }
+    existing.entityId = existing.entityId || candidate.entityId || null;
+    existing.characterId = existing.characterId || candidate.characterId || null;
+    existing.aliases = uniqueStrings([...(existing.aliases || []), ...(candidate.aliases || [])])
+        .filter((alias) => normalizeName(alias) !== normalizeName(existing.name));
+    existing.status = existing.status || candidate.status || 'active';
+    existing.source = uniqueStrings([...(String(existing.source || '').split('+')), ...(String(candidate.source || '').split('+'))]).join('+');
+    if (existing.entityId)
+        existing.id = String(existing.entityId);
+    else if (existing.characterId)
+        existing.id = String(existing.characterId);
+    existing.key = `character:${existing.id}`;
+    return existing;
+}
+async function getSceneCharacters(chat, cardCharacters, userId) {
     let entities = [];
     let cortexAvailable = true;
     try {
@@ -149,15 +223,13 @@ async function getSceneCharacters(chat, primaryCharacter, userId) {
         spindle.log.warn(`Cortex entity list unavailable: ${error?.message || error}`);
     }
     const characters = [];
-    const seen = new Set();
+    const groupIds = new Set(Array.isArray(chat?.metadata?.character_ids)
+        ? chat.metadata.character_ids.map(String)
+        : []);
     for (const entity of entities || []) {
-        if (entity?.type !== 'character' || !entity?.name)
+        if ((entity?.entityType || entity?.type) !== 'character' || !entity?.name)
             continue;
-        const key = normalizeName(entity.name);
-        if (seen.has(key))
-            continue;
-        seen.add(key);
-        characters.push({
+        mergeSceneCharacter(characters, {
             id: String(entity.id),
             key: `character:${entity.id}`,
             entityId: String(entity.id),
@@ -168,29 +240,83 @@ async function getSceneCharacters(chat, primaryCharacter, userId) {
             source: 'cortex',
         });
     }
-    if (primaryCharacter?.name) {
-        const primaryName = normalizeName(primaryCharacter.name);
-        const existing = characters.find((entry) => {
-            const names = [entry.name, ...(entry.aliases || [])].map(normalizeName);
-            return names.includes(primaryName);
-        });
-        if (existing) {
-            existing.characterId = String(primaryCharacter.id);
-            existing.source = 'character+cortex';
-        }
-        else {
-            characters.unshift({
-                id: String(primaryCharacter.id),
-                key: `character:${primaryCharacter.id}`,
+    for (const card of cardCharacters || []) {
+        const extractedNames = extractSceneNamesFromCard(card);
+        const cardName = cleanSceneName(card?.name);
+        const isContainerCard = !groupIds.has(String(card?.id || '')) && (!cardName
+            || /(?:scenario|setting|scene|world|multichar|multi[- ]character|roleplay)/i.test(cardName)
+            || extractedNames.filter((name) => normalizeName(name) !== normalizeName(cardName)).length >= 2);
+        if (cardName && !isContainerCard) {
+            mergeSceneCharacter(characters, {
+                id: String(card.id),
+                key: `character:${card.id}`,
                 entityId: null,
-                characterId: String(primaryCharacter.id),
-                name: String(primaryCharacter.name),
+                characterId: String(card.id),
+                name: cardName,
                 aliases: [],
                 status: 'active',
-                source: 'character',
+                source: 'card',
+            });
+        }
+        for (const name of extractedNames) {
+            mergeSceneCharacter(characters, {
+                id: `scene-name:${normalizeName(name)}`,
+                key: `character:scene-name:${normalizeName(name)}`,
+                entityId: null,
+                characterId: null,
+                name,
+                aliases: [],
+                status: 'active',
+                source: 'card-cast',
             });
         }
     }
+    try {
+        const messages = await spindle.chat.getMessages(chat.id, userId);
+        for (const message of messages || []) {
+            const isUser = message?.role === 'user' || message?.is_user === true;
+            if (!isUser && message?.name) {
+                const name = cleanSceneName(message.name);
+                if (name)
+                    mergeSceneCharacter(characters, {
+                        id: `scene-name:${normalizeName(name)}`,
+                        key: `character:scene-name:${normalizeName(name)}`,
+                        entityId: null,
+                        characterId: null,
+                        name,
+                        aliases: [],
+                        status: 'active',
+                        source: 'transcript',
+                    });
+            }
+            for (const name of extractSceneNamesFromText(message?.content)) {
+                mergeSceneCharacter(characters, {
+                    id: `scene-name:${normalizeName(name)}`,
+                    key: `character:scene-name:${normalizeName(name)}`,
+                    entityId: null,
+                    characterId: null,
+                    name,
+                    aliases: [],
+                    status: 'active',
+                    source: 'transcript',
+                });
+            }
+        }
+    }
+    catch (error) {
+        spindle.log.warn(`Transcript speaker scan unavailable: ${error?.message || error}`);
+    }
+    characters.sort((a, b) => {
+        const aGroup = groupIds.has(String(a.characterId || '')) ? 1 : 0;
+        const bGroup = groupIds.has(String(b.characterId || '')) ? 1 : 0;
+        if (aGroup !== bGroup)
+            return bGroup - aGroup;
+        const aPrimary = String(a.characterId || '') === String(chat.character_id || '') ? 1 : 0;
+        const bPrimary = String(b.characterId || '') === String(chat.character_id || '') ? 1 : 0;
+        if (aPrimary !== bPrimary)
+            return bPrimary - aPrimary;
+        return a.name.localeCompare(b.name);
+    });
     return { characters, cortexAvailable };
 }
 async function importCortexRegistry(chat, primaryCharacter, characters, config, userId) {
@@ -240,11 +366,17 @@ async function buildState(options = {}, userId) {
     if (!chat) {
         return { ok: false, error: 'Open a chat first.' };
     }
-    const [primaryCharacter, persona] = await Promise.all([
-        chat.character_id ? spindle.characters.get(chat.character_id, userId).catch(() => null) : null,
+    const cardIds = uniqueStrings([
+        ...(Array.isArray(chat?.metadata?.character_ids) ? chat.metadata.character_ids : []),
+        chat.character_id,
+    ]);
+    const [cardCharacters, persona] = await Promise.all([
+        Promise.all(cardIds.map((characterId) => spindle.characters.get(characterId, userId).catch(() => null)))
+            .then((characters) => characters.filter(Boolean)),
         spindle.personas.getActive(userId).catch(() => null),
     ]);
-    const scene = await getSceneCharacters(chat, primaryCharacter, userId);
+    const primaryCharacter = cardCharacters.find((character) => String(character.id) === String(chat.character_id)) || cardCharacters[0] || null;
+    const scene = await getSceneCharacters(chat, cardCharacters, userId);
     let config = await loadConfig(chat.id);
     let cortexImportedCount = 0;
     let cortexMacroText = '';
@@ -284,9 +416,11 @@ async function buildState(options = {}, userId) {
 function escapeRegExp(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
-function replaceKnownColors(content, config) {
+function replaceKnownColors(content, config, kind) {
     let output = String(content || '');
     for (const binding of Object.values(config.bindings)) {
+        if (kind && binding.kind !== kind)
+            continue;
         const current = normalizeHex(binding.color);
         if (!current)
             continue;
@@ -435,7 +569,8 @@ async function recolorExisting(chatId, userId) {
             ? message.swipes
             : [message.content];
         const nextSwipes = originalSwipes.map((swipe) => {
-            let next = replaceKnownColors(swipe, config);
+            const bindingKind = (message.role === 'user' || message.is_user === true) ? 'persona' : 'character';
+            let next = replaceKnownColors(swipe, config, bindingKind);
             if (message.role === 'user' && personaBinding) {
                 next = applyPersonaColor(next, personaBinding.color, config.autoUserMode);
             }

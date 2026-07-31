@@ -7,7 +7,7 @@ A small Spindle extension for binding per-speaker dialogue colors in Lumiverse.
 - Adds a compact palette button to Lumiverse's chat toolbar using the stable `[class*="chatToolbar"]` class-fragment selector.
 - Also registers **Prism** in the input-bar Extras menu as a fallback.
 - Opens a native Lumiverse modal with **Character** and **Persona** tabs.
-- Lists character entities currently known to the active chat's Memory Cortex.
+- Builds the scene roster from every group-card member, camel-cased Cortex character entities, explicit card cast lists, and speaker labels already present in the transcript.
 - Lets you bind a hex color and aliases to each character.
 - Shows the currently active persona and can automatically color its sent dialogue.
 - Offers **DOM only** and **LLM sidecar** engines from the modal's settings cog.
@@ -41,6 +41,8 @@ Grant the requested permissions when prompted. The toolbar button and input-bar 
 
 - Character output is guided at prompt time rather than post-processed. That avoids guessing who spoke when one assistant message contains several speakers.
 - Existing untagged assistant prose is not heuristically recolored because speaker attribution would be unsafe. Existing known color tags are migrated when a binding changes.
+- Existing-tag migration is role-scoped: character color history can only rewrite assistant messages, while persona color history can only rewrite user messages.
+- Scenario, setting, and multi-character container cards are treated as cast sources instead of automatically being mistaken for speakers when a real cast can be identified.
 - Change the `github` and `homepage` fields in `spindle.json` if you publish under a different repository URL.
 
 ## Operator-scoped installs
