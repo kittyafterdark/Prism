@@ -4,6 +4,7 @@ declare const spindle: import("lumiverse-spindle-types").SpindleAPI;
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const DEFAULT_CONFIG = Object.freeze({
   version: 1,
+  engine: 'llm',
   autoUserMode: 'quoted',
   promptCharacterColors: true,
   bindings: {},
@@ -12,6 +13,7 @@ const DEFAULT_CONFIG = Object.freeze({
 function cloneDefaultConfig() {
   return {
     version: DEFAULT_CONFIG.version,
+    engine: DEFAULT_CONFIG.engine,
     autoUserMode: DEFAULT_CONFIG.autoUserMode,
     promptCharacterColors: DEFAULT_CONFIG.promptCharacterColors,
     bindings: {},
@@ -77,6 +79,7 @@ function safeConfig(raw) {
 
   return {
     version: 1,
+    engine: raw.engine === 'dom' ? 'dom' : 'llm',
     autoUserMode: mode,
     promptCharacterColors: raw.promptCharacterColors !== false,
     bindings,
@@ -372,6 +375,10 @@ async function saveBinding(payload, userId) {
   if (!targetId || !name || !color) throw new Error('A target, name, and valid hex color are required.');
 
   const config = await loadConfig(chat.id);
+  if (['dom', 'llm'].includes(payload.engine)) {
+    config.engine = payload.engine;
+    config.promptCharacterColors = payload.engine === 'llm';
+  }
   if (['off', 'quoted', 'whole'].includes(payload.autoUserMode)) {
     config.autoUserMode = payload.autoUserMode;
   }
@@ -436,6 +443,10 @@ async function updateOptions(payload, userId) {
   const chat = await spindle.chats.getActive(userId);
   if (!chat) throw new Error('Open a chat first.');
   const config = await loadConfig(chat.id);
+  if (['dom', 'llm'].includes(payload.engine)) {
+    config.engine = payload.engine;
+    config.promptCharacterColors = payload.engine === 'llm';
+  }
   if (['off', 'quoted', 'whole'].includes(payload.autoUserMode)) {
     config.autoUserMode = payload.autoUserMode;
   }
@@ -488,7 +499,7 @@ function registryInstruction(config) {
   const bindings = Object.values(config.bindings)
     .filter((binding) => normalizeHex(binding.color))
     .sort((a, b) => a.name.localeCompare(b.name));
-  if (!config.promptCharacterColors || bindings.length === 0) return '';
+  if (config.engine !== 'llm' || !config.promptCharacterColors || bindings.length === 0) return '';
 
   const rows = bindings.map((binding) => {
     const aliases = uniqueStrings(binding.aliases);
@@ -531,6 +542,7 @@ spindle.on('MESSAGE_SENT', async (payload, userId) => {
     if (message.metadata?.lumi_dialogue_colors_applied) return;
 
     const config = await loadConfig(chatId);
+    if (config.engine !== 'llm') return;
     if (config.autoUserMode === 'off') return;
     const persona = await spindle.personas.getActive(userId).catch(() => null);
     if (!persona) return;

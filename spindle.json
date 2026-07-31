@@ -1,5 +1,5 @@
 {
-  "version": "0.1.1",
+  "version": "0.2.0",
   "name": "Prism",
   "identifier": "lumi_dialogue_colors",
   "author": "kittyafterdark",
@@ -12,8 +12,7 @@
     "personas",
     "memories",
     "chat_mutation",
-    "interceptor",
-    "ui_panels"
+    "interceptor"
   ],
   "entry_backend": "dist/backend.js",
   "entry_frontend": "dist/frontend.js",

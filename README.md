@@ -4,13 +4,15 @@ A small Spindle extension for binding per-speaker dialogue colors in Lumiverse.
 
 ## What it does
 
-- Adds a draggable palette button near the top edge of the chat UI.
+- Adds a compact palette button to Lumiverse's chat toolbar using the stable `[class*="chatToolbar"]` class-fragment selector.
 - Also registers **Prism** in the input-bar Extras menu as a fallback.
 - Opens a native Lumiverse modal with **Character** and **Persona** tabs.
 - Lists character entities currently known to the active chat's Memory Cortex.
 - Lets you bind a hex color and aliases to each character.
 - Shows the currently active persona and can automatically color its sent dialogue.
-- Injects the active registry into normal generations so models emit the correct `<font color="#RRGGBB">...</font>` tags.
+- Offers **DOM only** and **LLM sidecar** engines from the modal's settings cog.
+- In DOM-only mode, colors rendered dialogue reversibly without changing saved messages or model context.
+- In LLM-sidecar mode, injects the active registry so models emit the correct `<font color="#RRGGBB">...</font>` tags.
 - Can rewrite matching colors and persona dialogue in existing messages, including swipe variants.
 
 ## Cortex integration
@@ -33,7 +35,7 @@ Lumiverse does not currently expose direct `memory_font_colors` CRUD through the
 
 This zip is repository-ready. Put the files in a Git repository and install it through Lumiverse's Spindle extension manager, or copy the unpacked folder into the extension location used by your local Lumiverse setup.
 
-Grant the requested permissions when prompted. If `ui_panels` is denied, the floating button will be unavailable, but the input-bar Extras action can still open the modal.
+Grant the requested permissions when prompted. The toolbar button and input-bar Extras fallback use the regular frontend DOM and modal surfaces; Prism no longer requests a floating-widget permission.
 
 ## Notes
 
