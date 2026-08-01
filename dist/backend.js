@@ -8,6 +8,8 @@ const DEFAULT_CONFIG = Object.freeze({
     promptCharacterColors: true,
     bindings: {},
     overrides: {},
+    manualCharacters: {},
+    hiddenCharacters: {},
 });
 const DEFAULT_PREFERENCES = Object.freeze({
     preferredEngine: 'dom',
@@ -24,6 +26,8 @@ function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
         promptCharacterColors: DEFAULT_CONFIG.promptCharacterColors,
         bindings: {},
         overrides: {},
+        manualCharacters: {},
+        hiddenCharacters: {},
     };
 }
 function safePreferences(raw) {
@@ -136,6 +140,23 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
             };
         }
     }
+    const manualCharacters = {};
+    if (raw.manualCharacters && typeof raw.manualCharacters === 'object') {
+        for (const [key, value] of Object.entries(raw.manualCharacters)) {
+            const name = cleanSceneName(value?.name);
+            if (!name)
+                continue;
+            const id = String(value?.id || key || `manual:${normalizeName(name)}`);
+            manualCharacters[id] = { id, name, aliases: uniqueStrings(value?.aliases), source: 'manual-roster' };
+        }
+    }
+    const hiddenCharacters = {};
+    if (raw.hiddenCharacters && typeof raw.hiddenCharacters === 'object') {
+        for (const [key, value] of Object.entries(raw.hiddenCharacters)) {
+            if (value === true && normalizeName(key))
+                hiddenCharacters[normalizeName(key)] = true;
+        }
+    }
     return {
         version: 2,
         engine: raw.engine === 'llm' ? 'llm' : 'dom',
@@ -143,6 +164,8 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
         promptCharacterColors: raw.promptCharacterColors !== false,
         bindings,
         overrides,
+        manualCharacters,
+        hiddenCharacters,
     };
 }
 async function loadGlobalState(userId) {
@@ -778,6 +801,19 @@ async function buildState(options = {}, userId) {
     const primaryCharacter = cardCharacters.find((character) => String(character.id) === String(chat.character_id)) || cardCharacters[0] || null;
     const scene = await getSceneCharacters(chat, cardCharacters, userId);
     let config = await loadConfig(chat.id, userId);
+    for (const manual of Object.values(config.manualCharacters || {})) {
+        mergeSceneCharacter(scene.characters, {
+            id: String(manual.id),
+            key: `character:${manual.id}`,
+            entityId: null,
+            characterId: null,
+            name: manual.name,
+            aliases: uniqueStrings(manual.aliases),
+            status: 'active',
+            source: 'manual-roster',
+        });
+    }
+    scene.characters = scene.characters.filter((character) => !config.hiddenCharacters?.[normalizeName(character.name)]);
     let globalState = await loadGlobalState(userId);
     let cortexImportedCount = 0;
     let transcriptImportedCount = 0;
@@ -951,6 +987,43 @@ async function saveBinding(payload, userId) {
     };
     await saveConfig(chat.id, config);
     await spindle.memories.cortex.invalidateCache(chat.id, userId).catch(() => { });
+    return buildState({ importCortex: false }, userId);
+}
+async function addSceneCharacter(payload, userId) {
+    const chat = await spindle.chats.getActive(userId);
+    if (!chat || (payload.chatId && String(payload.chatId) !== String(chat.id))) {
+        throw new Error('The active chat changed. Reopen Prism and try again.');
+    }
+    const name = cleanSceneName(payload.name);
+    if (!name)
+        throw new Error('Enter a short person name without markup.');
+    const aliases = uniqueStrings(payload.aliases)
+        .filter((alias) => normalizeName(alias) !== normalizeName(name));
+    const config = await loadConfig(chat.id, userId);
+    const existing = Object.values(config.manualCharacters || {})
+        .find((item) => normalizeName(item.name) === normalizeName(name));
+    const id = existing?.id || `manual:${hashString(normalizeName(name)).toString(36)}`;
+    config.manualCharacters[id] = { id, name, aliases, source: 'manual-roster' };
+    delete config.hiddenCharacters[normalizeName(name)];
+    await saveConfig(chat.id, config);
+    return buildState({ importCortex: false }, userId);
+}
+async function removeSceneCharacter(payload, userId) {
+    const chat = await spindle.chats.getActive(userId);
+    if (!chat || (payload.chatId && String(payload.chatId) !== String(chat.id))) {
+        throw new Error('The active chat changed. Reopen Prism and try again.');
+    }
+    const name = cleanSceneName(payload.name);
+    if (!name)
+        throw new Error('Prism could not identify that roster entry.');
+    const config = await loadConfig(chat.id, userId);
+    for (const [key, item] of Object.entries(config.manualCharacters || {})) {
+        if (String(item.id) === String(payload.characterId) || normalizeName(item.name) === normalizeName(name)) {
+            delete config.manualCharacters[key];
+        }
+    }
+    config.hiddenCharacters[normalizeName(name)] = true;
+    await saveConfig(chat.id, config);
     return buildState({ importCortex: false }, userId);
 }
 async function updateOptions(payload, userId) {
@@ -1197,6 +1270,18 @@ spindle.onFrontendMessage(async (payload, userId) => {
                 const state = await saveBinding(payload, userId);
                 reply('ldc_state', { state, saved: true });
                 spindle.toast.success('Dialogue color bound.', { userId });
+                break;
+            }
+            case 'ldc_add_character': {
+                const state = await addSceneCharacter(payload, userId);
+                reply('ldc_state', { state, saved: true });
+                spindle.toast.success(`${cleanSceneName(payload.name)} added to this scene.`, { userId });
+                break;
+            }
+            case 'ldc_remove_character': {
+                const state = await removeSceneCharacter(payload, userId);
+                reply('ldc_state', { state, saved: true });
+                spindle.toast.success(`${cleanSceneName(payload.name)} removed from this scene.`, { userId });
                 break;
             }
             case 'ldc_update_options': {

@@ -7,8 +7,10 @@ Prism gives Lumiverse scenes deterministic dialogue colors without requiring rol
 - **Set up scene** imports Cortex, preset, and transcript colors, then fills only missing character/persona colors.
 - **Local / LLM** is visible in the modal top bar and remembered across chats.
 - **Balanced attribution** uses labels, speech verbs, action beats, continuity, and bubble authors without silently blaming the primary character.
+- Paragraph-aware dialogue turns recognize expanded reporting verbs, preserve prose continuations, and alternate quote-only replies only after two speakers are established.
 - Low-confidence dialogue is marked with a dotted underline.
 - Right-click, long-press, or focus a colored quote and press Enter to teach Prism its speaker.
+- Add missing people or remove noisy discovered entries directly from the scene roster; manual aliases can map generic bubble labels such as `narrator` to the right person.
 - Manual corrections remain chat-local and expire when the source message content changes.
 - Character/persona colors are reused globally; generated colors remain regenerable.
 
@@ -20,9 +22,9 @@ A small Spindle extension for binding per-speaker dialogue colors in Lumiverse.
 - Also registers **Prism** in the input-bar Extras menu as a fallback.
 - Opens a native Lumiverse modal with **Character** and **Persona** tabs.
 - Builds the scene roster from every group-card member, camel-cased Cortex character entities, explicit card cast lists, and speaker labels already present in the transcript.
-- Lets you bind a hex color and aliases to each character.
+- Lets you bind a hex color and aliases to each character, and manually curate the per-chat roster.
 - Shows the currently active persona and can automatically color its sent dialogue.
-- Offers **DOM only** and **LLM sidecar** engines from the modal's settings cog.
+- Keeps the **Local / LLM** engine switch visible in the modal header; the cog contains attribution behavior only.
 - In DOM-only mode, colors rendered dialogue reversibly without changing saved messages or model context.
 - In LLM-sidecar mode, injects the active registry so models emit the correct `<font color="#RRGGBB">...</font>` tags.
 - Imports attributable colors from existing `<font color>`, inline `style="color:…"`, and `[color=…]` dialogue, including preset-produced transcripts.
