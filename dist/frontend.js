@@ -11,8 +11,12 @@ const CSS = `
 .ldc-settings{padding:18px 20px;min-height:320px}.ldc-settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ldc-card{padding:12px;border:1px solid var(--lumiverse-border);border-radius:12px;background:var(--lumiverse-fill-subtle)}.ldc-card h4{margin:0 0 5px}.ldc-card p{color:var(--lumiverse-text-dim);font-size:9.5px;line-height:1.45}.ldc-status{display:flex;justify-content:space-between;padding:10px 11px;color:var(--lumiverse-text-dim);font-size:9px}.ldc-loading{display:grid;place-items:center;min-height:380px}.ldc-error{margin:16px;padding:16px;border:1px solid var(--lumiverse-danger);border-radius:12px;color:var(--lumiverse-danger)}
 .ldc-dom-dialogue,.ldc-inline-color{color:var(--ldc-color)!important}.ldc-dom-dialogue{cursor:context-menu}.ldc-dom-dialogue[data-prism-confidence-level=low]{text-decoration-line:underline;text-decoration-style:dotted;text-decoration-color:color-mix(in srgb,currentColor 55%,transparent);text-underline-offset:.18em}.ldc-dom-whole,.ldc-dom-whole *:not(a):not(button){color:var(--ldc-color)!important}@media(max-width:620px){.ldc-main{grid-template-columns:minmax(132px,155px) minmax(0,1fr)}.ldc-panel{padding:15px 12px}.ldc-side{padding:10px 7px}.ldc-person{padding:7px 6px}.ldc-person-source,.ldc-engine-copy{display:none}.ldc-settings-grid{grid-template-columns:1fr}}
 .ldc-tab{border-radius:0;border-bottom:2px solid transparent}.ldc-tab[data-active=true]{border-bottom-color:var(--lumiverse-primary);background:transparent}.ldc-heading h3{font-size:14px}
-.ldc-channel-tabs,.ldc-mode-tabs{display:flex;gap:5px;margin-bottom:12px}.ldc-channel-tabs button,.ldc-mode-tabs button{flex:1;border:1px solid var(--lumiverse-border);border-radius:9px;padding:7px;background:var(--lumiverse-fill-subtle);color:var(--lumiverse-text-muted);font-size:9px;font-weight:800;cursor:pointer}.ldc-channel-tabs button[data-active=true],.ldc-mode-tabs button[data-active=true]{border-color:var(--lumiverse-primary);background:var(--psoft);color:var(--lumiverse-primary)}.ldc-paint-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.ldc-advanced{margin-top:10px;padding-top:10px;border-top:1px solid var(--lumiverse-border)}.ldc-preview-line{display:block;margin-top:5px}.ldc-prism-paint{color:var(--ldc-color,var(--ldc-fallback))!important}.ldc-dom-dialogue,.ldc-dom-thought{cursor:context-menu}.ldc-dom-thought{font-style:italic}@supports ((background-clip:text) or (-webkit-background-clip:text)){.ldc-prism-paint[data-prism-paint=gradient]{background-image:var(--ldc-gradient);background-repeat:no-repeat;background-clip:text;-webkit-background-clip:text;color:transparent!important;-webkit-text-fill-color:transparent}.ldc-dom-whole.ldc-prism-paint[data-prism-paint=gradient] *{background-image:var(--ldc-gradient);background-clip:text;-webkit-background-clip:text;color:transparent!important;-webkit-text-fill-color:transparent}.ldc-prism-paint[data-prism-paint=gradient]::selection{color:HighlightText!important;-webkit-text-fill-color:HighlightText;background:Highlight}}
-.ldc-panel{max-height:470px;overflow:auto}
+.ldc-channel-tabs,.ldc-mode-tabs{display:flex;gap:5px;margin-bottom:12px}.ldc-channel-tabs button,.ldc-mode-tabs button{flex:1;border:1px solid var(--lumiverse-border);border-radius:9px;padding:7px;background:var(--lumiverse-fill-subtle);color:var(--lumiverse-text-muted);font-size:9px;font-weight:800;cursor:pointer}.ldc-channel-tabs button[data-active=true],.ldc-mode-tabs button[data-active=true]{border-color:var(--lumiverse-primary);background:var(--psoft);color:var(--lumiverse-primary)}.ldc-paint-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.ldc-advanced{margin-top:10px;padding-top:10px;border-top:1px solid var(--lumiverse-border)}.ldc-preview-line{display:block;margin-top:5px}.ldc-prism-paint{color:var(--ldc-color,var(--ldc-fallback))!important}.ldc-dom-dialogue,.ldc-dom-thought{cursor:context-menu}.ldc-dom-thought{font-style:italic}.ldc-prism-unpainted{color:inherit!important;background-image:none!important;-webkit-text-fill-color:currentColor!important;text-decoration-line:underline;text-decoration-style:dotted;text-decoration-color:transparent;text-underline-offset:.18em}.ldc-prism-unpainted[data-prism-confidence-level=low]{text-decoration-color:color-mix(in srgb,currentColor 22%,transparent)}.ldc-prism-unpainted:hover,.ldc-prism-unpainted:focus-visible,.ldc-prism-reviewing{border-radius:.25em;background:color-mix(in srgb,var(--lumiverse-primary) 10%,transparent);text-decoration-color:color-mix(in srgb,var(--lumiverse-primary) 65%,transparent);outline:none}@supports ((background-clip:text) or (-webkit-background-clip:text)){.ldc-prism-paint[data-prism-paint=gradient]{background-image:var(--ldc-gradient)!important;background-position:center!important;background-repeat:no-repeat!important;background-size:100% 100%!important;background-color:transparent!important;background-clip:text!important;-webkit-background-clip:text!important;color:transparent!important;-webkit-text-fill-color:transparent!important}.ldc-dom-whole.ldc-prism-paint[data-prism-paint=gradient] *{background-image:var(--ldc-gradient)!important;background-clip:text!important;-webkit-background-clip:text!important;color:transparent!important;-webkit-text-fill-color:transparent!important}.ldc-prism-paint[data-prism-paint=gradient]::selection{color:HighlightText!important;-webkit-text-fill-color:HighlightText;background:Highlight}}
+.ldc-shell{--prism-line:color-mix(in srgb,var(--lumiverse-primary) 24%,var(--lumiverse-border));position:relative;min-height:500px;border:1px solid var(--prism-line);border-radius:16px;background:radial-gradient(circle at 72% -20%,color-mix(in srgb,#6ee7ff 8%,transparent),transparent 38%),radial-gradient(circle at 15% 110%,color-mix(in srgb,var(--lumiverse-primary) 10%,transparent),transparent 42%),var(--lumiverse-bg-elevated);box-shadow:0 24px 70px rgba(0,0,0,.42),inset 0 1px rgba(255,255,255,.045)}.ldc-shell::before{content:"";position:absolute;z-index:8;inset:0 0 auto;height:2px;pointer-events:none;background:linear-gradient(90deg,transparent,#c37cff,#64d9ff,#8cffbd,transparent);opacity:.72}.ldc-main-wrap{position:relative;display:flex;flex:1;min-height:0}.ldc-main{width:100%;margin-top:10px}.ldc-panel{position:relative;min-height:0;max-height:470px;padding:0;overflow:auto;background:color-mix(in srgb,var(--lumiverse-bg-elevated) 88%,transparent)}
+.ldc-editor-head{position:sticky;top:0;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--lumiverse-border);background:color-mix(in srgb,var(--lumiverse-bg-elevated) 88%,transparent);backdrop-filter:blur(18px)}.ldc-editor-head h3{margin:0;font-size:14px}.ldc-preview{margin:15px 18px;padding:15px;border:1px solid var(--prism-line);border-radius:14px;background:linear-gradient(145deg,color-mix(in srgb,var(--lumiverse-primary) 9%,transparent),transparent 62%);font-size:11px;line-height:1.65}.ldc-preview-line{display:block;margin-top:3px}.ldc-preview [data-prism-paint]{color:var(--ldc-color,var(--ldc-fallback))!important}.ldc-editor-controls{padding:0 18px 18px}.ldc-editor-switch{display:flex;align-items:center;justify-content:space-between;gap:14px}.ldc-channel-tabs{display:flex;gap:5px;margin:0}.ldc-channel-tabs button{min-width:78px}.ldc-mode-select{display:flex;align-items:center;gap:8px;color:var(--lumiverse-text-dim);font-size:9px;font-weight:800}.ldc-mode-select .ldc-select{width:92px;height:31px}.ldc-enable{display:flex;align-items:center;gap:7px;margin:12px 0 9px;color:var(--lumiverse-text-muted);font-size:10px}.ldc-gradient-editor{display:grid;grid-template-columns:auto minmax(100px,1fr) auto;align-items:center;gap:10px;padding:13px;border:1px solid var(--lumiverse-border);border-radius:13px;background:var(--lumiverse-fill-subtle)}.ldc-stop{position:relative;display:block;width:31px;height:31px;cursor:pointer}.ldc-stop input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}.ldc-stop span{display:block;width:31px;height:31px;border:2px solid color-mix(in srgb,#fff 35%,var(--lumiverse-border));border-radius:10px;background:var(--stop);box-shadow:0 5px 14px color-mix(in srgb,var(--stop) 28%,transparent)}.ldc-gradient-rail{height:11px;border-radius:999px;background:var(--editor-gradient);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),0 0 18px color-mix(in srgb,var(--lumiverse-primary) 15%,transparent)}.ldc-hex-row{display:grid;grid-template-columns:1fr;gap:10px;margin-top:8px}.ldc-hex-row[data-gradient=true]{grid-template-columns:1fr 1fr}.ldc-hex-row .ldc-input{height:34px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.ldc-direction{display:flex;align-items:end;justify-content:space-between;gap:10px;margin-top:9px}.ldc-direction label{display:flex;align-items:center;gap:8px;color:var(--lumiverse-text-dim);font-size:9px;font-weight:800}.ldc-direction .ldc-input{width:76px;height:34px}.ldc-details{margin-top:14px;border-top:1px solid var(--lumiverse-border)}.ldc-details summary{padding:13px 0;color:var(--lumiverse-text-muted);font-size:9px;font-weight:800;letter-spacing:.04em;cursor:pointer}.ldc-details[open] summary{color:var(--lumiverse-text)}.ldc-savebar{position:sticky;bottom:0;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 18px;border-top:1px solid var(--lumiverse-border);background:color-mix(in srgb,var(--lumiverse-bg-elevated) 91%,transparent);backdrop-filter:blur(18px);color:var(--lumiverse-text-dim);font-size:9px}.ldc-savebar [data-save-status=error]{color:var(--lumiverse-danger)}.ldc-review{border:1px solid color-mix(in srgb,var(--lumiverse-primary) 40%,var(--lumiverse-border));border-radius:999px;padding:5px 8px;background:var(--psoft);color:var(--lumiverse-primary);font-size:8.5px;font-weight:800;cursor:pointer}
+.ldc-settings{position:absolute;z-index:7;top:0;right:0;bottom:0;width:min(520px,86%);min-height:0;padding:18px 20px;overflow:auto;border-left:1px solid var(--prism-line);background:color-mix(in srgb,var(--lumiverse-bg-elevated) 96%,transparent);box-shadow:-24px 0 60px rgba(0,0,0,.38);backdrop-filter:blur(22px)}
+@supports ((background-clip:text) or (-webkit-background-clip:text)){.ldc-preview [data-prism-paint=gradient]{background-image:var(--ldc-gradient)!important;background-position:center!important;background-repeat:no-repeat!important;background-size:100% 100%!important;background-clip:text!important;-webkit-background-clip:text!important;color:transparent!important;-webkit-text-fill-color:transparent!important}}
+@media(max-width:620px){.ldc-shell{min-height:460px}.ldc-main{grid-template-columns:minmax(126px,145px) minmax(0,1fr)}.ldc-editor-head,.ldc-savebar{padding-left:12px;padding-right:12px}.ldc-editor-controls,.ldc-preview{margin-left:12px;margin-right:12px}.ldc-editor-controls{padding-left:0;padding-right:0}.ldc-editor-switch{align-items:stretch;flex-direction:column}.ldc-channel-tabs button{min-width:0}.ldc-mode-select{justify-content:space-between}.ldc-settings{width:94%}.ldc-review{max-width:102px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
 `;
 const VERBS = [
     'say', 'said', 'says', 'ask', 'asked', 'asks', 'reply', 'replied', 'replies', 'answer', 'answered', 'answers',
@@ -22,12 +26,14 @@ const VERBS = [
     'retort', 'retorted', 'retorts', 'protest', 'protested', 'protests', 'insist', 'insisted', 'insists', 'warn', 'warned', 'warns', 'demand', 'demanded', 'demands', 'urge', 'urged', 'urges', 'correct', 'corrected', 'corrects', 'admit', 'admitted', 'admits', 'concede', 'conceded', 'concedes', 'agree', 'agreed', 'agrees', 'object', 'objected', 'objects', 'promise', 'promised', 'promises',
     'laugh', 'laughed', 'laughs', 'sigh', 'sighed', 'sighs', 'scoff', 'scoffed', 'scoffs', 'groan', 'groaned', 'groans', 'repeat', 'repeated', 'repeats', 'echo', 'echoed', 'echoes'
 ];
+const SUPPORTS_GRADIENT_TEXT = typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && (CSS.supports('background-clip: text') || CSS.supports('-webkit-background-clip: text'));
 const uid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 function normalizeHex(value) { const raw = String(value || '').trim(), short = raw.match(/^#?([0-9a-f]{3})$/i); if (short)
     return `#${short[1].split('').map(c => c + c).join('').toUpperCase()}`; const full = raw.match(/^#?([0-9a-f]{6})$/i); return full ? `#${full[1].toUpperCase()}` : null; }
 function safePaint(raw, fallback = '#B58CFF') { const anchor = normalizeHex(raw?.anchor) || normalizeHex(fallback) || '#B58CFF', stops = [...new Set((raw?.stops || []).map(normalizeHex).filter(Boolean))].slice(0, 4); return raw?.mode === 'gradient' && stops.length >= 2 ? { mode: 'gradient', stops, angle: Math.max(0, Math.min(360, Number(raw.angle) || 90)), anchor } : { mode: 'solid', stops: [stops[0] || anchor], angle: 90, anchor }; }
 function safeChannels(binding) { const color = normalizeHex(binding?.color) || '#B58CFF', raw = binding?.channels; return { dialogue: { enabled: raw?.dialogue?.enabled !== false, paint: safePaint(raw?.dialogue?.paint, color) }, thought: { enabled: raw?.thought?.enabled === true, paint: safePaint(raw?.thought?.paint, color) } }; }
-function paintAttrs(paint) { const p = safePaint(paint), gradient = p.mode === 'gradient' ? `--ldc-gradient:linear-gradient(${p.angle}deg,${p.stops.join(',')});` : ''; return `class="ldc-prism-paint" data-prism-paint="${p.mode}" style="--ldc-fallback:${p.anchor};--ldc-color:${p.stops[0]};${gradient}"`; }
+function paintAttrs(paint, extraClass = '') { const p = safePaint(paint), gradient = p.mode === 'gradient' ? `--ldc-gradient:linear-gradient(${p.angle}deg,${p.stops.join(',')});` : ''; return `class="ldc-prism-paint ${extraClass}" data-prism-paint="${p.mode}" style="--ldc-fallback:${p.anchor};--ldc-color:${p.stops[0]};color:${p.stops[0]}!important;${gradient}"`; }
+function harmonicColor(value) { const hex = normalizeHex(value) || '#B58CFF', r = parseInt(hex.slice(1, 3), 16) / 255, g = parseInt(hex.slice(3, 5), 16) / 255, b = parseInt(hex.slice(5, 7), 16) / 255, max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min, l = (max + min) / 2, s = d ? d / (1 - Math.abs(2 * l - 1)) : 0, h = d ? (max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60 : 0, hue = (h + 42 + 360) % 360, light = Math.min(.82, l + .07), chroma = (1 - Math.abs(2 * light - 1)) * Math.max(.48, s), x = chroma * (1 - Math.abs((hue / 60) % 2 - 1)), m = light - chroma / 2, [rr, gg, bb] = hue < 60 ? [chroma, x, 0] : hue < 120 ? [x, chroma, 0] : hue < 180 ? [0, chroma, x] : hue < 240 ? [0, x, chroma] : hue < 300 ? [x, 0, chroma] : [chroma, 0, x]; return `#${[rr, gg, bb].map(n => Math.round((n + m) * 255).toString(16).padStart(2, '0')).join('').toUpperCase()}`; }
 function esc(value) { return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
 function reEsc(value) { return String(value).replace(/[.*+?^$()|[\]{}\\]/g, '\\$&'); }
 function hashText(value) { let hash = 2166136261; for (const char of String(value || '')) {
@@ -39,7 +45,7 @@ function sourceLabel(s) { return ({ cortex: 'Cortex · imported', transcript: 'T
 function evidenceLabel(s) { return ({ manual: 'manual correction', 'existing-color': 'existing color tag', 'speaker-label': 'speaker label', 'reporting-verb': 'reporting verb', 'action-beat': 'action beat', 'paragraph-continuity': 'same-paragraph continuity', 'previous-line': 'previous-line action', alternation: 'two-speaker alternation', 'bubble-author': 'bubble author', fallback: 'aggressive fallback', unresolved: 'no reliable evidence' })[s] || s; }
 export function setup(ctx) {
     const removeStyle = ctx.dom.addStyle(CSS), pending = new Map(), signatures = new Map(), dirty = new Set();
-    let modal = null, addModal = null, state = null, activeTab = 'character', activeChannel = 'dialogue', selectedId = null, sideScroll = 0, settingsOpen = false, busy = false, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, applying = false, revision = 0;
+    let modal = null, addModal = null, state = null, activeTab = 'character', activeChannel = 'dialogue', selectedId = null, sideScroll = 0, settingsOpen = false, busy = false, saveStatus = 'saved', reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, applying = false, revision = 0;
     const request = (type, data = {}) => new Promise((resolve, reject) => { const requestId = uid(), timer = setTimeout(() => { pending.delete(requestId); reject(new Error('The extension backend did not answer.')); }, 12000); pending.set(requestId, { resolve, reject, timer }); ctx.sendToBackend({ type, requestId, ...data }); });
     const unsubBackend = ctx.onBackendMessage(payload => { const task = pending.get(payload?.requestId); if (!task)
         return; clearTimeout(task.timer); pending.delete(payload.requestId); payload.type === 'ldc_error' ? task.reject(new Error(payload.error || 'Unknown error')) : task.resolve(payload); });
@@ -47,11 +53,17 @@ export function setup(ctx) {
     function current() { return state?.characters?.find(c => String(c.id) === String(selectedId)) || state?.characters?.[0] || null; }
     function missingCount() { return (state?.characters || []).filter(c => !normalizeHex(c.binding?.color)).length + (state?.persona && !normalizeHex(state.persona.binding?.color) ? 1 : 0); }
     function setBusy(value) { busy = value; modal?.root.querySelectorAll('button,input,select').forEach(el => { el.disabled = value; }); }
+    function setSaveStatus(value) { saveStatus = value; const node = modal?.root.querySelector('[data-save-status]'); if (node) {
+        node.dataset.saveStatus = value;
+        node.textContent = value === 'saving' ? 'Saving changes…' : value === 'pending' ? 'Changes waiting…' : value === 'error' ? 'Could not save changes' : 'Changes saved automatically';
+    } }
     async function perform(task) { if (busy)
         return; setBusy(true); try {
         await task();
     }
     catch (error) {
+        if (saveStatus === 'saving' || saveStatus === 'pending')
+            setSaveStatus('error');
         await ctx.ui.showConfirm({ title: 'Prism', message: error?.message || String(error), confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'warning' });
     }
     finally {
@@ -64,15 +76,17 @@ export function setup(ctx) {
     function charPanel(c) {
         if (!c)
             return '<div class="ldc-empty">No character is registered in this scene yet.</div>';
-        const b = c.binding || {}, color = normalizeHex(b.color) || '#B58CFF', aliases = (b.aliases?.length ? b.aliases : c.aliases || []).join(', '), channels = safeChannels(b), channel = channels[activeChannel], paint = channel.paint, stop2 = paint.stops[1] || color;
-        return `<div class="ldc-heading"><div class="ldc-profile"><span class="ldc-profile-avatar">${esc(initials(c.name))}</span><div><h3>${esc(c.name)}</h3><div class="ldc-sub">${esc(c.status || 'active')} · ${(b.aliases || c.aliases || []).length} aliases</div></div></div><span class="ldc-chip">${esc(sourceLabel(b.source || c.source))}</span></div><div class="ldc-preview">Dialogue <span class="ldc-preview-line" ${paintAttrs(channels.dialogue.paint)}>“Prism keeps this local and reversible.”</span><span class="ldc-preview-line" ${paintAttrs(channels.thought.paint)}><i>This was, categorically, not safe.</i></span></div><div class="ldc-channel-tabs"><button data-channel="dialogue" data-active="${activeChannel === 'dialogue'}">Dialogue</button><button data-channel="thought" data-active="${activeChannel === 'thought'}">Thoughts</button></div><label class="ldc-field"><input type="checkbox" data-role="channel-enabled" ${channel.enabled ? 'checked' : ''}> Enable ${activeChannel} paint</label><div class="ldc-mode-tabs"><button data-paint-mode="solid" data-active="${paint.mode === 'solid'}">Solid</button><button data-paint-mode="gradient" data-active="${paint.mode === 'gradient'}">Gradient</button></div><div class="ldc-paint-grid"><label class="ldc-field"><span class="ldc-label">First stop</span><span class="ldc-color-row"><input class="ldc-picker" data-role="picker" type="color" value="${paint.stops[0]}"><input class="ldc-input" data-role="hex" value="${paint.stops[0]}" maxlength="7"></span></label><label class="ldc-field"><span class="ldc-label">Second stop</span><span class="ldc-color-row"><input class="ldc-picker" data-role="picker-2" type="color" value="${stop2}"><input class="ldc-input" data-role="hex-2" value="${stop2}" maxlength="7"></span></label></div><label class="ldc-field"><span class="ldc-label">Direction <span class="ldc-hint">0–360°</span></span><input class="ldc-input" data-role="angle" type="number" min="0" max="360" value="${paint.angle}"></label><label class="ldc-field ldc-advanced"><span class="ldc-label">Canonical registry color <span class="ldc-hint">Cortex, imports, and fallback</span></span><input class="ldc-input" data-role="canonical" value="${color}" maxlength="7"></label><label class="ldc-field"><span class="ldc-label">Aliases <span class="ldc-hint">Used for local attribution</span></span><input class="ldc-input" data-role="aliases" value="${esc(aliases)}" placeholder="Hugo, Mr. Vlad, the Mockingbird"></label><div class="ldc-actions"><span class="ldc-autosave">Saved markup still uses the canonical color</span><div class="ldc-panel-buttons"><button class="ldc-btn" data-action="remove-character">Remove</button><button class="ldc-btn ldc-primary" data-action="save-character">Save style</button></div></div>`;
+        return editorPanel(c, false);
     }
     function personaPanel() {
         const p = state?.persona;
         if (!p)
             return '<div class="ldc-empty">No active persona is selected.</div>';
-        const b = p.binding || {}, color = normalizeHex(b.color) || '#7DB7FF', channels = safeChannels(b), channel = channels[activeChannel], paint = channel.paint, stop2 = paint.stops[1] || color;
-        return `<div class="ldc-heading"><div class="ldc-profile"><span class="ldc-profile-avatar">${esc(initials(p.name))}</span><div><h3>${esc(p.name)}</h3><div class="ldc-sub">${esc(p.title || (p.isNarrator ? 'Narrator persona' : 'Active persona'))}</div></div></div><span class="ldc-chip">${esc(sourceLabel(b.source || 'active'))}</span></div><div class="ldc-preview">Dialogue <span class="ldc-preview-line" ${paintAttrs(channels.dialogue.paint)}>“My quoted dialogue gets its own color.”</span><span class="ldc-preview-line" ${paintAttrs(channels.thought.paint)}><i>I absolutely knew what I was doing.</i></span></div><div class="ldc-channel-tabs"><button data-channel="dialogue" data-active="${activeChannel === 'dialogue'}">Dialogue</button><button data-channel="thought" data-active="${activeChannel === 'thought'}">Thoughts</button></div><label class="ldc-field"><input type="checkbox" data-role="channel-enabled" ${channel.enabled ? 'checked' : ''}> Enable ${activeChannel} paint</label><div class="ldc-mode-tabs"><button data-paint-mode="solid" data-active="${paint.mode === 'solid'}">Solid</button><button data-paint-mode="gradient" data-active="${paint.mode === 'gradient'}">Gradient</button></div><div class="ldc-paint-grid"><label class="ldc-field"><span class="ldc-label">First stop</span><span class="ldc-color-row"><input class="ldc-picker" data-role="picker" type="color" value="${paint.stops[0]}"><input class="ldc-input" data-role="hex" value="${paint.stops[0]}" maxlength="7"></span></label><label class="ldc-field"><span class="ldc-label">Second stop</span><span class="ldc-color-row"><input class="ldc-picker" data-role="picker-2" type="color" value="${stop2}"><input class="ldc-input" data-role="hex-2" value="${stop2}" maxlength="7"></span></label></div><label class="ldc-field"><span class="ldc-label">Direction</span><input class="ldc-input" data-role="angle" type="number" min="0" max="360" value="${paint.angle}"></label><label class="ldc-field ldc-advanced"><span class="ldc-label">Canonical registry color</span><input class="ldc-input" data-role="canonical" value="${color}" maxlength="7"></label><label class="ldc-field"><span class="ldc-label">Persona dialogue</span><select class="ldc-select" data-role="auto-mode"><option value="off" ${state.config.autoUserMode === 'off' ? 'selected' : ''}>Off</option><option value="quoted" ${state.config.autoUserMode === 'quoted' ? 'selected' : ''}>Quoted dialogue only</option><option value="whole" ${state.config.autoUserMode === 'whole' ? 'selected' : ''}>Whole message</option></select></label><div class="ldc-actions"><span class="ldc-autosave">Active persona only</span><button class="ldc-btn ldc-primary" data-action="save-persona">Save style</button></div>`;
+        return editorPanel(p, true);
+    }
+    function editorPanel(target, isPersona) {
+        const b = target.binding || {}, color = normalizeHex(b.color) || (isPersona ? '#7DB7FF' : '#B58CFF'), aliases = (b.aliases?.length ? b.aliases : target.aliases || []).join(', '), channels = safeChannels(b), channel = channels[activeChannel], paint = channel.paint, gradient = paint.mode === 'gradient', stop1 = paint.stops[0], stop2 = paint.stops[1] || harmonicColor(stop1), rail = gradient ? `linear-gradient(${paint.angle}deg,${stop1},${stop2})` : stop1, subtitle = isPersona ? (target.title || (target.isNarrator ? 'Narrator persona' : 'Active persona')) : `${target.status || 'active'} · ${(b.aliases || target.aliases || []).length} aliases`;
+        return `<div class="ldc-editor-head"><div class="ldc-profile"><span class="ldc-profile-avatar">${esc(initials(target.name))}</span><div><h3>${esc(target.name)}</h3><div class="ldc-sub">${esc(subtitle)}</div></div></div><span class="ldc-chip">${esc(sourceLabel(b.source || (isPersona ? 'active' : target.source)))}</span></div><div class="ldc-preview"><span ${paintAttrs(channels.dialogue.paint)}>“Prism keeps this local and reversible.”</span><span class="ldc-preview-line" ${paintAttrs(channels.thought.paint)}><i>This was, categorically, not safe.</i></span></div><div class="ldc-editor-controls"><div class="ldc-editor-switch"><div class="ldc-channel-tabs"><button data-channel="dialogue" data-active="${activeChannel === 'dialogue'}">Dialogue</button><button data-channel="thought" data-active="${activeChannel === 'thought'}">Thoughts</button></div><label class="ldc-mode-select"><span>Paint</span><select class="ldc-select" data-role="paint-mode"><option value="solid" ${!gradient ? 'selected' : ''}>Solid</option><option value="gradient" ${gradient ? 'selected' : ''}>Gradient</option></select></label></div><label class="ldc-enable"><input type="checkbox" data-role="channel-enabled" ${channel.enabled ? 'checked' : ''}> Enable ${activeChannel} paint</label><div class="ldc-gradient-editor" style="--editor-gradient:${rail}"><label class="ldc-stop" title="First color"><input data-role="picker" type="color" value="${stop1}"><span style="--stop:${stop1}"></span></label><div class="ldc-gradient-rail"></div>${gradient ? `<label class="ldc-stop" title="Second color"><input data-role="picker-2" type="color" value="${stop2}"><span style="--stop:${stop2}"></span></label>` : ''}</div><div class="ldc-hex-row" data-gradient="${gradient}"><input class="ldc-input" data-role="hex" value="${stop1}" maxlength="7">${gradient ? `<input class="ldc-input" data-role="hex-2" value="${stop2}" maxlength="7">` : ''}</div>${gradient ? `<div class="ldc-direction"><label><span>Direction</span><input class="ldc-input" data-role="angle" type="number" min="0" max="360" value="${paint.angle}"></label><button class="ldc-btn" data-action="swap-colors">Swap colors</button></div>` : ''}<details class="ldc-details"><summary>Identity and attribution</summary><label class="ldc-field"><span class="ldc-label">Canonical registry color <span class="ldc-hint">Cortex and portable markup</span></span><input class="ldc-input" data-role="canonical" value="${color}" maxlength="7"></label>${isPersona ? `<label class="ldc-field"><span class="ldc-label">Persona dialogue</span><select class="ldc-select" data-role="auto-mode"><option value="off" ${state.config.autoUserMode === 'off' ? 'selected' : ''}>Off</option><option value="quoted" ${state.config.autoUserMode === 'quoted' ? 'selected' : ''}>Quoted dialogue only</option><option value="whole" ${state.config.autoUserMode === 'whole' ? 'selected' : ''}>Whole message</option></select></label>` : `<label class="ldc-field"><span class="ldc-label">Aliases <span class="ldc-hint">Comma-separated</span></span><input class="ldc-input" data-role="aliases" value="${esc(aliases)}" placeholder="Hugo, Mr. Vlad, narrator"></label>`}</details></div><div class="ldc-savebar"><span data-save-status="${saveStatus}">${saveStatus === 'saving' ? 'Saving changes…' : saveStatus === 'pending' ? 'Changes waiting…' : saveStatus === 'error' ? 'Could not save changes' : 'Changes saved automatically'}</span>${isPersona ? '' : `<button class="ldc-btn" data-action="remove-character">Remove from scene</button>`}</div>`;
     }
     function settingsPanel() { const p = state?.preferences || {}; return `<section class="ldc-settings"><div class="ldc-heading"><div><h3>Local paint and attribution</h3><div class="ldc-sub">Existing formatting remains authoritative; Prism only fills missing regions.</div></div></div><div class="ldc-settings-grid"><div class="ldc-card"><h4>Attribution mode</h4><p>Balanced uses labels, speech tags, action beats, continuity, legacy colors, and bubble authors.</p><select class="ldc-select" data-role="mode"><option value="strict" ${p.domAttributionMode === 'strict' ? 'selected' : ''}>Strict</option><option value="balanced" ${p.domAttributionMode === 'balanced' ? 'selected' : ''}>Balanced</option><option value="aggressive" ${p.domAttributionMode === 'aggressive' ? 'selected' : ''}>Aggressive</option></select><label><input type="checkbox" data-role="uncertain" ${p.markUncertain !== false ? 'checked' : ''}> Mark uncertain dialogue</label></div><div class="ldc-card"><h4>Existing formatting</h4><p>Tags are never rewritten here. Matched colors can teach turns and receive reversible local paint.</p><select class="ldc-select" data-role="legacy-policy"><option value="preserve" ${p.existingStylePolicy === 'preserve' ? 'selected' : ''}>Preserve exactly</option><option value="enhance" ${p.existingStylePolicy === 'enhance' ? 'selected' : ''}>Enhance matched tags</option><option value="replace" ${p.existingStylePolicy === 'replace' ? 'selected' : ''}>Replace visually</option></select><label><input type="checkbox" data-role="legacy-evidence" ${p.useExistingAsEvidence !== false ? 'checked' : ''}> Use matched tags as speaker evidence</label></div><div class="ldc-card"><h4>Thought detection</h4><p>Opt-in because roleplay italics and single quotes are gloriously ambiguous.</p><select class="ldc-select" data-role="thought-detection"><option value="off" ${p.thoughtDetection === 'off' ? 'selected' : ''}>Off</option><option value="italics" ${p.thoughtDetection === 'italics' ? 'selected' : ''}>Italics</option><option value="single-quotes" ${p.thoughtDetection === 'single-quotes' ? 'selected' : ''}>Single quotes</option><option value="italics-and-single-quotes" ${p.thoughtDetection === 'italics-and-single-quotes' ? 'selected' : ''}>Italics + single quotes</option></select><label><input type="checkbox" data-role="prompt-thoughts" ${state.config.promptThoughtColors === true ? 'checked' : ''}> Ask LLM sidecar to mark thoughts</label></div><div class="ldc-card"><h4>Destructive migration</h4><p>Local overlays are reversible. Baking is the only action that rewrites matching legacy colors in saved messages.</p><button class="ldc-btn" data-action="bake-colors">Bake current colors into transcript</button></div></div></section>`; }
     function render() {
@@ -93,7 +107,8 @@ export function setup(ctx) {
             selectedId = state.characters[0].id;
         const missing = missingCount(), engine = state.config.engine === 'llm' ? 'llm' : 'dom', needs = engine !== 'dom' || missing > 0;
         const setupTitle = missing ? `Set up local colors · ${missing} scene member${missing === 1 ? '' : 's'} still need colors` : 'Make Local the scene engine';
-        modal.root.innerHTML = `<div class="ldc-shell"><div class="ldc-top"><div class="ldc-tabs"><button class="ldc-tab" data-tab="character" data-active="${activeTab === 'character' && !settingsOpen}">Characters</button><button class="ldc-tab" data-tab="persona" data-active="${activeTab === 'persona' && !settingsOpen}">Persona</button></div><div class="ldc-top-actions"><span class="ldc-engine-copy">${engine === 'dom' ? 'Visual only · messages unchanged' : 'Model sidecar · may persist tags'}</span><div class="ldc-engine"><button data-engine="dom" data-active="${engine === 'dom'}">Local</button><button data-engine="llm" data-active="${engine === 'llm'}">LLM</button></div><button class="ldc-icon" data-action="settings" data-active="${settingsOpen}" title="Prism settings">${GEAR_ICON}</button></div></div>${needs ? `<div class="ldc-setup"><div class="ldc-setup-copy"><span class="ldc-setup-icon">${SPARK_ICON}</span><div><div class="ldc-setup-title">${esc(setupTitle)}</div><div class="ldc-setup-desc">Found ${state.characters.length} characters${state.persona ? ' and your active persona' : ''}. Existing imported and manual colors stay untouched.</div></div></div><button class="ldc-mini" data-action="setup">Set up scene</button></div>` : ''}${settingsOpen ? settingsPanel() : `<div class="ldc-main">${activeTab === 'character' ? `<aside class="ldc-side">${sidebar()}</aside><section class="ldc-panel">${charPanel(current())}</section>` : `<aside class="ldc-side"><div class="ldc-side-label">Active persona</div><div class="ldc-person" data-active="true"><span class="ldc-avatar">${esc(initials(state.persona?.name))}</span><span class="ldc-person-copy"><span class="ldc-person-name">${esc(state.persona?.name || 'No persona')}</span><span class="ldc-person-source">currently applied</span></span></div></aside><section class="ldc-panel">${personaPanel()}</section>`}</div>`}<div class="ldc-status"><span>${esc(state.chat.name)}</span><span class="ldc-bridge">${engine === 'dom' ? 'Local' : 'LLM sidecar'} · ${state.characters.length} characters · Cortex ${state.cortexAvailable ? 'linked' : 'unavailable'}</span></div></div>`;
+        const unresolved = unresolvedSegments().length;
+        modal.root.innerHTML = `<div class="ldc-shell"><div class="ldc-top"><div class="ldc-tabs"><button class="ldc-tab" data-tab="character" data-active="${activeTab === 'character' && !settingsOpen}">Characters</button><button class="ldc-tab" data-tab="persona" data-active="${activeTab === 'persona' && !settingsOpen}">Persona</button></div><div class="ldc-top-actions"><span class="ldc-engine-copy">${engine === 'dom' ? 'Visual only · messages unchanged' : 'Model sidecar · may persist tags'}</span>${unresolved ? `<button class="ldc-review" data-action="review-unresolved">${unresolved} unresolved · Review</button>` : ''}<div class="ldc-engine"><button data-engine="dom" data-active="${engine === 'dom'}">Local</button><button data-engine="llm" data-active="${engine === 'llm'}">LLM</button></div><button class="ldc-icon" data-action="settings" data-active="${settingsOpen}" title="Prism settings">${GEAR_ICON}</button></div></div>${needs ? `<div class="ldc-setup"><div class="ldc-setup-copy"><span class="ldc-setup-icon">${SPARK_ICON}</span><div><div class="ldc-setup-title">${esc(setupTitle)}</div><div class="ldc-setup-desc">Found ${state.characters.length} characters${state.persona ? ' and your active persona' : ''}. Existing imported and manual colors stay untouched.</div></div></div><button class="ldc-mini" data-action="setup">Set up scene</button></div>` : ''}<div class="ldc-main-wrap"><div class="ldc-main">${activeTab === 'character' ? `<aside class="ldc-side">${sidebar()}</aside><section class="ldc-panel">${charPanel(current())}</section>` : `<aside class="ldc-side"><div class="ldc-side-label">Active persona</div><div class="ldc-person" data-active="true"><span class="ldc-avatar">${esc(initials(state.persona?.name))}</span><span class="ldc-person-copy"><span class="ldc-person-name">${esc(state.persona?.name || 'No persona')}</span><span class="ldc-person-source">currently applied</span></span></div></aside><section class="ldc-panel">${personaPanel()}</section>`}</div>${settingsOpen ? settingsPanel() : ''}</div><div class="ldc-status"><span>${esc(state.chat.name)}</span><span class="ldc-bridge">${engine === 'dom' ? 'Local' : 'LLM sidecar'} · ${state.characters.length} characters · Cortex ${state.cortexAvailable ? 'linked' : 'unavailable'}</span></div></div>`;
         wire();
         const next = modal.root.querySelector('.ldc-side');
         if (next && activeTab === 'character')
@@ -139,13 +154,24 @@ export function setup(ctx) {
     async function removeCurrent() { const character = current(); if (!character)
         return; const { confirmed } = await ctx.ui.showConfirm({ title: `Remove ${character.name}?`, message: 'Prism will hide this discovered entry in this chat. Its saved color is kept in case you add it again.', confirmLabel: 'Remove', cancelLabel: 'Keep', variant: 'warning' }); if (!confirmed)
         return; await perform(async () => { const response = await request('ldc_remove_character', { chatId: state.chat.id, characterId: character.id, name: character.name }); acceptState(response.state); selectedId = state.characters?.[0]?.id || null; render(); }); }
-    function readEditorChannels(target) { const channels = safeChannels(target?.binding), stop1 = normalizeHex(modal?.root.querySelector('[data-role=hex]')?.value), stop2 = normalizeHex(modal?.root.querySelector('[data-role=hex-2]')?.value), mode = modal?.root.querySelector('[data-paint-mode][data-active=true]')?.dataset.paintMode === 'gradient' ? 'gradient' : 'solid', angle = Math.max(0, Math.min(360, Number(modal?.root.querySelector('[data-role=angle]')?.value) || 90)), anchor = normalizeHex(modal?.root.querySelector('[data-role=canonical]')?.value) || normalizeHex(target?.binding?.color) || stop1; if (!stop1 || !anchor)
+    function readEditorChannels(target) { const channels = safeChannels(target?.binding), stop1 = normalizeHex(modal?.root.querySelector('[data-role=hex]')?.value), mode = modal?.root.querySelector('[data-role=paint-mode]')?.value === 'gradient' ? 'gradient' : 'solid', stop2 = normalizeHex(modal?.root.querySelector('[data-role=hex-2]')?.value) || (stop1 && mode === 'gradient' ? harmonicColor(stop1) : null), angle = Math.max(0, Math.min(360, Number(modal?.root.querySelector('[data-role=angle]')?.value) || 90)), anchor = normalizeHex(modal?.root.querySelector('[data-role=canonical]')?.value) || normalizeHex(target?.binding?.color) || stop1; if (!stop1 || !anchor)
         return null; channels[activeChannel] = { enabled: modal?.root.querySelector('[data-role=channel-enabled]')?.checked !== false, paint: safePaint({ mode, stops: mode === 'gradient' ? [stop1, stop2].filter(Boolean) : [stop1], angle, anchor }, anchor) }; for (const value of Object.values(channels))
         value.paint.anchor = anchor; return { channels, color: anchor }; }
     async function saveEditor(kind) { if (!modal)
         return; const target = kind === 'persona' ? state.persona : current(); if (!target)
         return; const read = readEditorChannels(target); if (!read)
         throw new Error('Enter valid six-digit hex colors.'); const aliases = kind === 'character' ? String(modal.root.querySelector('[data-role=aliases]')?.value || '').split(',').map(x => x.trim()).filter(Boolean) : []; await saveBinding(kind, target, read.color, aliases, read.channels); }
+    function queueEditorSave(immediate = false) { clearTimeout(saveTimer); setSaveStatus('pending'); saveTimer = setTimeout(() => perform(async () => { setSaveStatus('saving'); await saveEditor(activeTab === 'persona' ? 'persona' : 'character'); setSaveStatus('saved'); }), immediate ? 0 : 450); }
+    function navigateEditor(action) { clearTimeout(saveTimer); if (saveStatus === 'pending')
+        perform(async () => { setSaveStatus('saving'); await saveEditor(activeTab === 'persona' ? 'persona' : 'character'); action(); saveStatus = 'saved'; render(); });
+    else {
+        action();
+        saveStatus = 'saved';
+        render();
+    } }
+    function unresolvedSegments() { return [...document.querySelectorAll('.ldc-prism-segment[data-prism-speaker=""][data-prism-kind="dialogue"]')].filter(element => element.isConnected); }
+    function reviewUnresolved() { const segments = unresolvedSegments(); if (!segments.length)
+        return; const target = segments[reviewIndex % segments.length]; reviewIndex = (reviewIndex + 1) % segments.length; modal?.dismiss(); modal = null; target.scrollIntoView({ behavior: 'smooth', block: 'center' }); target.focus({ preventScroll: true }); target.classList.add('ldc-prism-reviewing'); setTimeout(() => target.classList.remove('ldc-prism-reviewing'), 1800); }
     function channelsForCanonical(binding, color) { const old = normalizeHex(binding?.color), channels = safeChannels(binding); for (const channel of Object.values(channels)) {
         channel.paint.anchor = color;
         if (channel.paint.mode === 'solid' && normalizeHex(channel.paint.stops[0]) === old)
@@ -154,14 +180,15 @@ export function setup(ctx) {
     function wire() {
         if (!modal)
             return;
-        modal.root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { activeTab = b.dataset.tab; settingsOpen = false; render(); });
-        modal.root.querySelectorAll('[data-channel]').forEach(b => b.onclick = () => perform(async () => { await saveEditor(activeTab === 'persona' ? 'persona' : 'character'); activeChannel = b.dataset.channel; render(); }));
-        modal.root.querySelectorAll('[data-paint-mode]').forEach(b => b.onclick = () => { modal.root.querySelectorAll('[data-paint-mode]').forEach(x => x.dataset.active = String(x === b)); });
+        modal.root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => navigateEditor(() => { activeTab = b.dataset.tab; settingsOpen = false; }));
+        modal.root.querySelectorAll('[data-channel]').forEach(b => b.onclick = () => { if (b.dataset.channel === activeChannel)
+            return; clearTimeout(saveTimer); perform(async () => { setSaveStatus('saving'); await saveEditor(activeTab === 'persona' ? 'persona' : 'character'); activeChannel = b.dataset.channel; saveStatus = 'saved'; render(); }); });
         modal.root.querySelectorAll('[data-character-id]').forEach(row => { const activate = e => { if (e.target.closest('input'))
             return; const side = modal.root.querySelector('.ldc-side'); if (side)
-            sideScroll = side.scrollTop; selectedId = row.dataset.characterId; render(); }; row.onclick = activate; row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ')
+            sideScroll = side.scrollTop; navigateEditor(() => { selectedId = row.dataset.characterId; }); }; row.onclick = activate; row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ')
             activate(e); }; });
-        modal.root.querySelector('[data-action=settings]')?.addEventListener('click', () => { settingsOpen = !settingsOpen; render(); });
+        modal.root.querySelector('[data-action=settings]')?.addEventListener('click', () => navigateEditor(() => { settingsOpen = !settingsOpen; }));
+        modal.root.querySelector('[data-action=review-unresolved]')?.addEventListener('click', reviewUnresolved);
         modal.root.querySelector('[data-action=add-person]')?.addEventListener('click', openAddPerson);
         modal.root.querySelector('[data-action=remove-character]')?.addEventListener('click', removeCurrent);
         modal.root.querySelectorAll('[data-engine]').forEach(b => b.onclick = () => perform(async () => { if (b.dataset.engine === state.config.engine)
@@ -173,15 +200,29 @@ export function setup(ctx) {
         for (const suffix of ['', '-2']) {
             const picker = modal.root.querySelector(`[data-role=picker${suffix}]`), hex = modal.root.querySelector(`[data-role=hex${suffix}]`);
             if (picker && hex) {
-                picker.oninput = () => { hex.value = picker.value.toUpperCase(); };
-                hex.oninput = () => { const color = normalizeHex(hex.value); if (color)
-                    picker.value = color; };
-                hex.onblur = () => { const color = normalizeHex(hex.value); if (color)
-                    hex.value = color; };
+                picker.oninput = () => { hex.value = picker.value.toUpperCase(); queueEditorSave(); };
+                picker.onchange = () => queueEditorSave(true);
+                hex.oninput = () => { const color = normalizeHex(hex.value); if (color) {
+                    picker.value = color;
+                    queueEditorSave();
+                } };
+                hex.onblur = () => { const color = normalizeHex(hex.value); if (color) {
+                    hex.value = color;
+                    queueEditorSave(true);
+                } };
             }
         }
-        modal.root.querySelector('[data-action=save-character]')?.addEventListener('click', () => perform(() => saveEditor('character')));
-        modal.root.querySelector('[data-action=save-persona]')?.addEventListener('click', () => perform(() => saveEditor('persona')));
+        modal.root.querySelector('[data-role=paint-mode]')?.addEventListener('change', () => queueEditorSave(true));
+        modal.root.querySelector('[data-role=channel-enabled]')?.addEventListener('change', () => queueEditorSave(true));
+        for (const role of ['angle', 'canonical', 'aliases']) {
+            const input = modal.root.querySelector(`[data-role=${role}]`);
+            if (input) {
+                input.addEventListener('input', () => queueEditorSave());
+                input.addEventListener('blur', () => queueEditorSave(true));
+            }
+        }
+        modal.root.querySelector('[data-action=swap-colors]')?.addEventListener('click', () => { const first = modal.root.querySelector('[data-role=hex]'), second = modal.root.querySelector('[data-role=hex-2]'), picker1 = modal.root.querySelector('[data-role=picker]'), picker2 = modal.root.querySelector('[data-role=picker-2]'); if (!first || !second || !picker1 || !picker2)
+            return; [first.value, second.value] = [second.value, first.value]; picker1.value = first.value; picker2.value = second.value; queueEditorSave(true); });
         modal.root.querySelector('[data-role=auto-mode]')?.addEventListener('change', e => perform(async () => { const r = await request('ldc_update_options', { engine: state.config.engine, autoUserMode: e.target.value }); acceptState(r.state); render(); }));
         modal.root.querySelector('[data-role=mode]')?.addEventListener('change', e => perform(async () => { const r = await request('ldc_update_options', { engine: state.config.engine, domAttributionMode: e.target.value }); acceptState(r.state); render(); }));
         modal.root.querySelector('[data-role=uncertain]')?.addEventListener('change', e => perform(async () => { const r = await request('ldc_update_options', { engine: state.config.engine, markUncertain: e.target.checked }); acceptState(r.state); render(); }));
@@ -227,9 +268,11 @@ export function setup(ctx) {
     } }
     function applyPaint(element, raw) { const paint = safePaint(raw); rememberClass(element); if (!element.classList.contains('ldc-prism-paint'))
         for (const [property, key] of [['--ldc-color', 'prismOriginalLdcColor'], ['--ldc-fallback', 'prismOriginalLdcFallback'], ['--ldc-gradient', 'prismOriginalLdcGradient']])
-            element.dataset[key] = element.style.getPropertyValue(property) || '\u0000'; cleanupPaint(element); rememberClass(element); element.classList.add('ldc-prism-paint'); element.style.setProperty('--ldc-fallback', paint.anchor); element.style.setProperty('--ldc-color', paint.stops[0]); element.dataset.prismPaint = paint.mode; if (paint.mode === 'gradient' && paint.stops.length >= 2)
-        element.style.setProperty('--ldc-gradient', `linear-gradient(${paint.angle}deg,${paint.stops.join(', ')})`); }
-    function clearRoot(root) { root.querySelectorAll('.ldc-prism-paint,.ldc-prism-segment').forEach(cleanupPaint); root.querySelectorAll('.ldc-inline-color').forEach(s => s.replaceWith(document.createTextNode(s.dataset.prismOriginal || s.textContent || ''))); root.querySelectorAll('.ldc-dom-dialogue,.ldc-dom-thought').forEach(s => s.replaceWith(document.createTextNode(s.textContent || ''))); root.classList.remove('ldc-dom-whole'); cleanupPaint(root); root.normalize(); }
+            element.dataset[key] = element.style.getPropertyValue(property) || '\u0000'; cleanupPaint(element); rememberClass(element); element.classList.add('ldc-prism-paint'); element.style.setProperty('--ldc-fallback', paint.anchor); element.style.setProperty('--ldc-color', paint.stops[0]); const canRenderGradient = SUPPORTS_GRADIENT_TEXT && paint.mode === 'gradient' && paint.stops.length >= 2; element.dataset.prismPaint = canRenderGradient ? 'gradient' : 'solid'; if (canRenderGradient)
+        element.style.setProperty('--ldc-gradient', `linear-gradient(${paint.angle}deg,${paint.stops.join(', ')})`);
+    else
+        element.style.removeProperty('--ldc-gradient'); }
+    function clearRoot(root) { root.querySelectorAll('.ldc-prism-paint,.ldc-prism-segment').forEach(cleanupPaint); root.querySelectorAll('.ldc-prism-unpainted,.ldc-prism-reviewing').forEach(s => s.classList.remove('ldc-prism-unpainted', 'ldc-prism-reviewing')); root.querySelectorAll('.ldc-inline-color').forEach(s => s.replaceWith(document.createTextNode(s.dataset.prismOriginal || s.textContent || ''))); root.querySelectorAll('.ldc-dom-dialogue,.ldc-dom-thought').forEach(s => s.replaceWith(...s.childNodes)); root.classList.remove('ldc-dom-whole'); cleanupPaint(root); root.normalize(); }
     function inlineMatches(text) {
         const out = [], patterns = [/<font\b[^>]*\bcolor\s*=\s*["']?(#[0-9a-f]{6}|#[0-9a-f]{3})["']?[^>]*>([\s\S]*?)<\/font>/gi, /<span\b[^>]*\bstyle\s*=\s*["'][^"']*\bcolor\s*:\s*(#[0-9a-f]{6}|#[0-9a-f]{3})[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi, /\[color\s*=\s*["']?(#[0-9a-f]{6}|#[0-9a-f]{3})["']?\]([\s\S]*?)\[\/color\]/gi];
         for (const pattern of patterns) {
@@ -423,24 +466,62 @@ export function setup(ctx) {
         span.onpointerdown = e => { clearTimeout(longTimer); longTimer = setTimeout(() => teach(e, info(), list), 560); };
         span.onpointerup = span.onpointercancel = span.onpointerleave = () => clearTimeout(longTimer);
     }
-    function buildDomUnits(root, existingByElement) { const units = [], blockIds = new Map(); let nextBlockId = 0; const blockId = block => { if (!blockIds.has(block))
-        blockIds.set(block, nextBlockId++); return blockIds.get(block); }; function visit(node) { if (node.nodeType === Node.ELEMENT_NODE) {
-        const element = node;
-        if (existingByElement.has(element)) {
-            const block = logicalBlock(element, root);
-            units.push({ type: 'existing', element, text: element.textContent || '', block, blockId: blockId(block), segment: existingByElement.get(element) });
-            return;
+    function buildDomUnits(root, existingByElement) {
+        const units = [], blockIds = new Map();
+        let nextBlockId = 0;
+        const blockId = block => { if (!blockIds.has(block))
+            blockIds.set(block, nextBlockId++); return blockIds.get(block); };
+        function visit(node) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+                const element = node;
+                if (existingByElement.has(element)) {
+                    const block = logicalBlock(element, root);
+                    units.push({ type: 'existing', element, text: element.textContent || '', block, blockId: blockId(block), segment: existingByElement.get(element) });
+                    return;
+                }
+                if (element.matches('code,pre,textarea,button,script,style'))
+                    return;
+                for (const child of element.childNodes)
+                    visit(child);
+                return;
+            }
+            if (node.nodeType === Node.TEXT_NODE && node.data) {
+                const block = logicalBlock(node, root);
+                if (!structured(block?.textContent || node.data))
+                    units.push({ type: 'text', node, text: node.data, block, blockId: blockId(block) });
+            }
         }
-        if (element.matches('code,pre,textarea,button,script,style'))
-            return;
-        for (const child of element.childNodes)
-            visit(child);
-        return;
-    } if (node.nodeType === Node.TEXT_NODE && node.data.trim()) {
-        const block = logicalBlock(node, root);
-        if (!structured(block?.textContent || node.data))
-            units.push({ type: 'text', node, text: node.data, block, blockId: blockId(block) });
-    } } visit(root); return units; }
+        visit(root);
+        return units;
+    }
+    function partsForRange(units, start, end) {
+        if (units.some(unit => unit.type === 'existing' && unit.start < end && unit.end > start))
+            return null;
+        const parts = units.filter(unit => unit.type === 'text' && unit.start < end && unit.end > start).map(unit => ({ unit, node: unit.node, from: Math.max(0, start - unit.start), to: Math.min(unit.text.length, end - unit.start) }));
+        if (!parts.length || parts.some(part => part.unit.blockId !== parts[0].unit.blockId))
+            return null;
+        return parts;
+    }
+    function wrapDetectedJob(job) {
+        const span = document.createElement('span');
+        span.className = job.kind === 'thought' ? 'ldc-dom-thought' : 'ldc-dom-dialogue';
+        const first = job.parts[0], last = job.parts.at(-1);
+        if (job.parts.length === 1) {
+            const middle = first.node.splitText(first.from);
+            middle.splitText(first.to - first.from);
+            middle.replaceWith(span);
+            span.appendChild(middle);
+        }
+        else {
+            const range = document.createRange();
+            range.setStart(first.node, first.from);
+            range.setEnd(last.node, last.to);
+            const fragment = range.extractContents();
+            range.insertNode(span);
+            span.appendChild(fragment);
+        }
+        return span;
+    }
     function colorQuotes(root, mc, list, fixed = null, fillMissing = true) {
         const existing = collectExisting(root, list), units = buildDomUnits(root, existing);
         let text = '', lastBlock = null;
@@ -449,18 +530,26 @@ export function setup(ctx) {
                 text += '\n\n';
             unit.start = text.length;
             text += unit.text;
+            unit.end = text.length;
             lastBlock = unit.block;
         }
         const contentHash = hashText(text), occurrences = new Map(), jobs = [], anchors = mc.bubble ? [mc.bubble] : [];
         let currentBlockId = -1, currentBlockSpeaker = null, lastTurnSpeaker = null, existingIndex = 0;
-        for (const unit of units) {
-            const newBlock = unit.blockId !== currentBlockId;
-            if (newBlock) {
-                currentBlockId = unit.blockId;
+        const events = units.filter(unit => unit.type === 'existing').map(unit => ({ type: 'existing', start: unit.start, block: unit.block, blockId: unit.blockId, unit }));
+        if (fillMissing)
+            for (const match of text.matchAll(/“[^”\n]+”|"[^"\n]+"/g)) {
+                const start = match.index, end = start + match[0].length, parts = partsForRange(units, start, end);
+                if (parts)
+                    events.push({ type: 'quote', start, end, block: parts[0].unit.block, blockId: parts[0].unit.blockId, parts, quote: match[0] });
+            }
+        events.sort((a, b) => a.start - b.start || (a.type === 'existing' ? -1 : 1));
+        for (const event of events) {
+            if (event.blockId !== currentBlockId) {
+                currentBlockId = event.blockId;
                 currentBlockSpeaker = null;
             }
-            if (unit.type === 'existing') {
-                const segment = unit.segment, normalized = unit.text.replace(/\s+/g, ' ').trim().toLowerCase(), segmentKey = hashText(['existing', segment.color, normalized, existingIndex++].join('\u241F')), override = overrideFor(mc.messageId, mc.swipeId, contentHash, segmentKey), kind = override?.kind || segment.kind, attribution = override ? { speaker: override.speakerKey == null ? null : list.find(c => c.key === override.speakerKey) || null, confidence: 1, source: 'manual' } : { speaker: segment.speaker, confidence: segment.speaker ? .98 : 0, source: segment.speaker ? 'existing-color' : 'unresolved' };
+            if (event.type === 'existing') {
+                const unit = event.unit, segment = unit.segment, normalized = unit.text.replace(/\s+/g, ' ').trim().toLowerCase(), segmentKey = hashText(['existing', segment.color, normalized, existingIndex++].join('\u241F')), override = overrideFor(mc.messageId, mc.swipeId, contentHash, segmentKey), kind = override?.kind || segment.kind, attribution = override ? { speaker: override.speakerKey == null ? null : list.find(c => c.key === override.speakerKey) || null, confidence: 1, source: 'manual' } : { speaker: segment.speaker, confidence: segment.speaker ? .98 : 0, source: segment.speaker ? 'existing-color' : 'unresolved' };
                 segment.speaker = attribution.speaker;
                 segment.kind = kind;
                 if (attribution.speaker && kind !== 'ignored') {
@@ -478,38 +567,31 @@ export function setup(ctx) {
                 }
                 continue;
             }
-            if (!fillMissing)
-                continue;
-            for (const match of unit.node.data.matchAll(/“[^”\n]+”|"[^"\n]+"/g)) {
-                const start = unit.start + match.index, end = start + match[0].length, normalized = match[0].replace(/\s+/g, ' ').trim().toLowerCase(), occurrenceIndex = occurrences.get(normalized) || 0;
-                occurrences.set(normalized, occurrenceIndex + 1);
-                const segmentKey = hashText([normalized, text.slice(Math.max(0, start - 48), start), text.slice(end, end + 48), occurrenceIndex].join('\u241F')), override = overrideFor(mc.messageId, mc.swipeId, contentHash, segmentKey);
-                let attribution = override ? { speaker: override.speakerKey == null ? null : list.find(c => c.key === override.speakerKey) || null, confidence: 1, source: 'manual' } : (fixed || resolveAttr({ text, start, end, list, bubble: mc.bubble, sameBlockSpeaker: currentBlockSpeaker, anchors, lastTurnSpeaker, standalone: dialogueOnlyBlock(unit.block?.textContent) })), kind = override?.kind || 'dialogue';
-                if (kind === 'ignored')
-                    attribution = { speaker: null, confidence: 1, source: 'manual' };
-                if (attribution.speaker && kind === 'dialogue') {
-                    currentBlockSpeaker = attribution.speaker;
-                    lastTurnSpeaker = attribution.speaker;
-                }
-                if (attribution.speaker && kind === 'dialogue' && ['manual', 'speaker-label', 'reporting-verb', 'action-beat'].includes(attribution.source)) {
-                    anchors.push(attribution.speaker);
-                    if (anchors.length > 10)
-                        anchors.shift();
-                }
-                jobs.push({ unit, from: match.index, quote: match[0], segmentKey, contentHash, attribution, kind });
+            const normalized = event.quote.replace(/\s+/g, ' ').trim().toLowerCase(), occurrenceIndex = occurrences.get(normalized) || 0;
+            occurrences.set(normalized, occurrenceIndex + 1);
+            const segmentKey = hashText([normalized, text.slice(Math.max(0, event.start - 48), event.start), text.slice(event.end, event.end + 48), occurrenceIndex].join('\u241F')), override = overrideFor(mc.messageId, mc.swipeId, contentHash, segmentKey);
+            let attribution = override ? { speaker: override.speakerKey == null ? null : list.find(c => c.key === override.speakerKey) || null, confidence: 1, source: 'manual' } : (fixed || resolveAttr({ text, start: event.start, end: event.end, list, bubble: mc.bubble, sameBlockSpeaker: currentBlockSpeaker, anchors, lastTurnSpeaker, standalone: dialogueOnlyBlock(event.block?.textContent) })), kind = override?.kind || 'dialogue';
+            if (kind === 'ignored')
+                attribution = { speaker: null, confidence: 1, source: 'manual' };
+            if (attribution.speaker && kind === 'dialogue') {
+                currentBlockSpeaker = attribution.speaker;
+                lastTurnSpeaker = attribution.speaker;
             }
+            if (attribution.speaker && kind === 'dialogue' && ['manual', 'speaker-label', 'reporting-verb', 'action-beat'].includes(attribution.source)) {
+                anchors.push(attribution.speaker);
+                if (anchors.length > 10)
+                    anchors.shift();
+            }
+            jobs.push({ parts: event.parts, quote: event.quote, segmentKey, contentHash, attribution, kind });
         }
         for (let i = jobs.length - 1; i >= 0; i--) {
-            const job = jobs[i], channel = job.attribution.speaker?.channels?.[job.kind];
-            if (!job.attribution.speaker || !channel?.enabled || job.kind === 'ignored')
-                continue;
-            const middle = job.unit.node.splitText(job.from);
-            middle.splitText(job.quote.length);
-            const span = document.createElement('span');
-            span.className = job.kind === 'thought' ? 'ldc-dom-thought' : 'ldc-dom-dialogue';
-            middle.replaceWith(span);
-            span.appendChild(middle);
-            applyPaint(span, channel.paint);
+            const job = jobs[i], speaker = job.attribution.speaker, channel = speaker?.channels?.[job.kind], span = wrapDetectedJob(job), paintable = speaker && channel?.enabled && job.kind !== 'ignored';
+            if (paintable)
+                applyPaint(span, channel.paint);
+            else {
+                rememberClass(span);
+                span.classList.add('ldc-prism-unpainted');
+            }
             decorate(span, { messageId: mc.messageId, swipeId: mc.swipeId, segmentKey: job.segmentKey, contentHash: job.contentHash, quote: job.quote, attribution: job.attribution, kind: job.kind }, list);
         }
         return { contentHash, existing };
@@ -530,6 +612,8 @@ export function setup(ctx) {
             const segmentKey = hashText(['thought', quote.trim().toLowerCase(), String([...root.querySelectorAll('em,i')].indexOf(element))].join('\u241F')), override = overrideFor(mc.messageId, mc.swipeId, contentHash, segmentKey), kind = override?.kind || 'thought', attribution = override ? { speaker: override.speakerKey == null ? null : list.find(c => c.key === override.speakerKey) || null, confidence: 1, source: 'manual' } : conservativeThoughtAttribution(element, mc, list), channel = attribution.speaker?.channels?.[kind];
             if (kind !== 'ignored' && channel?.enabled)
                 applyPaint(element, channel.paint);
+            else
+                element.classList.add('ldc-prism-unpainted');
             decorate(element, { messageId: mc.messageId, swipeId: mc.swipeId, segmentKey, contentHash, quote, attribution, kind }, list);
         } if (singles) {
         const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode(node) { return !node.data.trim() || node.parentElement?.closest('code,pre,textarea,script,style,font,em,i,.ldc-inline-color,.ldc-prism-segment') || structured(logicalBlock(node, root)?.textContent) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; } }), nodes = [];
@@ -542,15 +626,16 @@ export function setup(ctx) {
                 nodes[n].parentElement?.appendChild(probe);
                 const attribution = override ? { speaker: override.speakerKey == null ? null : list.find(c => c.key === override.speakerKey) || null, confidence: 1, source: 'manual' } : conservativeThoughtAttribution(probe, mc, list), kind = override?.kind || 'thought', channel = attribution.speaker?.channels?.[kind];
                 probe.remove();
-                if (!channel?.enabled || kind === 'ignored')
-                    continue;
                 const middle = nodes[n].splitText(match.index);
                 middle.splitText(quote.length);
                 const span = document.createElement('span');
                 span.className = 'ldc-dom-thought';
                 middle.replaceWith(span);
                 span.appendChild(middle);
-                applyPaint(span, channel.paint);
+                if (channel?.enabled && kind !== 'ignored')
+                    applyPaint(span, channel.paint);
+                else
+                    span.classList.add('ldc-prism-unpainted');
                 decorate(span, { messageId: mc.messageId, swipeId: mc.swipeId, segmentKey, contentHash, quote, attribution, kind }, list);
             }
     } }

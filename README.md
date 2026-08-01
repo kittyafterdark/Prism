@@ -14,7 +14,10 @@ Existing formatting is authoritative. Prism indexes real or escaped `<font color
 - Dialogue and thought channels have independent solid/gradient paint, with the canonical hex retained for Cortex and portable transcript markup.
 - Italic and single-quoted thought detection is opt-in and never participates in dialogue alternation.
 - Low-confidence dialogue is marked with a dotted underline.
-- Right-click, long-press, or focus a colored quote and press Enter to teach Prism its speaker.
+- Every detected segment—including unresolved, disabled, and ignored dialogue—is wrapped as a teachable target. Right-click, long-press, or focus it and press Enter to assign its speaker or content type.
+- Quote detection follows rendered text across nested emphasis nodes, so `"This is <em>extremely</em> inconvenient"` remains one assignable segment.
+- The editor autosaves, keeps identity and save state sticky, shows a single color in Solid mode, and reveals the harmonic second stop only when Gradient is enabled.
+- Dialogue and thought previews render their actual independent channel paint, and the top-bar unresolved review action jumps directly to teachable gaps.
 - Add missing people or remove noisy discovered entries directly from the scene roster; manual aliases can map generic bubble labels such as `narrator` to the right person.
 - Manual corrections remain chat-local and expire when the source message content changes.
 - Character/persona colors are reused globally; generated colors remain regenerable.
