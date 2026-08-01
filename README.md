@@ -2,12 +2,17 @@
 
 Prism gives Lumiverse scenes deterministic dialogue colors without requiring roleplayers to type formatting tags. Local mode is the default: it changes rendered dialogue only, leaving saved messages and model context untouched.
 
+Existing formatting is authoritative. Prism indexes real or escaped `<font color>`, inline color styles, and `[color]` regions as protected segments, uses uniquely matched colors as speaker evidence, and fills only unstyled gaps. Local solid/gradient overlays are reversible; only the explicit bake action rewrites saved markup.
+
 ## Local-first workflow
 
 - **Set up scene** imports Cortex, preset, and transcript colors, then fills only missing character/persona colors.
 - **Local / LLM** is visible in the modal top bar and remembered across chats.
 - **Balanced attribution** uses labels, speech verbs, action beats, continuity, and bubble authors without silently blaming the primary character.
 - Paragraph-aware dialogue turns recognize expanded reporting verbs, preserve prose continuations, and alternate quote-only replies only after two speakers are established.
+- Existing legacy colors can establish dialogue turns, teach Prism their owner, and receive the owner’s current local paint without changing the underlying tag.
+- Dialogue and thought channels have independent solid/gradient paint, with the canonical hex retained for Cortex and portable transcript markup.
+- Italic and single-quoted thought detection is opt-in and never participates in dialogue alternation.
 - Low-confidence dialogue is marked with a dotted underline.
 - Right-click, long-press, or focus a colored quote and press Enter to teach Prism its speaker.
 - Add missing people or remove noisy discovered entries directly from the scene roster; manual aliases can map generic bubble labels such as `narrator` to the right person.
@@ -28,8 +33,9 @@ A small Spindle extension for binding per-speaker dialogue colors in Lumiverse.
 - In DOM-only mode, colors rendered dialogue reversibly without changing saved messages or model context.
 - In LLM-sidecar mode, injects the active registry so models emit the correct `<font color="#RRGGBB">...</font>` tags.
 - Imports attributable colors from existing `<font color>`, inline `style="color:…"`, and `[color=…]` dialogue, including preset-produced transcripts.
-- Renders escaped legacy color tags visually in both engines without mutating the saved message.
-- Can rewrite matching colors and persona dialogue in existing messages, including swipe variants.
+- Renders escaped legacy color tags with allowlisted inline emphasis in both engines without mutating the saved message.
+- Offers Preserve, Enhance, and Replace-visually policies for existing tags; all remain non-destructive.
+- The confirmation-heavy **Bake current colors** action can rewrite matching legacy colors and persona dialogue in saved messages, including swipe variants.
 
 ## Cortex integration
 

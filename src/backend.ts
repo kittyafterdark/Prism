@@ -4,10 +4,11 @@ declare const spindle: import("lumiverse-spindle-types").SpindleAPI;
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const DEFAULT_CONFIG = Object.freeze({
-  version: 2,
+  version: 3,
   engine: 'dom',
   autoUserMode: 'quoted',
   promptCharacterColors: true,
+  promptThoughtColors: false,
   bindings: {},
   overrides: {},
   manualCharacters: {},
@@ -20,6 +21,9 @@ const DEFAULT_PREFERENCES = Object.freeze({
   autoAssignMissing: true,
   personaMode: 'quoted',
   markUncertain: true,
+  thoughtDetection: 'off',
+  existingStylePolicy: 'enhance',
+  useExistingAsEvidence: true,
 });
 
 function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
@@ -28,6 +32,7 @@ function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
     engine: preferredEngine === 'llm' ? 'llm' : 'dom',
     autoUserMode: DEFAULT_CONFIG.autoUserMode,
     promptCharacterColors: DEFAULT_CONFIG.promptCharacterColors,
+    promptThoughtColors: DEFAULT_CONFIG.promptThoughtColors,
     bindings: {},
     overrides: {},
     manualCharacters: {},
@@ -47,6 +52,45 @@ function safePreferences(raw) {
       ? source.personaMode
       : DEFAULT_PREFERENCES.personaMode,
     markUncertain: source.markUncertain !== false,
+    thoughtDetection: ['off', 'italics', 'single-quotes', 'italics-and-single-quotes'].includes(source.thoughtDetection)
+      ? source.thoughtDetection
+      : DEFAULT_PREFERENCES.thoughtDetection,
+    existingStylePolicy: ['preserve', 'enhance', 'replace'].includes(source.existingStylePolicy)
+      ? source.existingStylePolicy
+      : DEFAULT_PREFERENCES.existingStylePolicy,
+    useExistingAsEvidence: source.useExistingAsEvidence !== false,
+  };
+}
+
+function defaultPaint(anchor) {
+  const color = normalizeHex(anchor) || '#B58CFF';
+  return { mode: 'solid', stops: [color], angle: 90, anchor: color };
+}
+
+function safePaint(raw, fallbackColor) {
+  const anchor = normalizeHex(raw?.anchor) || normalizeHex(fallbackColor) || '#B58CFF';
+  const stops = uniqueStrings(raw?.stops).map(normalizeHex).filter(Boolean).slice(0, 4);
+  if (raw?.mode === 'gradient' && stops.length >= 2) {
+    return {
+      mode: 'gradient',
+      stops,
+      angle: Math.max(0, Math.min(360, Number(raw.angle) || 90)),
+      anchor,
+    };
+  }
+  return { mode: 'solid', stops: [stops[0] || anchor], angle: 90, anchor };
+}
+
+function safeChannels(raw, fallbackColor) {
+  return {
+    dialogue: {
+      enabled: raw?.dialogue?.enabled !== false,
+      paint: safePaint(raw?.dialogue?.paint, fallbackColor),
+    },
+    thought: {
+      enabled: raw?.thought?.enabled === true,
+      paint: safePaint(raw?.thought?.paint, fallbackColor),
+    },
   };
 }
 
@@ -59,6 +103,7 @@ function safeGlobalState(raw) {
       if (!color) continue;
       library[key] = {
         color,
+        channels: safeChannels(item?.channels, color),
         aliases: uniqueStrings(item?.aliases),
         name: String(item?.name || '').trim(),
         source: ['cortex', 'transcript', 'preset', 'generated', 'manual'].includes(item?.source) ? item.source : 'library',
@@ -67,7 +112,7 @@ function safeGlobalState(raw) {
       };
     }
   }
-  return { version: 1, preferences: safePreferences(source.preferences), library };
+  return { version: 2, preferences: safePreferences(source.preferences), library };
 }
 
 function normalizeHex(value) {
@@ -118,6 +163,7 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
         name,
         aliases: uniqueStrings(value.aliases),
         color,
+        channels: safeChannels(value.channels, color),
         previousColors: uniqueStrings(value.previousColors)
           .map(normalizeHex)
           .filter(Boolean)
@@ -143,6 +189,7 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
         segmentKey,
         quote: String(value.quote || '').slice(0, 1000),
         speakerKey: value.speakerKey == null ? null : String(value.speakerKey),
+        kind: ['dialogue', 'thought', 'ignored'].includes(value.kind) ? value.kind : 'dialogue',
       };
     }
   }
@@ -164,10 +211,11 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
   }
 
   return {
-    version: 2,
+    version: 3,
     engine: raw.engine === 'llm' ? 'llm' : 'dom',
     autoUserMode: mode,
     promptCharacterColors: raw.promptCharacterColors !== false,
+    promptThoughtColors: raw.promptThoughtColors === true,
     bindings,
     overrides,
     manualCharacters,
@@ -353,8 +401,8 @@ function syncBindingsToLibrary(config, characters, persona, globalState) {
     if (!color) continue;
     for (const key of bindingLibraryKeys(binding, characters, persona)) {
       const prior = globalState.library[key];
-      const next = { color, aliases: uniqueStrings(binding.aliases), name: binding.name, source: binding.source, pinned: binding.pinned !== false, updatedAt: Date.now() };
-      if (!prior || prior.color !== next.color || prior.source !== next.source || prior.pinned !== next.pinned || JSON.stringify(prior.aliases || []) !== JSON.stringify(next.aliases)) {
+      const next = { color, channels: safeChannels(binding.channels, color), aliases: uniqueStrings(binding.aliases), name: binding.name, source: binding.source, pinned: binding.pinned !== false, updatedAt: Date.now() };
+      if (!prior || prior.color !== next.color || prior.source !== next.source || prior.pinned !== next.pinned || JSON.stringify(prior.aliases || []) !== JSON.stringify(next.aliases) || JSON.stringify(prior.channels) !== JSON.stringify(next.channels)) {
         globalState.library[key] = next;
         changed = true;
       }
@@ -373,7 +421,7 @@ function seedBindingsFromLibrary(config, characters, persona, globalState) {
     config.bindings[`character:${targetId}`] = {
       kind: 'character', targetId, name: character.name,
       aliases: uniqueStrings([...(character.aliases || []), ...(entry.aliases || [])]),
-      color: entry.color, previousColors: [], source: entry.source === 'generated' ? 'generated' : 'library', pinned: entry.pinned !== false,
+      color: entry.color, channels: safeChannels(entry.channels, entry.color), previousColors: [], source: entry.source === 'generated' ? 'generated' : 'library', pinned: entry.pinned !== false,
     };
     seeded += 1;
   }
@@ -383,7 +431,7 @@ function seedBindingsFromLibrary(config, characters, persona, globalState) {
       const targetId = String(persona.id);
       config.bindings[`persona:${targetId}`] = {
         kind: 'persona', targetId, name: persona.name, aliases: uniqueStrings(entry.aliases),
-        color: entry.color, previousColors: [], source: entry.source === 'generated' ? 'generated' : 'library', pinned: entry.pinned !== false,
+        color: entry.color, channels: safeChannels(entry.channels, entry.color), previousColors: [], source: entry.source === 'generated' ? 'generated' : 'library', pinned: entry.pinned !== false,
       };
       seeded += 1;
     }
@@ -744,6 +792,7 @@ async function importTranscriptRegistry(chat, characters, config, userId) {
       name: character.name,
       aliases: uniqueStrings(character.aliases),
       color,
+      channels: safeChannels(null, color),
       previousColors: [],
       source: 'transcript',
     };
@@ -792,6 +841,7 @@ async function importCortexRegistry(chat, primaryCharacter, characters, config, 
       name: sceneCharacter?.name || item.name,
       aliases: uniqueStrings(sceneCharacter?.aliases),
       color: item.color,
+      channels: safeChannels(null, item.color),
       previousColors: [],
       source: 'cortex',
     };
@@ -1022,6 +1072,7 @@ async function saveBinding(payload, userId) {
     name,
     aliases,
     color,
+    channels: safeChannels(payload.channels || old?.channels, color),
     previousColors,
     source: 'manual',
     pinned: true,
@@ -1083,6 +1134,9 @@ async function updateOptions(payload, userId) {
   if (typeof payload.promptCharacterColors === 'boolean') {
     config.promptCharacterColors = payload.promptCharacterColors;
   }
+  if (typeof payload.promptThoughtColors === 'boolean') {
+    config.promptThoughtColors = payload.promptThoughtColors;
+  }
   let globalState = await loadGlobalState(userId);
   if (['dom', 'llm'].includes(payload.engine)) {
     globalState.preferences.preferredEngine = payload.engine;
@@ -1095,6 +1149,15 @@ async function updateOptions(payload, userId) {
   }
   if (typeof payload.autoAssignMissing === 'boolean') {
     globalState.preferences.autoAssignMissing = payload.autoAssignMissing;
+  }
+  if (['off', 'italics', 'single-quotes', 'italics-and-single-quotes'].includes(payload.thoughtDetection)) {
+    globalState.preferences.thoughtDetection = payload.thoughtDetection;
+  }
+  if (['preserve', 'enhance', 'replace'].includes(payload.existingStylePolicy)) {
+    globalState.preferences.existingStylePolicy = payload.existingStylePolicy;
+  }
+  if (typeof payload.useExistingAsEvidence === 'boolean') {
+    globalState.preferences.useExistingAsEvidence = payload.useExistingAsEvidence;
   }
   if (['off', 'quoted', 'whole'].includes(payload.autoUserMode)) {
     globalState.preferences.personaMode = payload.autoUserMode;
@@ -1139,7 +1202,7 @@ async function assignSceneColors(payload, userId) {
     const color = generatedColorForIdentity(identity, usedColors);
     config.bindings[`character:${targetId}`] = {
       kind: 'character', targetId, name: character.name, aliases: uniqueStrings(character.aliases),
-      color, previousColors: [], source: 'generated', pinned: false,
+      color, channels: safeChannels(null, color), previousColors: [], source: 'generated', pinned: false,
     };
     usedColors.push(color);
     assigned += 1;
@@ -1156,9 +1219,10 @@ async function assignSceneColors(payload, userId) {
       }
       const targetId = String(persona.id);
       const identity = libraryKeyForPersona(persona);
+      const color = generatedColorForIdentity(identity, usedColors);
       config.bindings[`persona:${targetId}`] = {
         kind: 'persona', targetId, name: persona.name, aliases: [],
-        color: generatedColorForIdentity(identity, usedColors), previousColors: [], source: 'generated', pinned: false,
+        color, channels: safeChannels(null, color), previousColors: [], source: 'generated', pinned: false,
       };
       assigned += 1;
     }
@@ -1179,6 +1243,20 @@ async function saveQuoteOverride(payload, userId) {
   const segmentKey = String(payload.segmentKey || '').trim();
   if (!messageId || !contentHash || !segmentKey) throw new Error('This quote could not be identified safely.');
   const config = await loadConfig(chat.id, userId);
+  const existingColor = normalizeHex(payload.existingColor);
+  const speakerKey = payload.speakerKey == null ? null : String(payload.speakerKey);
+  if (existingColor && speakerKey) {
+    const binding = config.bindings[speakerKey];
+    const alreadyOwned = Object.values(config.bindings).some((candidate) => (
+      candidate !== binding
+      && [candidate.color, candidate.channels?.dialogue?.paint?.anchor, ...(candidate.previousColors || [])]
+        .map(normalizeHex).filter(Boolean).includes(existingColor)
+    ));
+    if (binding && !alreadyOwned && normalizeHex(binding.color) !== existingColor) {
+      binding.previousColors = uniqueStrings([...(binding.previousColors || []), existingColor])
+        .map(normalizeHex).filter(Boolean).filter((color) => color !== normalizeHex(binding.color));
+    }
+  }
   const overrideKey = `${messageId}:${Math.max(0, Number(payload.swipeId) || 0)}:${segmentKey}`;
   config.overrides[overrideKey] = {
     messageId,
@@ -1186,7 +1264,8 @@ async function saveQuoteOverride(payload, userId) {
     contentHash,
     segmentKey,
     quote: String(payload.quote || '').slice(0, 1000),
-    speakerKey: payload.speakerKey == null ? null : String(payload.speakerKey),
+    speakerKey,
+    kind: ['dialogue', 'thought', 'ignored'].includes(payload.kind) ? payload.kind : 'dialogue',
   };
   await saveConfig(chat.id, config);
   return buildState({ importCortex: false }, userId);
@@ -1243,10 +1322,13 @@ function registryInstruction(config) {
     return `- ${binding.name}${aliasText}: ${binding.color}`;
   }).join('\n');
 
+  const thoughtInstruction = config.promptThoughtColors
+    ? 'For direct internal thought only, use <i><font color="#RRGGBB">thought</font></i> with the same speaker anchor. Do not mark actions, narration, description, or ordinary emphasis as thought.'
+    : 'Do not color internal thoughts.';
   return [
     '[Dialogue Color Registry]',
     'For every bound speaker below, wrap only their spoken dialogue in the exact HTML form <font color="#RRGGBB">dialogue</font>.',
-    'Do not color narration, actions, scene description, or internal thoughts. Preserve punctuation and do not invent colors for unbound speakers.',
+    `Do not color narration, actions, or scene description. ${thoughtInstruction} Preserve punctuation and do not invent colors for unbound speakers.`,
     'When several listed characters speak in one response, use each speaker\'s own bound color.',
     rows,
   ].join('\n');

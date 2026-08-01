@@ -1,9 +1,9 @@
 {
-  "version": "0.3.1",
+  "version": "0.4.0",
   "name": "Prism",
   "identifier": "lumi_dialogue_colors",
   "author": "kittyafterdark",
-  "description": "Set up local scene colors in one click, teach speaker attribution, reuse a global color library, or opt into an LLM sidecar.",
+  "description": "Compose reversible dialogue and thought paint over legacy colors, teach speaker attribution, and optionally use an LLM sidecar.",
   "github": "https://github.com/kittyafterdark/Prism",
   "homepage": "https://github.com/kittyafterdark/Prism",
   "permissions": [
