@@ -1,5 +1,17 @@
 # Prism
 
+Prism gives Lumiverse scenes deterministic dialogue colors without requiring roleplayers to type formatting tags. Local mode is the default: it changes rendered dialogue only, leaving saved messages and model context untouched.
+
+## Local-first workflow
+
+- **Set up scene** imports Cortex, preset, and transcript colors, then fills only missing character/persona colors.
+- **Local / LLM** is visible in the modal top bar and remembered across chats.
+- **Balanced attribution** uses labels, speech verbs, action beats, continuity, and bubble authors without silently blaming the primary character.
+- Low-confidence dialogue is marked with a dotted underline.
+- Right-click, long-press, or focus a colored quote and press Enter to teach Prism its speaker.
+- Manual corrections remain chat-local and expire when the source message content changes.
+- Character/persona colors are reused globally; generated colors remain regenerable.
+
 A small Spindle extension for binding per-speaker dialogue colors in Lumiverse.
 
 ## What it does

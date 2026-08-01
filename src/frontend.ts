@@ -1,591 +1,183 @@
 // @ts-nocheck
 import type { SpindleFrontendContext } from "lumiverse-spindle-types";
 
-const PALETTE_ICON = `
-<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M12 3.25a8.75 8.75 0 1 0 0 17.5h1.25a1.75 1.75 0 0 0 0-3.5H12a1.5 1.5 0 0 1 0-3h2.75A6 6 0 0 0 20.75 8.25C20.75 5.49 17.04 3.25 12 3.25Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-  <circle cx="7.7" cy="9" r="1" fill="currentColor"/>
-  <circle cx="10.1" cy="6.8" r="1" fill="currentColor"/>
-  <circle cx="13.4" cy="6.65" r="1" fill="currentColor"/>
-  <circle cx="16.25" cy="8.5" r="1" fill="currentColor"/>
-</svg>`;
-
-const GEAR_ICON = `
-<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M9.6 3.5h4.8l.55 2.1c.45.18.88.43 1.27.73l2.08-.6 2.4 4.15-1.54 1.52c.03.2.04.4.04.6s-.01.4-.04.6l1.54 1.52-2.4 4.15-2.08-.6c-.39.3-.82.55-1.27.73l-.55 2.1H9.6l-.55-2.1a7.3 7.3 0 0 1-1.27-.73l-2.08.6-2.4-4.15 1.54-1.52A4.8 4.8 0 0 1 4.8 12c0-.2.01-.4.04-.6L3.3 9.88l2.4-4.15 2.08.6c.39-.3.82-.55 1.27-.73l.55-2.1Z" stroke="currentColor" stroke-width="1.55" stroke-linejoin="round"/>
-  <circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.55"/>
-</svg>`;
+const PRISM_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M12 2.8 21 19H3L12 2.8Z" stroke="currentColor" stroke-width="1.65"/><path d="M12 2.8V19M3 19l9-6.2 9 6.2" stroke="currentColor" stroke-width="1.35"/><path d="m8.2 15.4 3.8 3.6 4-3.7" stroke="currentColor" stroke-width="1.25"/></svg>`;
+const GEAR_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M9.7 3.5h4.6l.5 2c.5.2.9.4 1.3.7l2-.6 2.3 4-1.5 1.5c0 .3.1.6.1.9s0 .6-.1.9l1.5 1.5-2.3 4-2-.6c-.4.3-.8.5-1.3.7l-.5 2H9.7l-.5-2a7 7 0 0 1-1.3-.7l-2 .6-2.3-4 1.5-1.5A6 6 0 0 1 5 12c0-.3 0-.6.1-.9L3.6 9.6l2.3-4 2 .6c.4-.3.8-.5 1.3-.7l.5-2Z" stroke="currentColor" stroke-width="1.4"/><circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="1.4"/></svg>`;
+const SPARK_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M12 3.5c.6 4.8 3.1 7.3 7.8 8-4.7.7-7.2 3.2-7.8 8-.7-4.8-3.2-7.3-7.8-8 4.6-.7 7.1-3.2 7.8-8Z" stroke="currentColor" stroke-width="1.55"/></svg>`;
 
 const CSS = `
-.ldc-launcher{width:42px;height:42px;border:1px solid var(--lumiverse-border);border-radius:14px;background:color-mix(in srgb,var(--lumiverse-bg-elevated) 88%,transparent);color:var(--lumiverse-primary);display:grid;place-items:center;box-shadow:0 8px 24px rgba(0,0,0,.25);backdrop-filter:blur(12px);cursor:pointer;transition:transform .16s ease,border-color .16s ease}.ldc-launcher:hover{transform:translateY(-1px);border-color:var(--lumiverse-primary)}.ldc-launcher svg{width:21px;height:21px}.ldc-shell,.ldc-shell *{box-sizing:border-box}.ldc-shell{display:flex;flex-direction:column;min-height:420px;color:var(--lumiverse-text)}.ldc-tabs{display:flex;gap:6px;padding:0 0 12px;border-bottom:1px solid var(--lumiverse-border)}.ldc-tab{appearance:none;border:0;border-radius:10px;padding:8px 13px;background:transparent;color:var(--lumiverse-text-muted);font-weight:700;cursor:pointer}.ldc-tab[data-active="true"]{background:var(--lumiverse-primary-015,rgba(128,90,255,.15));color:var(--lumiverse-primary)}.ldc-main{display:grid;grid-template-columns:minmax(145px,190px) minmax(0,1fr);min-height:330px}.ldc-sidebar{padding:12px 10px 12px 0;border-right:1px solid var(--lumiverse-border);overflow:auto;max-height:430px}.ldc-person{width:100%;display:flex;align-items:center;gap:9px;padding:9px;border:1px solid transparent;border-radius:11px;background:transparent;color:var(--lumiverse-text);text-align:left;cursor:pointer}.ldc-person:hover{background:var(--lumiverse-fill-subtle)}.ldc-person[data-active="true"]{border-color:var(--lumiverse-primary-050,rgba(128,90,255,.5));background:var(--lumiverse-primary-015,rgba(128,90,255,.15))}.ldc-swatch{width:13px;height:13px;border-radius:50%;border:1px solid rgba(255,255,255,.35);box-shadow:0 0 0 2px rgba(0,0,0,.15);flex:0 0 auto}.ldc-person-copy{min-width:0}.ldc-person-name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;font-weight:700}.ldc-person-source{display:block;margin-top:2px;font-size:10.5px;color:var(--lumiverse-text-dim)}.ldc-panel{padding:16px 2px 10px 18px;min-width:0}.ldc-empty{padding:34px 12px;text-align:center;color:var(--lumiverse-text-dim)}.ldc-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:15px}.ldc-heading h3{margin:0;font-size:17px}.ldc-sub{margin-top:4px;color:var(--lumiverse-text-dim);font-size:11.5px}.ldc-source-chip,.ldc-bridge{display:inline-flex;align-items:center;border:1px solid var(--lumiverse-border);border-radius:999px;padding:4px 8px;font-size:10px;color:var(--lumiverse-text-dim);background:var(--lumiverse-fill-subtle)}.ldc-field{display:block;margin:0 0 13px}.ldc-field>span{display:block;margin-bottom:6px;font-size:11.5px;font-weight:700;color:var(--lumiverse-text-muted)}.ldc-field input[type="text"],.ldc-field select{width:100%;border:1px solid var(--lumiverse-border);border-radius:10px;background:var(--lumiverse-fill);color:var(--lumiverse-text);padding:9px 10px;outline:none}.ldc-field input:focus,.ldc-field select:focus{border-color:var(--lumiverse-primary)}.ldc-color-row{display:grid;grid-template-columns:68px 1fr;gap:10px}.ldc-color{width:68px;height:40px;border:1px solid var(--lumiverse-border);border-radius:10px;background:var(--lumiverse-fill);padding:3px;cursor:pointer}.ldc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}.ldc-btn{appearance:none;border:1px solid var(--lumiverse-border);border-radius:10px;padding:9px 12px;background:var(--lumiverse-fill-subtle);color:var(--lumiverse-text);font-weight:700;cursor:pointer}.ldc-btn:hover{border-color:var(--lumiverse-primary)}.ldc-btn-primary{border-color:transparent;background:var(--lumiverse-primary);color:var(--lumiverse-primary-contrast,#fff)}.ldc-btn:disabled{opacity:.55;cursor:wait}.ldc-options{margin-top:14px;padding-top:13px;border-top:1px solid var(--lumiverse-border)}.ldc-check{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--lumiverse-text-muted)}.ldc-note{margin:11px 0 0;font-size:10.5px;line-height:1.45;color:var(--lumiverse-text-dim)}.ldc-status{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:10px;border-top:1px solid var(--lumiverse-border);font-size:10.5px;color:var(--lumiverse-text-dim)}.ldc-loading{display:grid;place-items:center;min-height:300px;color:var(--lumiverse-text-dim)}.ldc-error{padding:18px;border:1px solid color-mix(in srgb,var(--lumiverse-danger) 50%,var(--lumiverse-border));border-radius:12px;color:var(--lumiverse-danger)}@media(max-width:620px){.ldc-main{grid-template-columns:112px minmax(0,1fr)}.ldc-panel{padding-left:12px}.ldc-person-source{display:none}.ldc-color-row{grid-template-columns:54px 1fr}.ldc-color{width:54px}}
+.ldc-shell,.ldc-shell *{box-sizing:border-box}.ldc-shell{--psoft:color-mix(in srgb,var(--lumiverse-primary) 15%,transparent);position:relative;display:flex;flex-direction:column;min-height:430px;color:var(--lumiverse-text);font-size:12px;overflow:hidden}.ldc-shell:before{content:"";position:absolute;inset:-180px -50px auto;height:300px;background:radial-gradient(circle,color-mix(in srgb,var(--lumiverse-primary) 18%,transparent),transparent 68%);pointer-events:none}.ldc-shell>*{position:relative}
+.ldc-toolbar-host{display:flex}.ldc-toolbar-button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--lumiverse-primary);opacity:.8;cursor:pointer}.ldc-toolbar-button:hover{opacity:1;border-color:var(--lumiverse-border);background:var(--lumiverse-fill-subtle);filter:drop-shadow(0 0 7px color-mix(in srgb,var(--lumiverse-primary) 45%,transparent))}.ldc-toolbar-button svg{width:16px}
+.ldc-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 10px 10px;border-bottom:1px solid var(--lumiverse-border)}.ldc-tabs{display:flex;gap:4px}.ldc-tab,.ldc-engine button{border:0;border-radius:9px;background:transparent;color:var(--lumiverse-text-muted);font-size:11px;font-weight:800;cursor:pointer}.ldc-tab{padding:7px 11px}.ldc-tab[data-active=true]{color:var(--lumiverse-text);background:var(--psoft)}.ldc-top-actions{display:flex;align-items:center;gap:7px}.ldc-engine{display:flex;gap:3px;padding:3px;border:1px solid var(--lumiverse-border);border-radius:11px;background:var(--lumiverse-fill-subtle)}.ldc-engine button{padding:5px 9px;font-size:10px}.ldc-engine button[data-active=true]{color:var(--lumiverse-text);background:var(--psoft);box-shadow:0 3px 10px #0003}.ldc-icon{display:grid;place-items:center;width:29px;height:29px;padding:0;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--lumiverse-text-dim);cursor:pointer}.ldc-icon:hover,.ldc-icon[data-active=true]{border-color:var(--lumiverse-border);background:var(--lumiverse-fill-subtle);color:var(--lumiverse-text)}.ldc-icon svg{width:15px}.ldc-engine-note{padding:7px 11px 0;text-align:right;color:var(--lumiverse-text-dim);font-size:9.5px}
+.ldc-setup{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 10px 0;padding:10px 11px;border:1px solid color-mix(in srgb,var(--lumiverse-primary) 28%,var(--lumiverse-border));border-radius:13px;background:linear-gradient(90deg,var(--psoft),color-mix(in srgb,#5db9ff 7%,transparent))}.ldc-setup-copy{display:flex;align-items:center;gap:9px}.ldc-setup-icon{display:grid;place-items:center;width:29px;height:29px;border-radius:10px;background:var(--psoft);color:var(--lumiverse-primary)}.ldc-setup-icon svg{width:15px}.ldc-setup-title{font-size:11px;font-weight:850}.ldc-setup-desc{margin-top:2px;color:var(--lumiverse-text-dim);font-size:9.5px}.ldc-mini,.ldc-btn{border:1px solid var(--lumiverse-border);border-radius:9px;background:var(--lumiverse-fill-subtle);color:var(--lumiverse-text-muted);padding:7px 9px;font-size:9px;font-weight:820;cursor:pointer}.ldc-mini{border-color:var(--lumiverse-primary);background:var(--psoft);color:var(--lumiverse-primary);white-space:nowrap}
+.ldc-main{display:grid;grid-template-columns:205px minmax(0,1fr);flex:1;min-height:330px;margin-top:10px;border-top:1px solid var(--lumiverse-border);border-bottom:1px solid var(--lumiverse-border)}.ldc-side{padding:12px 9px;overflow:auto;max-height:430px;scrollbar-gutter:stable;border-right:1px solid var(--lumiverse-border)}.ldc-side-label{padding:0 8px 7px;color:var(--lumiverse-text-dim);font-size:8.5px;font-weight:850;letter-spacing:.11em;text-transform:uppercase}.ldc-person{display:flex;align-items:center;gap:9px;width:100%;padding:8px;border:1px solid transparent;border-radius:11px;cursor:pointer}.ldc-person+.ldc-person{margin-top:3px}.ldc-person:hover{background:var(--lumiverse-fill-subtle)}.ldc-person[data-active=true]{border-color:var(--lumiverse-primary);background:var(--psoft)}.ldc-avatar{position:relative;display:grid;place-items:center;width:32px;height:32px;flex:0 0 auto;border-radius:10px;background:linear-gradient(145deg,var(--lumiverse-primary),#313444);color:#fff;font-size:9.5px;font-weight:900}.ldc-inline-picker{position:absolute;right:-3px;bottom:-3px;width:13px;height:13px;padding:0;border:2px solid var(--lumiverse-bg-elevated);border-radius:50%;overflow:hidden}.ldc-person-copy{min-width:0;flex:1}.ldc-person-name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:800}.ldc-person-source{display:block;margin-top:2px;color:var(--lumiverse-text-dim);font-size:9px}.ldc-side-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--lumiverse-border)}
+.ldc-panel{min-width:0;padding:19px 20px 16px}.ldc-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:15px}.ldc-profile{display:flex;align-items:center;gap:11px}.ldc-profile-avatar{display:grid;place-items:center;width:41px;height:41px;border-radius:13px;background:linear-gradient(145deg,var(--lumiverse-primary),#34364b);color:#fff;font-weight:900}.ldc-heading h3{margin:0;font-size:16px}.ldc-sub{margin-top:3px;color:var(--lumiverse-text-dim);font-size:10px}.ldc-chip,.ldc-bridge{border:1px solid var(--lumiverse-border);border-radius:999px;padding:4px 7px;background:var(--lumiverse-fill-subtle);color:var(--lumiverse-text-dim);font-size:8.5px}.ldc-preview{margin-bottom:14px;padding:10px 11px;border:1px solid var(--lumiverse-border);border-radius:11px;background:var(--lumiverse-fill-subtle);color:var(--lumiverse-text-muted);font-size:10.5px}.ldc-preview strong{color:var(--preview)}.ldc-field{display:block;margin-bottom:12px}.ldc-label{display:flex;justify-content:space-between;margin-bottom:6px;color:var(--lumiverse-text-muted);font-size:10px;font-weight:750}.ldc-hint{color:var(--lumiverse-text-dim);font-size:8.5px}.ldc-color-row{display:grid;grid-template-columns:55px 1fr;gap:9px}.ldc-picker{width:55px;height:38px;padding:3px;border:1px solid var(--lumiverse-border);border-radius:10px;background:var(--lumiverse-fill)}.ldc-input,.ldc-select{width:100%;height:38px;padding:0 10px;border:1px solid var(--lumiverse-border);border-radius:10px;background:var(--lumiverse-fill);color:var(--lumiverse-text);font-size:11px}.ldc-actions{display:flex;align-items:center;justify-content:space-between;margin-top:15px}.ldc-autosave{color:var(--lumiverse-text-dim);font-size:8.5px}.ldc-primary{background:var(--lumiverse-primary);color:var(--lumiverse-primary-contrast,#fff)}.ldc-empty{padding:34px;text-align:center;color:var(--lumiverse-text-dim)}
+.ldc-settings{padding:18px 20px;min-height:320px}.ldc-settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ldc-card{padding:12px;border:1px solid var(--lumiverse-border);border-radius:12px;background:var(--lumiverse-fill-subtle)}.ldc-card h4{margin:0 0 5px}.ldc-card p{color:var(--lumiverse-text-dim);font-size:9.5px;line-height:1.45}.ldc-status{display:flex;justify-content:space-between;padding:10px 11px;color:var(--lumiverse-text-dim);font-size:9px}.ldc-loading{display:grid;place-items:center;min-height:380px}.ldc-error{margin:16px;padding:16px;border:1px solid var(--lumiverse-danger);border-radius:12px;color:var(--lumiverse-danger)}
+.ldc-dom-dialogue,.ldc-inline-color{color:var(--ldc-color)!important}.ldc-dom-dialogue{cursor:context-menu}.ldc-dom-dialogue[data-prism-confidence-level=low]{text-decoration-line:underline;text-decoration-style:dotted;text-decoration-color:color-mix(in srgb,currentColor 55%,transparent);text-underline-offset:.18em}.ldc-dom-whole,.ldc-dom-whole *:not(a):not(button){color:var(--ldc-color)!important}@media(max-width:620px){.ldc-main{display:flex;flex-direction:column}.ldc-side{display:flex;overflow:auto;border-right:0}.ldc-person{min-width:140px}.ldc-settings-grid{grid-template-columns:1fr}}
 `;
 
-const EXTRA_CSS = `
-.ldc-toolbar-host{display:flex;align-items:center}.ldc-toolbar-button{display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--lumiverse-text-dim);opacity:.65;cursor:pointer;transition:all var(--lumiverse-transition-fast,120ms)}.ldc-toolbar-button:hover{opacity:1;color:var(--lumiverse-text);border-color:var(--lumiverse-border-hover,var(--lumiverse-border));background:var(--lumiverse-fill-subtle)}.ldc-toolbar-button svg{width:15px;height:15px}.ldc-shell{font-size:12.5px;min-height:380px}.ldc-main{min-height:300px}.ldc-tabbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 0 10px;border-bottom:1px solid var(--lumiverse-border)}.ldc-tabbar .ldc-tabs{padding:0;border:0}.ldc-tab{padding:7px 11px;font-size:12px}.ldc-settings-toggle{display:grid;place-items:center;width:30px;height:30px;padding:0}.ldc-settings-toggle svg{width:15px;height:15px}.ldc-person{padding:7px 8px}.ldc-person-name{font-size:11.5px}.ldc-person-source{font-size:9.5px}.ldc-panel{padding-top:14px}.ldc-heading h3{font-size:15px}.ldc-sub,.ldc-field>span{font-size:10.5px}.ldc-field input[type="text"],.ldc-field select{font-size:12.5px;padding:8px 9px}.ldc-btn{font-size:12px;padding:8px 11px}.ldc-settings{padding:14px 2px 8px}.ldc-engine-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.ldc-engine{display:block;padding:12px;border:1px solid var(--lumiverse-border);border-radius:12px;background:var(--lumiverse-fill-subtle);cursor:pointer}.ldc-engine:has(input:checked){border-color:var(--lumiverse-primary);background:var(--lumiverse-primary-015,rgba(128,90,255,.15))}.ldc-engine input{position:absolute;opacity:0;pointer-events:none}.ldc-engine-title{display:flex;align-items:center;gap:8px;font-weight:800;font-size:12px}.ldc-engine-title svg{width:14px;height:14px}.ldc-engine-copy{display:block;margin-top:5px;font-size:10.5px;line-height:1.4;color:var(--lumiverse-text-dim)}.ldc-dom-dialogue,.ldc-inline-color{color:var(--ldc-dom-color)!important}.ldc-dom-whole,.ldc-dom-whole *:not(a):not(button){color:var(--ldc-dom-color)!important}@media(max-width:620px){.ldc-engine-grid{grid-template-columns:1fr}}
-`;
+const VERBS = ['said','says','asked','asks','replied','replies','answered','answers','whispered','whispers','murmured','murmurs','muttered','mutters','shouted','shouts','called','calls','snapped','snaps','hissed','hisses','continued','continues','added','adds','insisted','insists'];
+const uid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+function normalizeHex(value){const raw=String(value||'').trim(),short=raw.match(/^#?([0-9a-f]{3})$/i);if(short)return `#${short[1].split('').map(c=>c+c).join('').toUpperCase()}`;const full=raw.match(/^#?([0-9a-f]{6})$/i);return full?`#${full[1].toUpperCase()}`:null}
+function esc(value){return String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;')}
+function reEsc(value){return String(value).replace(/[.*+?^$()|[\]{}\\]/g,'\\$&')}
+function hashText(value){let hash=2166136261;for(const char of String(value||'')){hash^=char.codePointAt(0)||0;hash=Math.imul(hash,16777619)}return(hash>>>0).toString(36)}
+function initials(name){return String(name||'?').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()}
+function sourceLabel(s){return({cortex:'Cortex · imported',transcript:'Transcript · imported',preset:'Preset · imported',library:'Library · reused',generated:'Generated',manual:'Manual · pinned'})[s]||s||'Unassigned'}
+function evidenceLabel(s){return({manual:'manual correction','speaker-label':'speaker label','reporting-verb':'reporting verb','action-beat':'action beat','paragraph-continuity':'same-paragraph continuity','previous-line':'previous-line action',alternation:'two-speaker alternation','bubble-author':'bubble author',fallback:'aggressive fallback',unresolved:'no reliable evidence'})[s]||s}
 
-function uid() {
-  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-}
+export function setup(ctx: SpindleFrontendContext){
+  const removeStyle=ctx.dom.addStyle(CSS),pending=new Map(),signatures=new Map(),dirty=new Set();
+  let modal=null,state=null,activeTab='character',selectedId=null,sideScroll=0,settingsOpen=false,busy=false,toolbarInjection=null,refreshTimer=0,saveTimer=0,longTimer=0,applying=false,revision=0;
+  const request=(type,data={})=>new Promise((resolve,reject)=>{const requestId=uid(),timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('The extension backend did not answer.'))},12000);pending.set(requestId,{resolve,reject,timer});ctx.sendToBackend({type,requestId,...data})});
+  const unsubBackend=ctx.onBackendMessage(payload=>{const task=pending.get(payload?.requestId);if(!task)return;clearTimeout(task.timer);pending.delete(payload.requestId);payload.type==='ldc_error'?task.reject(new Error(payload.error||'Unknown error')):task.resolve(payload)});
+  function acceptState(next){state=next;revision++;signatures.clear();schedule(true)}
+  function current(){return state?.characters?.find(c=>String(c.id)===String(selectedId))||state?.characters?.[0]||null}
+  function missingCount(){return(state?.characters||[]).filter(c=>!normalizeHex(c.binding?.color)).length+(state?.persona&&!normalizeHex(state.persona.binding?.color)?1:0)}
+  function setBusy(value){busy=value;modal?.root.querySelectorAll('button,input,select').forEach(el=>{el.disabled=value})}
+  async function perform(task){if(busy)return;setBusy(true);try{await task()}catch(error){await ctx.ui.showConfirm({title:'Prism',message:error?.message||String(error),confirmLabel:'Okay',cancelLabel:'Close',variant:'warning'})}finally{setBusy(false)}}
 
-function normalizeHex(value) {
-  const raw = String(value || '').trim();
-  const short = raw.match(/^#?([0-9a-f]{3})$/i);
-  if (short) return `#${short[1].split('').map((c) => c + c).join('').toUpperCase()}`;
-  const full = raw.match(/^#?([0-9a-f]{6})$/i);
-  return full ? `#${full[1].toUpperCase()}` : null;
-}
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
-}
-
-export function setup(ctx: SpindleFrontendContext) {
-  const removeStyle = ctx.dom.addStyle(`${CSS}${EXTRA_CSS}`);
-  const pending = new Map();
-  let modal = null;
-  let state = null;
-  let activeTab = 'character';
-  let selectedCharacterId = null;
-  let sidebarScrollTop = 0;
-  let settingsOpen = false;
-  let busy = false;
-  let toolbarInjection = null;
-  let domRefreshTimer = 0;
-  let applyingDomColors = false;
-
-  const request = (type, data = {}) => new Promise((resolve, reject) => {
-    const requestId = uid();
-    const timer = setTimeout(() => {
-      pending.delete(requestId);
-      reject(new Error('The extension backend did not answer.'));
-    }, 12000);
-    pending.set(requestId, { resolve, reject, timer });
-    ctx.sendToBackend({ type, requestId, ...data });
-  });
-
-  const unsubBackend = ctx.onBackendMessage((payload) => {
-    const task = pending.get(payload?.requestId);
-    if (!task) return;
-    clearTimeout(task.timer);
-    pending.delete(payload.requestId);
-    if (payload.type === 'ldc_error') task.reject(new Error(payload.error || 'Unknown error'));
-    else task.resolve(payload);
-  });
-
-  function setBusy(value) {
-    busy = value;
-    modal?.root.querySelectorAll('button,input,select').forEach((element) => {
-      if (element.dataset.allowBusy === 'true') return;
-      element.disabled = value;
-    });
+  function sidebar(){
+    if(!state?.characters?.length)return'<div class="ldc-empty">No scene characters found yet.</div>';
+    const rows=state.characters.map(c=>{const color=normalizeHex(c.binding?.color)||'#777777';return `<div class="ldc-person" role="button" tabindex="0" data-character-id="${esc(c.id)}" data-active="${c.id===current()?.id}"><span class="ldc-avatar">${esc(initials(c.name))}<input class="ldc-inline-picker" data-inline-color="${esc(c.id)}" type="color" value="${esc(color)}" title="Change ${esc(c.name)} color"></span><span class="ldc-person-copy"><span class="ldc-person-name">${esc(c.name)}</span><span class="ldc-person-source">${esc(sourceLabel(c.binding?.source||c.source))}</span></span><span>›</span></div>`}).join('');
+    return `<div class="ldc-side-label">Scene roster</div>${rows}<div class="ldc-side-actions"><button class="ldc-btn" data-action="assign">Assign missing</button><button class="ldc-btn" data-action="regenerate">Regenerate</button></div>`
+  }
+  function charPanel(c){
+    if(!c)return'<div class="ldc-empty">No character is registered in this scene yet.</div>';
+    const b=c.binding||{},color=normalizeHex(b.color)||'#B58CFF',aliases=(b.aliases?.length?b.aliases:c.aliases||[]).join(', ');
+    return `<div class="ldc-heading"><div class="ldc-profile"><span class="ldc-profile-avatar">${esc(initials(c.name))}</span><div><h3>${esc(c.name)}</h3><div class="ldc-sub">${esc(c.status||'active')} · ${(b.aliases||c.aliases||[]).length} aliases</div></div></div><span class="ldc-chip">${esc(sourceLabel(b.source||c.source))}</span></div><div class="ldc-preview" style="--preview:${color}">Dialogue preview: <strong>“Prism keeps this local and reversible.”</strong></div><label class="ldc-field"><span class="ldc-label">Dialogue color <span class="ldc-hint">Autosaves when valid</span></span><span class="ldc-color-row"><input class="ldc-picker" data-role="picker" type="color" value="${color}"><input class="ldc-input" data-role="hex" value="${color}" maxlength="7"></span></label><label class="ldc-field"><span class="ldc-label">Aliases <span class="ldc-hint">Used for local attribution</span></span><input class="ldc-input" data-role="aliases" value="${esc(aliases)}" placeholder="Hugo, Mr. Vlad, the Mockingbird"></label><div class="ldc-actions"><span class="ldc-autosave">Color changes autosave</span><button class="ldc-btn ldc-primary" data-action="save-character">Save aliases</button></div>`
+  }
+  function personaPanel(){
+    const p=state?.persona;if(!p)return'<div class="ldc-empty">No active persona is selected.</div>';const color=normalizeHex(p.binding?.color)||'#7DB7FF';
+    return `<div class="ldc-heading"><div class="ldc-profile"><span class="ldc-profile-avatar">${esc(initials(p.name))}</span><div><h3>${esc(p.name)}</h3><div class="ldc-sub">${esc(p.title||(p.isNarrator?'Narrator persona':'Active persona'))}</div></div></div><span class="ldc-chip">${esc(sourceLabel(p.binding?.source||'active'))}</span></div><div class="ldc-preview" style="--preview:${color}">Persona preview: <strong>“My quoted dialogue gets its own color.”</strong></div><label class="ldc-field"><span class="ldc-label">Dialogue color <span class="ldc-hint">Autosaves when valid</span></span><span class="ldc-color-row"><input class="ldc-picker" data-role="picker" type="color" value="${color}"><input class="ldc-input" data-role="hex" value="${color}" maxlength="7"></span></label><label class="ldc-field"><span class="ldc-label">Persona dialogue</span><select class="ldc-select" data-role="auto-mode"><option value="off" ${state.config.autoUserMode==='off'?'selected':''}>Off</option><option value="quoted" ${state.config.autoUserMode==='quoted'?'selected':''}>Quoted dialogue only</option><option value="whole" ${state.config.autoUserMode==='whole'?'selected':''}>Whole message</option></select></label><div class="ldc-actions"><span class="ldc-autosave">Active persona only</span><button class="ldc-btn ldc-primary" data-action="save-persona">Save persona</button></div>`
+  }
+  function settingsPanel(){const p=state?.preferences||{};return `<section class="ldc-settings"><div class="ldc-heading"><div><h3>Local attribution</h3><div class="ldc-sub">Choose how willing Prism is to infer a speaker.</div></div></div><div class="ldc-settings-grid"><div class="ldc-card"><h4>Attribution mode</h4><p>Balanced uses labels, speech tags, action beats, continuity, and bubble authors. Only Aggressive falls back to a primary character.</p><select class="ldc-select" data-role="mode"><option value="strict" ${p.domAttributionMode==='strict'?'selected':''}>Strict</option><option value="balanced" ${p.domAttributionMode==='balanced'?'selected':''}>Balanced</option><option value="aggressive" ${p.domAttributionMode==='aggressive'?'selected':''}>Aggressive</option></select></div><div class="ldc-card"><h4>Confidence feedback</h4><p>Low-confidence dialogue gets a dotted underline. Right-click or long-press a colored quote to teach Prism.</p><label><input type="checkbox" data-role="uncertain" ${p.markUncertain!==false?'checked':''}> Mark uncertain dialogue</label></div></div></section>`}
+  function render(){
+    if(!modal)return;const oldSide=modal.root.querySelector('.ldc-side');if(oldSide&&activeTab==='character')sideScroll=oldSide.scrollTop;
+    if(!state){modal.root.innerHTML='<div class="ldc-loading">Reading the scene registry…</div>';return}
+    if(!state.ok){modal.root.innerHTML=`<div class="ldc-error">${esc(state.error||'Could not load this chat.')}</div>`;return}
+    if(!selectedId&&state.characters?.length)selectedId=state.characters[0].id;
+    const missing=missingCount(),engine=state.config.engine==='llm'?'llm':'dom',needs=engine!=='dom'||missing>0;
+    const setupTitle=missing?`Set up local colors · ${missing} scene member${missing===1?'':'s'} still need colors`:'Make Local the scene engine';
+    modal.root.innerHTML=`<div class="ldc-shell"><div class="ldc-top"><div class="ldc-tabs"><button class="ldc-tab" data-tab="character" data-active="${activeTab==='character'&&!settingsOpen}">Characters</button><button class="ldc-tab" data-tab="persona" data-active="${activeTab==='persona'&&!settingsOpen}">Persona</button></div><div class="ldc-top-actions"><div class="ldc-engine"><button data-engine="dom" data-active="${engine==='dom'}">Local</button><button data-engine="llm" data-active="${engine==='llm'}">LLM</button></div><button class="ldc-icon" data-action="settings" data-active="${settingsOpen}" title="Prism settings">${GEAR_ICON}</button></div></div><div class="ldc-engine-note">${engine==='dom'?'Local — visual only; chat text and model context are unchanged.':'LLM — injects a registry and may persist compatible color tags.'}</div>${needs?`<div class="ldc-setup"><div class="ldc-setup-copy"><span class="ldc-setup-icon">${SPARK_ICON}</span><div><div class="ldc-setup-title">${esc(setupTitle)}</div><div class="ldc-setup-desc">Found ${state.characters.length} characters${state.persona?' and your active persona':''}. Existing imported and manual colors stay untouched.</div></div></div><button class="ldc-mini" data-action="setup">Set up scene</button></div>`:''}${settingsOpen?settingsPanel():`<div class="ldc-main">${activeTab==='character'?`<aside class="ldc-side">${sidebar()}</aside><section class="ldc-panel">${charPanel(current())}</section>`:`<aside class="ldc-side"><div class="ldc-side-label">Active persona</div><div class="ldc-person" data-active="true"><span class="ldc-avatar">${esc(initials(state.persona?.name))}</span><span class="ldc-person-copy"><span class="ldc-person-name">${esc(state.persona?.name||'No persona')}</span><span class="ldc-person-source">currently applied</span></span></div></aside><section class="ldc-panel">${personaPanel()}</section>`}</div>`}<div class="ldc-status"><span>${esc(state.chat.name)}</span><span class="ldc-bridge">${engine==='dom'?'Local':'LLM sidecar'} · ${state.characters.length} characters · Cortex ${state.cortexAvailable?'linked':'unavailable'}</span></div></div>`;
+    wire();const next=modal.root.querySelector('.ldc-side');if(next&&activeTab==='character')next.scrollTop=sideScroll;setBusy(busy)
+  }
+  async function saveBinding(kind,target,color,aliases=[]){const response=await request('ldc_save_binding',{chatId:state.chat.id,kind,targetId:kind==='persona'?target.id:(target.entityId||target.characterId||target.id),name:target.name,aliases,color,engine:state.config.engine,autoUserMode:state.config.autoUserMode});acceptState(response.state);if(kind==='character')selectedId=state.characters.find(x=>x.name===target.name)?.id||selectedId;render()}
+  function queueSave(kind,immediate=false){clearTimeout(saveTimer);saveTimer=setTimeout(()=>perform(async()=>{if(!modal)return;const color=normalizeHex(modal.root.querySelector('[data-role=hex]')?.value);if(!color)return;if(kind==='persona'){if(state.persona)await saveBinding('persona',state.persona,color,[])}else{const c=current(),aliases=String(modal.root.querySelector('[data-role=aliases]')?.value||'').split(',').map(x=>x.trim()).filter(Boolean);if(c)await saveBinding('character',c,color,aliases)}}),immediate?0:380)}
+  function wire(){
+    if(!modal)return;
+    modal.root.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{activeTab=b.dataset.tab;settingsOpen=false;render()});
+    modal.root.querySelectorAll('[data-character-id]').forEach(row=>{const activate=e=>{if(e.target.closest('input'))return;const side=modal.root.querySelector('.ldc-side');if(side)sideScroll=side.scrollTop;selectedId=row.dataset.characterId;render()};row.onclick=activate;row.onkeydown=e=>{if(e.key==='Enter'||e.key===' ')activate(e)}});
+    modal.root.querySelector('[data-action=settings]')?.addEventListener('click',()=>{settingsOpen=!settingsOpen;render()});
+    modal.root.querySelectorAll('[data-engine]').forEach(b=>b.onclick=()=>perform(async()=>{if(b.dataset.engine===state.config.engine)return;const r=await request('ldc_update_options',{engine:b.dataset.engine,autoUserMode:state.config.autoUserMode});acceptState(r.state);render()}));
+    for(const [action,regenerate] of [['setup',false],['assign',false],['regenerate',true]])modal.root.querySelector(`[data-action=${action}]`)?.addEventListener('click',()=>perform(async()=>{const r=await request(action==='setup'?'ldc_setup_scene':'ldc_assign_colors',{chatId:state.chat.id,regenerate});acceptState(r.state);render()}));
+    modal.root.querySelectorAll('[data-inline-color]').forEach(p=>{p.onclick=e=>e.stopPropagation();p.onchange=()=>{const c=state.characters.find(x=>String(x.id)===String(p.dataset.inlineColor)),color=normalizeHex(p.value);if(c&&color)perform(()=>saveBinding('character',c,color,c.binding?.aliases||c.aliases||[]))}});
+    const picker=modal.root.querySelector('[data-role=picker]'),hex=modal.root.querySelector('[data-role=hex]');if(picker&&hex){picker.oninput=()=>{hex.value=picker.value.toUpperCase()};picker.onchange=()=>queueSave(activeTab==='persona'?'persona':'character',true);hex.oninput=()=>{const color=normalizeHex(hex.value);if(color){picker.value=color;queueSave(activeTab==='persona'?'persona':'character')}};hex.onblur=()=>{const color=normalizeHex(hex.value);if(color){hex.value=color;queueSave(activeTab==='persona'?'persona':'character',true)}}}
+    modal.root.querySelector('[data-action=save-character]')?.addEventListener('click',()=>queueSave('character',true));modal.root.querySelector('[data-action=save-persona]')?.addEventListener('click',()=>queueSave('persona',true));
+    modal.root.querySelector('[data-role=auto-mode]')?.addEventListener('change',e=>perform(async()=>{const r=await request('ldc_update_options',{engine:state.config.engine,autoUserMode:e.target.value});acceptState(r.state);render()}));
+    modal.root.querySelector('[data-role=mode]')?.addEventListener('change',e=>perform(async()=>{const r=await request('ldc_update_options',{engine:state.config.engine,domAttributionMode:e.target.value});acceptState(r.state);render()}));
+    modal.root.querySelector('[data-role=uncertain]')?.addEventListener('change',e=>perform(async()=>{const r=await request('ldc_update_options',{engine:state.config.engine,markUncertain:e.target.checked});acceptState(r.state);render()}))
   }
 
-  function currentCharacter() {
-    return state?.characters?.find((character) => character.id === selectedCharacterId)
-      || state?.characters?.[0]
-      || null;
+  function clearRoot(root){root.querySelectorAll('.ldc-inline-color').forEach(s=>s.replaceWith(document.createTextNode(s.dataset.prismOriginal||s.textContent||'')));root.querySelectorAll('.ldc-dom-dialogue').forEach(s=>s.replaceWith(document.createTextNode(s.textContent||'')));root.classList.remove('ldc-dom-whole');root.style.removeProperty('--ldc-color');root.normalize()}
+  function inlineMatches(text){
+    const out=[],patterns=[/<font\b[^>]*\bcolor\s*=\s*["']?(#[0-9a-f]{6}|#[0-9a-f]{3})["']?[^>]*>([\s\S]*?)<\/font>/gi,/<span\b[^>]*\bstyle\s*=\s*["'][^"']*\bcolor\s*:\s*(#[0-9a-f]{6}|#[0-9a-f]{3})[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi,/\[color\s*=\s*["']?(#[0-9a-f]{6}|#[0-9a-f]{3})["']?\]([\s\S]*?)\[\/color\]/gi];
+    for(const pattern of patterns){let m;while((m=pattern.exec(text))){const color=normalizeHex(m[1]);if(color)out.push({start:m.index,end:m.index+m[0].length,original:m[0],color,content:m[2]})}}
+    return out.sort((a,b)=>a.start-b.start||b.end-a.end).filter((m,i,list)=>!list.slice(0,i).some(p=>m.start<p.end))
+  }
+  function renderInline(root){
+    const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode(node){return!node.data||node.parentElement?.closest('code,pre,textarea,script,style,.ldc-inline-color')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT}}),nodes=[];
+    while(walker.nextNode())nodes.push(walker.currentNode);
+    for(let n=nodes.length-1;n>=0;n--)for(const m of inlineMatches(nodes[n].data).reverse()){const middle=nodes[n].splitText(m.start);middle.splitText(m.end-m.start);const span=document.createElement('span');span.className='ldc-inline-color';span.dataset.prismOriginal=m.original;span.style.setProperty('--ldc-color',m.color);span.textContent=m.content;middle.replaceWith(span)}
+  }
+  function structured(value){
+    const text=String(value||'').trim();if(!text)return false;if(/^```(?:json|js|javascript|regex)?/i.test(text))return true;
+    if(text[0]==='{'||text[0]==='['){try{JSON.parse(text);return true}catch{}}
+    const lines=text.split(/\r?\n/).filter(x=>x.trim()),hits=lines.filter(x=>/^\s*["'][^"']+["']\s*:\s*(?:["'{[\d-]|true\b|false\b|null\b)/i.test(x)||/^\s*[{}[\],]+\s*$/.test(x));
+    return hits.length>=Math.max(1,Math.ceil(lines.length*.55))
+  }
+  function candidates(){
+    const all=state?.characters||[];
+    return all.filter(c=>normalizeHex(c.binding?.color)).map(c=>{const names=[c.name,...(c.binding?.aliases||c.aliases||[])],parts=String(c.name||'').split(/\s+/).filter(x=>x.length>=2);for(const part of [parts[0],parts.at(-1)].filter(Boolean)){const owners=all.filter(x=>String(x.name||'').split(/\s+/).some(t=>t.toLowerCase()===part.toLowerCase()));if(owners.length===1)names.push(part)}return{key:`character:${c.binding.targetId}`,id:String(c.id),characterId:String(c.characterId||''),name:c.name,names:[...new Set(names.map(x=>String(x||'').trim().toLowerCase()).filter(Boolean))],color:normalizeHex(c.binding.color),primary:String(c.characterId||'')===String(state?.chat?.characterId||'')}})
+  }
+  function named(c,text){const lower=String(text||'').toLowerCase();return c.names.some(name=>new RegExp(`(^|[^\\p{L}\\p{N}_])${reEsc(name)}(?=$|[^\\p{L}\\p{N}_])`,'u').test(lower))}
+  function explicit(text,start,end,list){
+    const before=text.slice(0,start),after=text.slice(end),line=before.slice(before.lastIndexOf('\n')+1),verbs=VERBS.join('|');
+    for(const c of list)for(const name of c.names){const n=reEsc(name);if(new RegExp(`(?:^|\\n)\\s*(?:\\*\\*|\\[)?${n}(?:\\*\\*|\\])?\\s*(?::|[—–-])\\s*$`,'iu').test(before))return{speaker:c,confidence:.99,source:'speaker-label'};if(new RegExp(`${n}\\s+(?:${verbs})\\s*[,.:—–-]?\\s*$`,'iu').test(line.slice(-150)))return{speaker:c,confidence:.94,source:'reporting-verb'};if(new RegExp(`^\\s*[,;.!?—–-]*\\s*${n}\\s+(?:${verbs})\\b`,'iu').test(after.slice(0,150)))return{speaker:c,confidence:.93,source:'reporting-verb'}}
+    return null
+  }
+  function resolveAttr({text,start,end,list,bubble,paragraph,recent}){
+    const mode=state?.preferences?.domAttributionMode||'balanced',hit=explicit(text,start,end,list);if(hit)return hit;if(bubble)return{speaker:bubble,confidence:.88,source:'bubble-author'};if(mode==='strict')return{speaker:null,confidence:0,source:'unresolved'};
+    const before=text.slice(0,start),line=before.slice(before.lastIndexOf('\n')+1),lines=before.split(/\r?\n/),prev=lines.length>1?lines.at(-2):'',action=list.filter(c=>named(c,line.slice(-180))),previous=list.filter(c=>named(c,prev.slice(-180)));
+    if(action.length===1&&/[.!?*]\s*$/.test(line))return{speaker:action[0],confidence:.74,source:'action-beat'};if(previous.length===1)return{speaker:previous[0],confidence:.66,source:'previous-line'};if(paragraph)return{speaker:paragraph,confidence:.64,source:'paragraph-continuity'};
+    const pair=[...new Set(recent.slice(-2).map(c=>c?.key).filter(Boolean))].map(k=>list.find(c=>c.key===k)).filter(Boolean);if(pair.length===2){const alt=pair.find(c=>c.key!==recent.at(-1)?.key);if(alt)return{speaker:alt,confidence:.55,source:'alternation'}}
+    if(list.length===1)return{speaker:list[0],confidence:.82,source:'bubble-author'};if(mode==='aggressive'){const fallback=list.find(c=>c.primary)||list[0]||null;return{speaker:fallback,confidence:.34,source:fallback?'fallback':'unresolved'}}return{speaker:null,confidence:0,source:'unresolved'}
+  }
+  function bubbleAuthor(element,list){const values=[element.dataset.characterId,element.dataset.speakerId,element.dataset.authorId,element.dataset.characterName,element.dataset.speaker,element.dataset.author].filter(Boolean).map(x=>String(x).toLowerCase()),matches=list.filter(c=>values.includes(c.id.toLowerCase())||values.includes(c.characterId.toLowerCase())||c.names.some(n=>values.includes(n)));return matches.length===1?matches[0]:null}
+  function overrideFor(messageId,swipeId,contentHash,segmentKey){const o=state?.config?.overrides?.[`${messageId}:${swipeId}:${segmentKey}`];return o?.contentHash===contentHash?o:null}
+  async function teach(event,detail,list){
+    event?.preventDefault?.();event?.stopPropagation?.();const rect=detail.rect,position=event?.clientX!=null?{x:event.clientX,y:event.clientY}:{x:rect.left+rect.width/2,y:rect.bottom},a=detail.attribution;
+    const items=[{key:'summary',label:a.speaker?`Prism thinks this is ${a.speaker.name}`:'Prism left this uncolored',disabled:true},{key:'evidence',label:`Detected from: ${evidenceLabel(a.source)} · ${Math.round(a.confidence*100)}%`,disabled:true},{key:'divider',label:'',type:'divider'},...list.map(c=>({key:c.key,label:c.name,active:c.key===a.speaker?.key})),{key:'none',label:'Leave uncolored',active:!a.speaker}],result=await ctx.ui.showContextMenu({position,items});
+    if(!result.selectedKey||['summary','evidence','divider'].includes(result.selectedKey))return;
+    const response=await request('ldc_save_override',{chatId:state.chat.id,messageId:detail.messageId,swipeId:detail.swipeId,contentHash:detail.contentHash,segmentKey:detail.segmentKey,quote:detail.quote,speakerKey:result.selectedKey==='none'?null:result.selectedKey});acceptState(response.state);if(modal)render()
+  }
+  function decorate(span,detail,list){
+    const a=detail.attribution;span.tabIndex=0;Object.assign(span.dataset,{prismMessageId:detail.messageId,prismSegmentId:detail.segmentKey,prismSpeaker:a.speaker?.name||'',prismSource:a.source,prismConfidence:a.confidence.toFixed(2)});if(state?.preferences?.markUncertain!==false&&a.confidence<.7)span.dataset.prismConfidenceLevel='low';span.title=a.speaker?`Assigned to ${a.speaker.name} from ${evidenceLabel(a.source)} · ${Math.round(a.confidence*100)}%`:'Prism could not identify this speaker';
+    const info=()=>({...detail,rect:span.getBoundingClientRect()});span.oncontextmenu=e=>teach(e,info(),list);span.onkeydown=e=>{if(e.key==='Enter'||e.key===' ')teach(e,info(),list)};span.onpointerdown=e=>{clearTimeout(longTimer);longTimer=setTimeout(()=>teach(e,info(),list),560)};for(const name of ['pointerup','pointercancel','pointerleave'])span.addEventListener(name,()=>clearTimeout(longTimer))
+  }
+  function colorQuotes(root,mc,list,fixed=null){
+    const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode(node){const parent=node.parentElement,block=parent?.closest('p,li,blockquote,div')?.textContent||node.data;return!node.data.trim()||parent?.closest('font,code,pre,textarea,button,script,style,.ldc-dom-dialogue,.ldc-inline-color')||structured(block)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT}}),records=[];let text='';
+    while(walker.nextNode()){records.push({node:walker.currentNode,start:text.length});text+=walker.currentNode.data}
+    const contentHash=hashText(text),occ=new Map(),recent=[],jobs=[];let paragraph=null;
+    for(const record of records)for(const match of record.node.data.matchAll(/“[^”\n]+”|"[^"\n]+"/g)){const start=record.start+match.index,end=start+match[0].length,norm=match[0].replace(/\s+/g,' ').trim().toLowerCase(),index=occ.get(norm)||0;occ.set(norm,index+1);const segmentKey=hashText([norm,text.slice(Math.max(0,start-48),start),text.slice(end,end+48),index].join('\u241F')),o=overrideFor(mc.messageId,mc.swipeId,contentHash,segmentKey);let attribution;if(o)attribution={speaker:o.speakerKey==null?null:list.find(c=>c.key===o.speakerKey)||null,confidence:1,source:'manual'};else attribution=fixed||resolveAttr({text,start,end,list,bubble:mc.bubble,paragraph,recent});if(attribution.speaker&&attribution.confidence>=.8)paragraph=attribution.speaker;if(attribution.speaker)recent.push(attribution.speaker);jobs.push({record,from:match.index,quote:match[0],segmentKey,contentHash,attribution})}
+    for(let i=jobs.length-1;i>=0;i--){const job=jobs[i];if(!job.attribution.speaker?.color)continue;const middle=job.record.node.splitText(job.from);middle.splitText(job.quote.length);const span=document.createElement('span');span.className='ldc-dom-dialogue';span.style.setProperty('--ldc-color',job.attribution.speaker.color);middle.replaceWith(span);span.appendChild(middle);decorate(span,{messageId:mc.messageId,swipeId:mc.swipeId,segmentKey:job.segmentKey,contentHash:job.contentHash,quote:job.quote,attribution:job.attribution},list)}
   }
 
-  function characterSidebar() {
-    if (!state?.characters?.length) {
-      return '<div class="ldc-empty">No scene characters found yet.</div>';
-    }
-    return state.characters.map((character) => {
-      const color = character.binding?.color || '#777777';
-      return `<button class="ldc-person" data-character-id="${escapeHtml(character.id)}" data-active="${character.id === currentCharacter()?.id}">
-        <span class="ldc-swatch" style="background:${escapeHtml(color)}"></span>
-        <span class="ldc-person-copy"><span class="ldc-person-name">${escapeHtml(character.name)}</span><span class="ldc-person-source">${escapeHtml(character.source)}</span></span>
-      </button>`;
-    }).join('');
-  }
-
-  function characterPanel(character) {
-    if (!character) return '<div class="ldc-empty">Cortex has not registered a character in this scene.</div>';
-    const binding = character.binding || {};
-    const color = normalizeHex(binding.color) || '#B58CFF';
-    const aliases = (binding.aliases?.length ? binding.aliases : character.aliases || []).join(', ');
-    return `<div class="ldc-heading"><div><h3>${escapeHtml(character.name)}</h3><div class="ldc-sub">${escapeHtml(character.status || 'active')}</div></div><span class="ldc-source-chip">${escapeHtml(binding.source || character.source)}</span></div>
-      <label class="ldc-field"><span>Dialogue color</span><div class="ldc-color-row"><input class="ldc-color" data-role="color-picker" type="color" value="${escapeHtml(color)}"><input data-role="hex" type="text" value="${escapeHtml(color)}" maxlength="7" spellcheck="false"></div></label>
-      <label class="ldc-field"><span>Aliases</span><input data-role="aliases" type="text" value="${escapeHtml(aliases)}" placeholder="Hugo, Mr. Vlad, the Mockingbird"></label>
-      <div class="ldc-actions"><button class="ldc-btn ldc-btn-primary" data-action="bind-character">Bind color</button></div>
-      <p class="ldc-note">Binding also upserts the canonical name and aliases into this chat's Cortex entity graph. DOM mode stays local; LLM sidecar mode persists compatible color tags.</p>`;
-  }
-
-  function personaPanel() {
-    const persona = state?.persona;
-    if (!persona) return '<div class="ldc-empty">No active persona is selected.</div>';
-    const binding = persona.binding || {};
-    const color = normalizeHex(binding.color) || '#7DB7FF';
-    return `<div class="ldc-heading"><div><h3>${escapeHtml(persona.name)}</h3><div class="ldc-sub">${escapeHtml(persona.title || (persona.isNarrator ? 'Narrator persona' : 'Active persona'))}</div></div><span class="ldc-source-chip">active</span></div>
-      <label class="ldc-field"><span>Dialogue color</span><div class="ldc-color-row"><input class="ldc-color" data-role="color-picker" type="color" value="${escapeHtml(color)}"><input data-role="hex" type="text" value="${escapeHtml(color)}" maxlength="7" spellcheck="false"></div></label>
-      <label class="ldc-field"><span>Automatic user-message coloring</span><select data-role="auto-mode"><option value="off" ${state.config.autoUserMode === 'off' ? 'selected' : ''}>Off</option><option value="quoted" ${state.config.autoUserMode === 'quoted' ? 'selected' : ''}>Quoted dialogue only</option><option value="whole" ${state.config.autoUserMode === 'whole' ? 'selected' : ''}>Whole message</option></select></label>
-      <div class="ldc-actions"><button class="ldc-btn ldc-btn-primary" data-action="bind-persona">Bind color</button><button class="ldc-btn" data-action="recolor">Apply to existing chat</button></div>
-      <p class="ldc-note">Quoted mode colors straight or curly quoted speech and leaves prose alone. Whole-message mode is useful for chat-style RP, but it will also color narration.</p>`;
-  }
-
-  function settingsPanel() {
-    const engine = state?.config?.engine === 'dom' ? 'dom' : 'llm';
-    return `<section class="ldc-settings">
-      <div class="ldc-heading"><div><h3>Coloring engine</h3><div class="ldc-sub">Choose whether Prism changes only the rendered page or asks the model to persist color tags.</div></div></div>
-      <div class="ldc-engine-grid">
-        <label class="ldc-engine"><input type="radio" name="ldc-engine" value="dom" ${engine === 'dom' ? 'checked' : ''}><span class="ldc-engine-title">${PALETTE_ICON}DOM only</span><span class="ldc-engine-copy">Reversible local coloring. Saved messages and model context stay untouched.</span></label>
-        <label class="ldc-engine"><input type="radio" name="ldc-engine" value="llm" ${engine === 'llm' ? 'checked' : ''}><span class="ldc-engine-title">${GEAR_ICON}LLM sidecar</span><span class="ldc-engine-copy">Injects a compact registry and writes compatible &lt;font color&gt; tags into the chat.</span></label>
-      </div>
-      <p class="ldc-note">DOM-only attribution uses nearby names and aliases, then falls back to the primary character for unlabelled assistant dialogue. Switches apply immediately.</p>
-    </section>`;
-  }
-
-  function render() {
-    if (!modal) return;
-    const previousSidebar = modal.root.querySelector('.ldc-sidebar');
-    if (previousSidebar && activeTab === 'character') sidebarScrollTop = previousSidebar.scrollTop;
-    if (!state) {
-      modal.root.innerHTML = '<div class="ldc-loading">Reading the scene registry…</div>';
-      return;
-    }
-    if (!state.ok) {
-      modal.root.innerHTML = `<div class="ldc-error">${escapeHtml(state.error || 'Could not load this chat.')}</div>`;
-      return;
-    }
-    if (!selectedCharacterId && state.characters?.length) selectedCharacterId = state.characters[0].id;
-
-    modal.root.innerHTML = `<div class="ldc-shell">
-      <div class="ldc-tabbar"><div class="ldc-tabs"><button class="ldc-tab" data-tab="character" data-active="${activeTab === 'character' && !settingsOpen}">Character</button><button class="ldc-tab" data-tab="persona" data-active="${activeTab === 'persona' && !settingsOpen}">Persona</button></div><button class="ldc-btn ldc-settings-toggle" data-action="toggle-settings" data-active="${settingsOpen}" title="Prism settings" aria-label="Prism settings">${GEAR_ICON}</button></div>
-      ${settingsOpen ? settingsPanel() : `<div class="ldc-main">
-        ${activeTab === 'character' ? `<aside class="ldc-sidebar">${characterSidebar()}</aside><section class="ldc-panel">${characterPanel(currentCharacter())}</section>` : `<aside class="ldc-sidebar"><button class="ldc-person" data-active="true"><span class="ldc-swatch" style="background:${escapeHtml(state.persona?.binding?.color || '#777777')}"></span><span class="ldc-person-copy"><span class="ldc-person-name">${escapeHtml(state.persona?.name || 'No persona')}</span><span class="ldc-person-source">currently applied</span></span></button></aside><section class="ldc-panel">${personaPanel()}</section>`}
-      </div>`}
-      <div class="ldc-status"><span>${escapeHtml(state.chat.name)}</span><span class="ldc-bridge">${state.config.engine === 'dom' ? 'DOM only' : 'LLM sidecar'} · Cortex: ${state.cortexAvailable ? 'linked' : 'permission unavailable'}${state.cortexImportedCount ? ` · cortex ${state.cortexImportedCount}` : ''}${state.transcriptImportedCount ? ` · styled ${state.transcriptImportedCount}` : ''}</span></div>
-    </div>`;
-
-    wireModal();
-    const nextSidebar = modal.root.querySelector('.ldc-sidebar');
-    if (nextSidebar && activeTab === 'character') nextSidebar.scrollTop = sidebarScrollTop;
-    setBusy(busy);
-  }
-
-  function syncColorInputs(root) {
-    const picker = root.querySelector('[data-role="color-picker"]');
-    const hex = root.querySelector('[data-role="hex"]');
-    if (!picker || !hex) return;
-    picker.addEventListener('input', () => { hex.value = picker.value.toUpperCase(); });
-    hex.addEventListener('input', () => {
-      const color = normalizeHex(hex.value);
-      if (color) picker.value = color;
-    });
-    hex.addEventListener('blur', () => {
-      const color = normalizeHex(hex.value);
-      if (color) hex.value = color;
-    });
-  }
-
-  async function perform(task) {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await task();
-    } catch (error) {
-      const message = error?.message || String(error);
-      await ctx.ui.showConfirm({ title: 'Prism', message, confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'warning' });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function wireModal() {
-    if (!modal) return;
-    syncColorInputs(modal.root);
-    modal.root.querySelectorAll('[data-tab]').forEach((button) => {
-      button.addEventListener('click', () => {
-        activeTab = button.dataset.tab;
-        settingsOpen = false;
-        render();
-      });
-    });
-    modal.root.querySelectorAll('[data-character-id]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const sidebar = modal.root.querySelector('.ldc-sidebar');
-        if (sidebar) sidebarScrollTop = sidebar.scrollTop;
-        selectedCharacterId = button.dataset.characterId;
-        render();
-      });
-    });
-
-    modal.root.querySelector('[data-action="toggle-settings"]')?.addEventListener('click', () => {
-      settingsOpen = !settingsOpen;
-      render();
-    });
-
-    modal.root.querySelectorAll('input[name="ldc-engine"]').forEach((input) => {
-      input.addEventListener('change', () => perform(async () => {
-        if (!input.checked) return;
-        const response = await request('ldc_update_options', {
-          engine: input.value,
-          autoUserMode: state.config.autoUserMode,
-        });
-        state = response.state;
-        scheduleDomRefresh();
-        render();
-      }));
-    });
-
-    modal.root.querySelector('[data-role="auto-mode"]')?.addEventListener('change', (event) => perform(async () => {
-      const response = await request('ldc_update_options', {
-        engine: state.config.engine,
-        autoUserMode: event.target.value,
-      });
-      state = response.state;
-      scheduleDomRefresh();
-      render();
-    }));
-
-    modal.root.querySelector('[data-action="bind-character"]')?.addEventListener('click', () => perform(async () => {
-      const character = currentCharacter();
-      const color = normalizeHex(modal.root.querySelector('[data-role="hex"]')?.value);
-      if (!character || !color) throw new Error('Enter a valid six-digit hex color.');
-      const aliases = String(modal.root.querySelector('[data-role="aliases"]')?.value || '').split(',').map((item) => item.trim()).filter(Boolean);
-      const response = await request('ldc_save_binding', {
-        chatId: state.chat.id,
-        kind: 'character',
-        targetId: character.entityId || character.id,
-        name: character.name,
-        aliases,
-        color,
-        engine: state.config.engine,
-      });
-      state = response.state;
-      selectedCharacterId = state.characters.find((item) => item.name === character.name)?.id || selectedCharacterId;
-      scheduleDomRefresh();
-      render();
-    }));
-
-    modal.root.querySelector('[data-action="bind-persona"]')?.addEventListener('click', () => perform(async () => {
-      const persona = state.persona;
-      const color = normalizeHex(modal.root.querySelector('[data-role="hex"]')?.value);
-      const mode = modal.root.querySelector('[data-role="auto-mode"]')?.value || state.config.autoUserMode;
-      if (!persona || !color) throw new Error('Select a persona and enter a valid six-digit hex color.');
-      const response = await request('ldc_save_binding', {
-        chatId: state.chat.id,
-        kind: 'persona',
-        targetId: persona.id,
-        name: persona.name,
-        aliases: [],
-        color,
-        autoUserMode: mode,
-        engine: state.config.engine,
-      });
-      state = response.state;
-      scheduleDomRefresh();
-      render();
-    }));
-
-    modal.root.querySelector('[data-action="recolor"]')?.addEventListener('click', () => perform(async () => {
-      if (state.config.engine === 'dom') {
-        scheduleDomRefresh(true);
-        return;
-      }
-      const choice = await ctx.ui.showConfirm({
-        title: 'Apply colors to existing chat?',
-        message: 'This rewrites matching old font colors and applies the active persona color to prior user messages. Swipe variants are updated too.',
-        confirmLabel: 'Apply colors',
-        cancelLabel: 'Cancel',
-        variant: 'info',
-      });
-      if (!choice.confirmed) return;
-      await request('ldc_recolor_existing', { chatId: state.chat.id });
-    }));
-  }
-
-  function unwrapDomColors() {
-    document.querySelectorAll('.ldc-inline-color').forEach((span) => {
-      span.replaceWith(document.createTextNode(span.dataset.prismOriginal || span.textContent || ''));
-    });
-    document.querySelectorAll('.ldc-dom-dialogue').forEach((span) => {
-      span.replaceWith(document.createTextNode(span.textContent || ''));
-    });
-    document.querySelectorAll('.ldc-dom-whole').forEach((element) => {
-      element.classList.remove('ldc-dom-whole');
-      element.style.removeProperty('--ldc-dom-color');
-    });
-  }
-
-  function inlineColorMatches(text) {
-    const matches = [];
-    const patterns = [
-      /<font\b[^>]*\bcolor\s*=\s*["']?(#[0-9a-f]{6}|#[0-9a-f]{3})["']?[^>]*>([\s\S]*?)<\/font>/gi,
-      /<span\b[^>]*\bstyle\s*=\s*["'][^"']*\bcolor\s*:\s*(#[0-9a-f]{6}|#[0-9a-f]{3})[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi,
-      /\[color\s*=\s*["']?(#[0-9a-f]{6}|#[0-9a-f]{3})["']?\]([\s\S]*?)\[\/color\]/gi,
-    ];
-    for (const pattern of patterns) {
-      let match;
-      while ((match = pattern.exec(text))) {
-        const color = normalizeHex(match[1]);
-        if (color) matches.push({ start: match.index, end: match.index + match[0].length, original: match[0], color, content: match[2] });
-      }
-    }
-    return matches
-      .sort((a, b) => a.start - b.start || b.end - a.end)
-      .filter((match, index, list) => !list.slice(0, index).some((prior) => match.start < prior.end));
-  }
-
-  function renderExistingInlineColors(root) {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        const parent = node.parentElement;
-        if (!node.data || parent?.closest('code,pre,textarea,script,style,.ldc-inline-color')) return NodeFilter.FILTER_REJECT;
-        return NodeFilter.FILTER_ACCEPT;
-      },
-    });
-    const nodes = [];
-    while (walker.nextNode()) nodes.push(walker.currentNode);
-    for (let nodeIndex = nodes.length - 1; nodeIndex >= 0; nodeIndex -= 1) {
-      const node = nodes[nodeIndex];
-      const matches = inlineColorMatches(node.data);
-      for (let index = matches.length - 1; index >= 0; index -= 1) {
-        const match = matches[index];
-        const middle = node.splitText(match.start);
-        middle.splitText(match.end - match.start);
-        const span = document.createElement('span');
-        span.className = 'ldc-inline-color';
-        span.dataset.prismOriginal = match.original;
-        span.style.setProperty('--ldc-dom-color', match.color);
-        span.textContent = match.content;
-        middle.replaceWith(span);
-      }
-    }
-  }
-
-  function domCandidates() {
-    const sceneCharacters = state?.characters || [];
-    return sceneCharacters
-      .filter((character) => normalizeHex(character.binding?.color))
-      .map((character) => {
-        const referenceNames = [character.name, ...(character.binding?.aliases || character.aliases || [])];
-        const parts = String(character.name || '').split(/\s+/).filter((part) => part.length >= 2);
-        for (const part of [parts[0], parts.at(-1)].filter(Boolean)) {
-          const owners = sceneCharacters.filter((candidate) => String(candidate.name || '').split(/\s+/).some((token) => token.toLocaleLowerCase() === part.toLocaleLowerCase()));
-          if (owners.length === 1) referenceNames.push(part);
+  function processMounted(force=false){
+    if(applying)return;applying=true;observer.disconnect();
+    try{
+      const list=candidates(),personaColor=normalizeHex(state?.persona?.binding?.color);
+      for(const{messageId,element}of ctx.dom.listMessageElements()){
+        const content=element.querySelector('[data-component=MessageContent]');if(!content)continue;
+        const sig=`${revision}:${hashText(content.textContent||'')}`,cached=signatures.get(messageId);if(!force&&!dirty.has(messageId)&&cached?.sig===sig&&cached?.element===content)continue;
+        clearRoot(content);renderInline(content);
+        if(state?.ok&&state.config.engine==='dom'){
+          const swipeId=Math.max(0,Number(element.dataset.swipeId)||0);
+          if(element.dataset.part==='user'){
+            if(personaColor&&state.config.autoUserMode==='whole'){content.classList.add('ldc-dom-whole');content.style.setProperty('--ldc-color',personaColor)}
+            else if(personaColor&&state.config.autoUserMode==='quoted'){const p={key:`persona:${state.persona.binding.targetId}`,name:state.persona.name,names:[state.persona.name.toLowerCase()],color:personaColor};colorQuotes(content,{messageId,swipeId,bubble:p},[p],{speaker:p,confidence:.99,source:'bubble-author'})}
+          }else if(list.length)colorQuotes(content,{messageId,swipeId,bubble:bubbleAuthor(element,list)},list)
         }
-        return {
-        name: character.name,
-        names: referenceNames
-          .map((name) => String(name || '').trim().toLocaleLowerCase())
-          .filter(Boolean),
-        color: normalizeHex(character.binding.color),
-        primary: String(character.characterId || '') === String(state?.chat?.characterId || ''),
-      };
-      });
-  }
-
-  function attributedCandidate(text, start, end, candidates, fallback) {
-    const lower = text.toLocaleLowerCase();
-    const before = lower.slice(Math.max(0, start - 180), start);
-    const after = lower.slice(end, Math.min(lower.length, end + 100));
-    let winner = null;
-    let winnerScore = -Infinity;
-    for (const candidate of candidates) {
-      for (const name of candidate.names) {
-        const beforeIndex = before.lastIndexOf(name);
-        if (beforeIndex >= 0) {
-          const distance = before.length - (beforeIndex + name.length);
-          const tail = before.slice(beforeIndex + name.length);
-          const cue = /^\s*(?::|[-—–]|(?:said|says|asked|asks|replied|replies|whispered|whispers|shouted|shouts|murmured|murmurs|called|calls)\b)/i.test(tail);
-          const score = 220 - distance + (cue ? 160 : 0);
-          if (score > winnerScore) { winner = candidate; winnerScore = score; }
-        }
-        const afterIndex = after.indexOf(name);
-        if (afterIndex >= 0) {
-          const tail = after.slice(afterIndex + name.length);
-          const cue = /^\s*(?:said|says|asked|asks|replied|replies|whispered|whispers|shouted|shouts|murmured|murmurs)\b/i.test(tail);
-          const score = 150 - afterIndex + (cue ? 160 : 0);
-          if (score > winnerScore) { winner = candidate; winnerScore = score; }
-        }
+        signatures.set(messageId,{sig:`${revision}:${hashText(content.textContent||'')}`,element:content});dirty.delete(messageId)
       }
-    }
-    return winner || fallback || null;
+    }finally{applying=false;observe()}
+  }
+  function schedule(immediate=false){clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>processMounted(false),immediate?0:70)}
+  function markLatest(){const id=ctx.messages.getLatestMessageId();if(id)dirty.add(id);schedule()}
+  function ensureToolbar(){
+    const toolbar=document.querySelector('[class*="chatToolbar"]');if(!toolbar||toolbar.querySelector('[data-prism-toolbar-button]'))return;
+    if(toolbarInjection?.isConnected)ctx.dom.uninject(toolbarInjection);
+    toolbarInjection=ctx.dom.inject(toolbar,`<span class="ldc-toolbar-host"><button class="ldc-toolbar-button" data-prism-toolbar-button title="Prism dialogue colors" aria-label="Open Prism dialogue colors">${PRISM_ICON}</button></span>`,'beforeend');
+    toolbarInjection.querySelector('[data-prism-toolbar-button]')?.addEventListener('click',openPalette)
+  }
+  const observer=new MutationObserver(()=>{ensureToolbar();schedule()});
+  function observe(){if(document.body){observer.disconnect();observer.observe(document.body,{childList:true,subtree:true})}}
+  async function openPalette(){
+    if(modal){modal.dismiss();modal=null}state=null;sideScroll=0;modal=ctx.ui.showModal({title:'Prism',width:780,maxHeight:680});modal.onDismiss(()=>{modal=null});render();
+    try{const r=await request('ldc_load_state',{importCortex:true});acceptState(r.state);if(!selectedId)selectedId=state?.characters?.[0]?.id||null;render()}catch(error){state={ok:false,error:error?.message||String(error)};render()}
+  }
+  async function reload(show=false){
+    if(show&&modal){state=null;render()}
+    try{const r=await request('ldc_load_state',{importCortex:true});acceptState(r.state);if(!selectedId||!state?.characters?.some(x=>String(x.id)===String(selectedId)))selectedId=state?.characters?.[0]?.id||null;if(modal)render()}catch(error){state={ok:false,error:error?.message||String(error)};if(modal)render()}
   }
 
-  function colorQuotedText(root, candidates, fallback) {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        const parent = node.parentElement;
-        if (!node.data.trim() || parent?.closest('font,code,pre,textarea,button,.ldc-dom-dialogue,.ldc-inline-color')) return NodeFilter.FILTER_REJECT;
-        return NodeFilter.FILTER_ACCEPT;
-      },
-    });
-    const records = [];
-    let combined = '';
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      records.push({ node, start: combined.length });
-      combined += node.data;
-    }
-
-    for (let recordIndex = records.length - 1; recordIndex >= 0; recordIndex -= 1) {
-      const { node, start } = records[recordIndex];
-      const matches = Array.from(node.data.matchAll(/“[^”\n]+”|"[^"\n]+"/g));
-      for (let index = matches.length - 1; index >= 0; index -= 1) {
-        const match = matches[index];
-        const from = match.index;
-        const speaker = attributedCandidate(combined, start + from, start + from + match[0].length, candidates, fallback);
-        if (!speaker?.color) continue;
-        const middle = node.splitText(from);
-        const tail = middle.splitText(match[0].length);
-        const span = document.createElement('span');
-        span.className = 'ldc-dom-dialogue';
-        span.dataset.prismSpeaker = speaker.name;
-        span.style.setProperty('--ldc-dom-color', speaker.color);
-        middle.replaceWith(span);
-        span.appendChild(middle);
-        void tail;
-      }
-    }
+  ensureToolbar();observe();
+  const action=ctx.ui.registerInputBarAction({id:'open-dialogue-colors',label:'Prism',iconSvg:PRISM_ICON,enabled:true});
+  const unsubAction=action.onClick(openPalette),unsubChat=ctx.events.on('CHAT_SWITCHED',()=>{signatures.clear();dirty.clear();ensureToolbar();reload(true)}),unsubMessage=ctx.events.on('MESSAGE_SENT',markLatest),unsubGeneration=ctx.events.on('GENERATION_ENDED',markLatest);
+  reload();
+  return()=>{
+    for(const task of pending.values()){clearTimeout(task.timer);task.reject(new Error('Extension unloaded.'))}pending.clear();clearTimeout(refreshTimer);clearTimeout(saveTimer);clearTimeout(longTimer);observer.disconnect();
+    for(const{element}of ctx.dom.listMessageElements()){const content=element.querySelector('[data-component=MessageContent]');if(content)clearRoot(content)}
+    modal?.dismiss();unsubChat();unsubMessage();unsubGeneration();unsubAction();action.destroy();if(toolbarInjection)ctx.dom.uninject(toolbarInjection);unsubBackend();removeStyle();ctx.dom.cleanup()
   }
-
-  function applyDomColors() {
-    if (applyingDomColors) return;
-    applyingDomColors = true;
-    domObserver?.disconnect();
-    try {
-      unwrapDomColors();
-      const mountedMessages = ctx.dom.listMessageElements();
-      for (const { element } of mountedMessages) {
-        const content = element.querySelector('[data-component="MessageContent"]');
-        if (content) renderExistingInlineColors(content);
-      }
-      if (!state?.ok || state.config.engine !== 'dom') return;
-      const candidates = domCandidates();
-      const fallback = candidates.find((candidate) => candidate.primary) || candidates[0] || null;
-      const personaColor = normalizeHex(state.persona?.binding?.color);
-      for (const { element } of mountedMessages) {
-        const content = element.querySelector('[data-component="MessageContent"]');
-        if (!content) continue;
-        if (element.dataset.part === 'user') {
-          if (!personaColor || state.config.autoUserMode === 'off') continue;
-          if (state.config.autoUserMode === 'whole') {
-            content.classList.add('ldc-dom-whole');
-            content.style.setProperty('--ldc-dom-color', personaColor);
-          } else {
-            const personaCandidate = { name: state.persona.name, names: [state.persona.name.toLocaleLowerCase()], color: personaColor };
-            colorQuotedText(content, [personaCandidate], personaCandidate);
-          }
-        } else if (candidates.length) {
-          colorQuotedText(content, candidates, fallback);
-        }
-      }
-    } finally {
-      applyingDomColors = false;
-      observeDom();
-    }
-  }
-
-  function scheduleDomRefresh(immediate = false) {
-    window.clearTimeout(domRefreshTimer);
-    domRefreshTimer = window.setTimeout(applyDomColors, immediate ? 0 : 80);
-  }
-
-  function ensureToolbarButton() {
-    const toolbar = document.querySelector('[class*="chatToolbar"]');
-    if (!toolbar || toolbar.querySelector('[data-prism-toolbar-button]')) return;
-    if (toolbarInjection?.isConnected) ctx.dom.uninject(toolbarInjection);
-    toolbarInjection = ctx.dom.inject(toolbar, `<span class="ldc-toolbar-host"><button type="button" class="ldc-toolbar-button" data-prism-toolbar-button title="Prism dialogue colors" aria-label="Open Prism dialogue colors">${PALETTE_ICON}</button></span>`, 'beforeend');
-    toolbarInjection.querySelector('[data-prism-toolbar-button]')?.addEventListener('click', openPalette);
-  }
-
-  let domObserver = new MutationObserver(() => {
-    ensureToolbarButton();
-    scheduleDomRefresh();
-  });
-
-  function observeDom() {
-    if (!document.body) return;
-    domObserver.disconnect();
-    domObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
-  }
-
-  async function openPalette() {
-    if (modal) {
-      modal.dismiss();
-      modal = null;
-    }
-    state = null;
-    sidebarScrollTop = 0;
-    modal = ctx.ui.showModal({ title: 'Prism', width: 720, maxHeight: 620 });
-    modal.onDismiss(() => { modal = null; });
-    render();
-    try {
-      const response = await request('ldc_load_state', { importCortex: true });
-      state = response.state;
-      selectedCharacterId = state?.characters?.[0]?.id || null;
-      scheduleDomRefresh();
-      render();
-    } catch (error) {
-      state = { ok: false, error: error?.message || String(error) };
-      render();
-    }
-  }
-
-  ensureToolbarButton();
-  observeDom();
-
-  const inputAction = ctx.ui.registerInputBarAction({
-    id: 'open-dialogue-colors',
-    label: 'Prism',
-    iconSvg: PALETTE_ICON,
-    enabled: true,
-  });
-  const unsubAction = inputAction.onClick(openPalette);
-
-  const reloadState = (showLoading = false) => {
-    if (showLoading && modal) {
-      state = null;
-      render();
-    }
-    return request('ldc_load_state', { importCortex: true })
-      .then((response) => {
-        state = response.state;
-        selectedCharacterId = state?.characters?.[0]?.id || null;
-        if (modal) render();
-        scheduleDomRefresh();
-      })
-      .catch((error) => {
-        state = { ok: false, error: error?.message || String(error) };
-        if (modal) render();
-        scheduleDomRefresh();
-      });
-  };
-
-  const unsubChat = ctx.events.on('CHAT_SWITCHED', () => {
-    ensureToolbarButton();
-    reloadState(true);
-  });
-  const unsubMessage = ctx.events.on('MESSAGE_SENT', () => scheduleDomRefresh());
-  const unsubGeneration = ctx.events.on('GENERATION_ENDED', () => scheduleDomRefresh());
-  reloadState();
-
-  return () => {
-    for (const task of pending.values()) {
-      clearTimeout(task.timer);
-      task.reject(new Error('Extension unloaded.'));
-    }
-    pending.clear();
-    window.clearTimeout(domRefreshTimer);
-    domObserver.disconnect();
-    unwrapDomColors();
-    modal?.dismiss();
-    unsubChat();
-    unsubMessage();
-    unsubGeneration();
-    unsubAction();
-    inputAction.destroy();
-    if (toolbarInjection) ctx.dom.uninject(toolbarInjection);
-    unsubBackend();
-    removeStyle();
-    ctx.dom.cleanup();
-  };
 }

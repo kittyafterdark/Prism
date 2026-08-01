@@ -1,20 +1,64 @@
 "use strict";
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
+const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const DEFAULT_CONFIG = Object.freeze({
-    version: 1,
-    engine: 'llm',
+    version: 2,
+    engine: 'dom',
     autoUserMode: 'quoted',
     promptCharacterColors: true,
     bindings: {},
+    overrides: {},
 });
-function cloneDefaultConfig() {
+const DEFAULT_PREFERENCES = Object.freeze({
+    preferredEngine: 'dom',
+    domAttributionMode: 'balanced',
+    autoAssignMissing: true,
+    personaMode: 'quoted',
+    markUncertain: true,
+});
+function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
     return {
         version: DEFAULT_CONFIG.version,
-        engine: DEFAULT_CONFIG.engine,
+        engine: preferredEngine === 'llm' ? 'llm' : 'dom',
         autoUserMode: DEFAULT_CONFIG.autoUserMode,
         promptCharacterColors: DEFAULT_CONFIG.promptCharacterColors,
         bindings: {},
+        overrides: {},
     };
+}
+function safePreferences(raw) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    return {
+        preferredEngine: source.preferredEngine === 'llm' ? 'llm' : 'dom',
+        domAttributionMode: ['strict', 'balanced', 'aggressive'].includes(source.domAttributionMode)
+            ? source.domAttributionMode
+            : DEFAULT_PREFERENCES.domAttributionMode,
+        autoAssignMissing: source.autoAssignMissing !== false,
+        personaMode: ['off', 'quoted', 'whole'].includes(source.personaMode)
+            ? source.personaMode
+            : DEFAULT_PREFERENCES.personaMode,
+        markUncertain: source.markUncertain !== false,
+    };
+}
+function safeGlobalState(raw) {
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const library = {};
+    if (source.library && typeof source.library === 'object') {
+        for (const [key, item] of Object.entries(source.library)) {
+            const color = normalizeHex(item?.color);
+            if (!color)
+                continue;
+            library[key] = {
+                color,
+                aliases: uniqueStrings(item?.aliases),
+                name: String(item?.name || '').trim(),
+                source: ['cortex', 'transcript', 'preset', 'generated', 'manual'].includes(item?.source) ? item.source : 'library',
+                pinned: typeof item?.pinned === 'boolean' ? item.pinned : item?.source !== 'generated',
+                updatedAt: Number(item?.updatedAt) || 0,
+            };
+        }
+    }
+    return { version: 1, preferences: safePreferences(source.preferences), library };
 }
 function normalizeHex(value) {
     const raw = String(value || '').trim();
@@ -41,8 +85,8 @@ function uniqueStrings(values) {
     }
     return output;
 }
-function safeConfig(raw) {
-    const fallback = cloneDefaultConfig();
+function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
+    const fallback = cloneDefaultConfig(preferredEngine);
     if (!raw || typeof raw !== 'object')
         return fallback;
     const mode = ['off', 'quoted', 'whole'].includes(raw.autoUserMode)
@@ -67,28 +111,66 @@ function safeConfig(raw) {
                     .map(normalizeHex)
                     .filter(Boolean)
                     .filter((hex) => hex !== color),
-                source: ['cortex', 'transcript', 'preset'].includes(value.source) ? value.source : 'manual',
+                source: ['cortex', 'transcript', 'preset', 'generated', 'library'].includes(value.source) ? value.source : 'manual',
+                pinned: typeof value.pinned === 'boolean' ? value.pinned : value.source !== 'generated',
+            };
+        }
+    }
+    const overrides = {};
+    if (raw.overrides && typeof raw.overrides === 'object') {
+        for (const [key, value] of Object.entries(raw.overrides)) {
+            if (!value || typeof value !== 'object')
+                continue;
+            const messageId = String(value.messageId || '').trim();
+            const contentHash = String(value.contentHash || '').trim();
+            const segmentKey = String(value.segmentKey || key || '').trim();
+            if (!messageId || !contentHash || !segmentKey)
+                continue;
+            overrides[key] = {
+                messageId,
+                swipeId: Math.max(0, Number(value.swipeId) || 0),
+                contentHash,
+                segmentKey,
+                quote: String(value.quote || '').slice(0, 1000),
+                speakerKey: value.speakerKey == null ? null : String(value.speakerKey),
             };
         }
     }
     return {
-        version: 1,
-        engine: raw.engine === 'dom' ? 'dom' : 'llm',
+        version: 2,
+        engine: raw.engine === 'llm' ? 'llm' : 'dom',
         autoUserMode: mode,
         promptCharacterColors: raw.promptCharacterColors !== false,
         bindings,
+        overrides,
     };
 }
-async function loadConfig(chatId) {
+async function loadGlobalState(userId) {
+    try {
+        const text = await spindle.variables.global.get(GLOBAL_PREFS_VAR, userId);
+        return safeGlobalState(text ? JSON.parse(text) : null);
+    }
+    catch (error) {
+        spindle.log.warn(`Could not read Prism preferences: ${error?.message || error}`);
+        return safeGlobalState(null);
+    }
+}
+async function saveGlobalState(globalState, userId) {
+    const safe = safeGlobalState(globalState);
+    await spindle.variables.global.set(GLOBAL_PREFS_VAR, JSON.stringify(safe), userId);
+    return safe;
+}
+async function loadConfig(chatId, userId) {
+    const globalState = await loadGlobalState(userId);
     try {
         const text = await spindle.variables.chat.get(chatId, CONFIG_VAR);
         if (!text)
-            return cloneDefaultConfig();
-        return safeConfig(JSON.parse(text));
+            return cloneDefaultConfig(globalState.preferences.preferredEngine);
+        return safeConfig(JSON.parse(text), globalState.preferences.preferredEngine);
     }
     catch (error) {
         spindle.log.warn(`Could not read dialogue color config: ${error?.message || error}`);
-        return cloneDefaultConfig();
+        return cloneDefaultConfig(globalState.preferences.preferredEngine);
     }
 }
 async function saveConfig(chatId, config) {
@@ -133,6 +215,142 @@ function findBinding(config, kind, targetId, name, aliases = []) {
             return binding;
     }
     return null;
+}
+function libraryKeysForCharacter(character) {
+    return uniqueStrings([
+        character?.characterId ? `character-card:${character.characterId}` : '',
+        character?.entityId ? `cortex-character:${character.entityId}` : '',
+        character?.name ? `character-name:${normalizeName(character.name)}` : '',
+    ]);
+}
+function libraryKeyForPersona(persona) {
+    return persona?.id ? `persona:${persona.id}` : `persona-name:${normalizeName(persona?.name)}`;
+}
+function hashString(value) {
+    let hash = 2166136261;
+    for (const char of String(value || '')) {
+        hash ^= char.codePointAt(0) || 0;
+        hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+}
+function hslToHex(hue, saturation, lightness) {
+    const h = ((Number(hue) % 360) + 360) % 360;
+    const s = Math.max(0, Math.min(100, Number(saturation))) / 100;
+    const l = Math.max(0, Math.min(100, Number(lightness))) / 100;
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = l - c / 2;
+    const [r, g, b] = h < 60 ? [c, x, 0]
+        : h < 120 ? [x, c, 0]
+            : h < 180 ? [0, c, x]
+                : h < 240 ? [0, x, c]
+                    : h < 300 ? [x, 0, c]
+                        : [c, 0, x];
+    return `#${[r, g, b].map((part) => Math.round((part + m) * 255).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+}
+function relativeLuminance(hex) {
+    const value = normalizeHex(hex) || '#000000';
+    const parts = [1, 3, 5].map((index) => parseInt(value.slice(index, index + 2), 16) / 255)
+        .map((part) => (part <= 0.03928 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4));
+    return parts[0] * 0.2126 + parts[1] * 0.7152 + parts[2] * 0.0722;
+}
+function contrastRatio(a, b) {
+    const bright = Math.max(relativeLuminance(a), relativeLuminance(b));
+    const dark = Math.min(relativeLuminance(a), relativeLuminance(b));
+    return (bright + 0.05) / (dark + 0.05);
+}
+function generatedColor(seed, index = 0) {
+    const hue = (hashString(seed) + Number(index) * 137.508) % 360;
+    let lightness = 67;
+    let color = hslToHex(hue, 68, lightness);
+    while (contrastRatio(color, '#15131D') < 4.5 && lightness < 82) {
+        lightness += 2;
+        color = hslToHex(hue, 68, lightness);
+    }
+    return color;
+}
+function hexHue(hex) {
+    const value = normalizeHex(hex);
+    if (!value)
+        return null;
+    const [r, g, b] = [1, 3, 5].map((index) => parseInt(value.slice(index, index + 2), 16) / 255);
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const delta = max - min;
+    if (!delta)
+        return 0;
+    const sector = max === r ? ((g - b) / delta) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4;
+    return (sector * 60 + 360) % 360;
+}
+function generatedColorForIdentity(identity, usedColors = []) {
+    let hue = hashString(identity) % 360;
+    const usedHues = usedColors.map(hexHue).filter((value) => value != null);
+    let attempts = 0;
+    while (usedHues.some((used) => Math.min(Math.abs(used - hue), 360 - Math.abs(used - hue)) < 34) && attempts < 12) {
+        hue = (hue + 137.508) % 360;
+        attempts += 1;
+    }
+    let lightness = 67;
+    let color = hslToHex(hue, 68, lightness);
+    while (contrastRatio(color, '#15131D') < 4.5 && lightness < 82) {
+        lightness += 2;
+        color = hslToHex(hue, 68, lightness);
+    }
+    return color;
+}
+function bindingLibraryKeys(binding, characters, persona) {
+    if (binding.kind === 'persona')
+        return [libraryKeyForPersona(persona || binding)];
+    const character = characters.find((item) => (String(item.id) === String(binding.targetId)
+        || normalizeName(item.name) === normalizeName(binding.name)));
+    return character ? libraryKeysForCharacter(character) : [`character-name:${normalizeName(binding.name)}`];
+}
+function syncBindingsToLibrary(config, characters, persona, globalState) {
+    let changed = false;
+    for (const binding of Object.values(config.bindings)) {
+        const color = normalizeHex(binding.color);
+        if (!color)
+            continue;
+        for (const key of bindingLibraryKeys(binding, characters, persona)) {
+            const prior = globalState.library[key];
+            const next = { color, aliases: uniqueStrings(binding.aliases), name: binding.name, source: binding.source, pinned: binding.pinned !== false, updatedAt: Date.now() };
+            if (!prior || prior.color !== next.color || prior.source !== next.source || prior.pinned !== next.pinned || JSON.stringify(prior.aliases || []) !== JSON.stringify(next.aliases)) {
+                globalState.library[key] = next;
+                changed = true;
+            }
+        }
+    }
+    return changed;
+}
+function seedBindingsFromLibrary(config, characters, persona, globalState) {
+    let seeded = 0;
+    for (const character of characters) {
+        if (findBinding(config, 'character', character.id, character.name, character.aliases))
+            continue;
+        const entry = libraryKeysForCharacter(character).map((key) => globalState.library[key]).find(Boolean);
+        if (!entry?.color)
+            continue;
+        const targetId = String(character.entityId || character.characterId || character.id);
+        config.bindings[`character:${targetId}`] = {
+            kind: 'character', targetId, name: character.name,
+            aliases: uniqueStrings([...(character.aliases || []), ...(entry.aliases || [])]),
+            color: entry.color, previousColors: [], source: entry.source === 'generated' ? 'generated' : 'library', pinned: entry.pinned !== false,
+        };
+        seeded += 1;
+    }
+    if (persona && !findBinding(config, 'persona', persona.id, persona.name, [])) {
+        const entry = globalState.library[libraryKeyForPersona(persona)];
+        if (entry?.color) {
+            const targetId = String(persona.id);
+            config.bindings[`persona:${targetId}`] = {
+                kind: 'persona', targetId, name: persona.name, aliases: uniqueStrings(entry.aliases),
+                color: entry.color, previousColors: [], source: entry.source === 'generated' ? 'generated' : 'library', pinned: entry.pinned !== false,
+            };
+            seeded += 1;
+        }
+    }
+    return seeded;
 }
 function stripStructuredText(value) {
     let text = String(value || '').replace(/```[\s\S]*?```/g, ' ');
@@ -559,7 +777,8 @@ async function buildState(options = {}, userId) {
     ]);
     const primaryCharacter = cardCharacters.find((character) => String(character.id) === String(chat.character_id)) || cardCharacters[0] || null;
     const scene = await getSceneCharacters(chat, cardCharacters, userId);
-    let config = await loadConfig(chat.id);
+    let config = await loadConfig(chat.id, userId);
+    let globalState = await loadGlobalState(userId);
     let cortexImportedCount = 0;
     let transcriptImportedCount = 0;
     let transcriptColorsDetected = 0;
@@ -573,6 +792,12 @@ async function buildState(options = {}, userId) {
         config = transcriptImported.config;
         transcriptImportedCount = transcriptImported.imported;
         transcriptColorsDetected = transcriptImported.detected;
+    }
+    const librarySeededCount = seedBindingsFromLibrary(config, scene.characters, persona, globalState);
+    if (librarySeededCount > 0)
+        await saveConfig(chat.id, config);
+    if (syncBindingsToLibrary(config, scene.characters, persona, globalState)) {
+        globalState = await saveGlobalState(globalState, userId);
     }
     const characters = scene.characters.map((character) => ({
         ...character,
@@ -595,10 +820,12 @@ async function buildState(options = {}, userId) {
             }
             : null,
         config,
+        preferences: globalState.preferences,
         cortexAvailable: scene.cortexAvailable,
         cortexImportedCount,
         transcriptImportedCount,
         transcriptColorsDetected,
+        librarySeededCount,
         cortexRegistryDetected: parseCortexColorMacro(cortexMacroText).length,
         cortexBridge: 'macro-import + transcript-learning',
     };
@@ -662,7 +889,7 @@ async function saveBinding(payload, userId) {
     const color = normalizeHex(payload.color);
     if (!targetId || !name || !color)
         throw new Error('A target, name, and valid hex color are required.');
-    const config = await loadConfig(chat.id);
+    const config = await loadConfig(chat.id, userId);
     if (['dom', 'llm'].includes(payload.engine)) {
         config.engine = payload.engine;
         config.promptCharacterColors = payload.engine === 'llm';
@@ -720,6 +947,7 @@ async function saveBinding(payload, userId) {
         color,
         previousColors,
         source: 'manual',
+        pinned: true,
     };
     await saveConfig(chat.id, config);
     await spindle.memories.cortex.invalidateCache(chat.id, userId).catch(() => { });
@@ -729,7 +957,7 @@ async function updateOptions(payload, userId) {
     const chat = await spindle.chats.getActive(userId);
     if (!chat)
         throw new Error('Open a chat first.');
-    const config = await loadConfig(chat.id);
+    const config = await loadConfig(chat.id, userId);
     if (['dom', 'llm'].includes(payload.engine)) {
         config.engine = payload.engine;
         config.promptCharacterColors = payload.engine === 'llm';
@@ -740,6 +968,108 @@ async function updateOptions(payload, userId) {
     if (typeof payload.promptCharacterColors === 'boolean') {
         config.promptCharacterColors = payload.promptCharacterColors;
     }
+    let globalState = await loadGlobalState(userId);
+    if (['dom', 'llm'].includes(payload.engine)) {
+        globalState.preferences.preferredEngine = payload.engine;
+    }
+    if (['strict', 'balanced', 'aggressive'].includes(payload.domAttributionMode)) {
+        globalState.preferences.domAttributionMode = payload.domAttributionMode;
+    }
+    if (typeof payload.markUncertain === 'boolean') {
+        globalState.preferences.markUncertain = payload.markUncertain;
+    }
+    if (typeof payload.autoAssignMissing === 'boolean') {
+        globalState.preferences.autoAssignMissing = payload.autoAssignMissing;
+    }
+    if (['off', 'quoted', 'whole'].includes(payload.autoUserMode)) {
+        globalState.preferences.personaMode = payload.autoUserMode;
+    }
+    await saveGlobalState(globalState, userId);
+    await saveConfig(chat.id, config);
+    return buildState({ importCortex: false }, userId);
+}
+async function assignSceneColors(payload, userId) {
+    const state = await buildState({ importCortex: true }, userId);
+    if (!state.ok)
+        throw new Error(state.error || 'Open a chat first.');
+    const chatId = state.chat.id;
+    const config = await loadConfig(chatId, userId);
+    const globalState = await loadGlobalState(userId);
+    const regenerate = payload?.regenerate === true;
+    let assigned = 0;
+    const usedColors = Object.values(config.bindings)
+        .filter((binding) => !regenerate || binding.pinned !== false || binding.source !== 'generated')
+        .map((binding) => normalizeHex(binding.color))
+        .filter(Boolean);
+    config.engine = 'dom';
+    config.promptCharacterColors = false;
+    config.autoUserMode = 'quoted';
+    globalState.preferences.preferredEngine = 'dom';
+    globalState.preferences.personaMode = 'quoted';
+    const sortedCharacters = [...(state.characters || [])].sort((a, b) => (libraryKeysForCharacter(a)[0].localeCompare(libraryKeysForCharacter(b)[0])));
+    for (const character of sortedCharacters) {
+        const existing = findBinding(config, 'character', character.id, character.name, character.aliases);
+        if (existing && (!regenerate || existing.pinned !== false || existing.source !== 'generated'))
+            continue;
+        if (existing) {
+            for (const [key, value] of Object.entries(config.bindings)) {
+                if (value === existing)
+                    delete config.bindings[key];
+            }
+        }
+        const targetId = String(character.entityId || character.characterId || character.id);
+        const identity = libraryKeysForCharacter(character)[0] || `character-name:${normalizeName(character.name)}`;
+        const color = generatedColorForIdentity(identity, usedColors);
+        config.bindings[`character:${targetId}`] = {
+            kind: 'character', targetId, name: character.name, aliases: uniqueStrings(character.aliases),
+            color, previousColors: [], source: 'generated', pinned: false,
+        };
+        usedColors.push(color);
+        assigned += 1;
+    }
+    const persona = state.persona;
+    if (persona) {
+        const existing = findBinding(config, 'persona', persona.id, persona.name, []);
+        if (!existing || (regenerate && existing.pinned === false && existing.source === 'generated')) {
+            if (existing) {
+                for (const [key, value] of Object.entries(config.bindings)) {
+                    if (value === existing)
+                        delete config.bindings[key];
+                }
+            }
+            const targetId = String(persona.id);
+            const identity = libraryKeyForPersona(persona);
+            config.bindings[`persona:${targetId}`] = {
+                kind: 'persona', targetId, name: persona.name, aliases: [],
+                color: generatedColorForIdentity(identity, usedColors), previousColors: [], source: 'generated', pinned: false,
+            };
+            assigned += 1;
+        }
+    }
+    syncBindingsToLibrary(config, state.characters || [], persona, globalState);
+    await Promise.all([saveConfig(chatId, config), saveGlobalState(globalState, userId)]);
+    return { state: await buildState({ importCortex: false }, userId), assigned };
+}
+async function saveQuoteOverride(payload, userId) {
+    const chat = await spindle.chats.getActive(userId);
+    if (!chat || (payload.chatId && String(payload.chatId) !== String(chat.id))) {
+        throw new Error('The active chat changed.');
+    }
+    const messageId = String(payload.messageId || '').trim();
+    const contentHash = String(payload.contentHash || '').trim();
+    const segmentKey = String(payload.segmentKey || '').trim();
+    if (!messageId || !contentHash || !segmentKey)
+        throw new Error('This quote could not be identified safely.');
+    const config = await loadConfig(chat.id, userId);
+    const overrideKey = `${messageId}:${Math.max(0, Number(payload.swipeId) || 0)}:${segmentKey}`;
+    config.overrides[overrideKey] = {
+        messageId,
+        swipeId: Math.max(0, Number(payload.swipeId) || 0),
+        contentHash,
+        segmentKey,
+        quote: String(payload.quote || '').slice(0, 1000),
+        speakerKey: payload.speakerKey == null ? null : String(payload.speakerKey),
+    };
     await saveConfig(chat.id, config);
     return buildState({ importCortex: false }, userId);
 }
@@ -747,7 +1077,7 @@ async function recolorExisting(chatId, userId) {
     const chat = await spindle.chats.getActive(userId);
     if (!chat || chat.id !== chatId)
         throw new Error('The active chat changed.');
-    const config = await loadConfig(chat.id);
+    const config = await loadConfig(chat.id, userId);
     const persona = await spindle.personas.getActive(userId).catch(() => null);
     const personaBinding = persona
         ? findBinding(config, 'persona', persona.id, persona.name, [])
@@ -803,7 +1133,8 @@ spindle.registerInterceptor(async (messages, context) => {
     const chatId = String(context?.chatId || '');
     if (!chatId)
         return messages;
-    const config = await loadConfig(chatId);
+    const userId = context?.userId;
+    const config = await loadConfig(chatId, userId);
     const instruction = registryInstruction(config);
     if (!instruction)
         return messages;
@@ -825,7 +1156,7 @@ spindle.on('MESSAGE_SENT', async (payload, userId) => {
             return;
         if (message.metadata?.lumi_dialogue_colors_applied)
             return;
-        const config = await loadConfig(chatId);
+        const config = await loadConfig(chatId, userId);
         if (config.engine !== 'llm')
             return;
         if (config.autoUserMode === 'off')
@@ -870,6 +1201,20 @@ spindle.onFrontendMessage(async (payload, userId) => {
             }
             case 'ldc_update_options': {
                 const state = await updateOptions(payload, userId);
+                reply('ldc_state', { state, saved: true });
+                break;
+            }
+            case 'ldc_setup_scene':
+            case 'ldc_assign_colors': {
+                const result = await assignSceneColors(payload, userId);
+                reply('ldc_state', { state: result.state, assigned: result.assigned, saved: true });
+                spindle.toast.success(result.assigned
+                    ? `Assigned ${result.assigned} local color${result.assigned === 1 ? '' : 's'}.`
+                    : 'Local colors are ready.', { userId });
+                break;
+            }
+            case 'ldc_save_override': {
+                const state = await saveQuoteOverride(payload, userId);
                 reply('ldc_state', { state, saved: true });
                 break;
             }
