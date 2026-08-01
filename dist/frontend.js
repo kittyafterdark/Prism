@@ -26,7 +26,6 @@ const VERBS = [
     'retort', 'retorted', 'retorts', 'protest', 'protested', 'protests', 'insist', 'insisted', 'insists', 'warn', 'warned', 'warns', 'demand', 'demanded', 'demands', 'urge', 'urged', 'urges', 'correct', 'corrected', 'corrects', 'admit', 'admitted', 'admits', 'concede', 'conceded', 'concedes', 'agree', 'agreed', 'agrees', 'object', 'objected', 'objects', 'promise', 'promised', 'promises',
     'laugh', 'laughed', 'laughs', 'sigh', 'sighed', 'sighs', 'scoff', 'scoffed', 'scoffs', 'groan', 'groaned', 'groans', 'repeat', 'repeated', 'repeats', 'echo', 'echoed', 'echoes'
 ];
-const SUPPORTS_GRADIENT_TEXT = typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && (CSS.supports('background-clip: text') || CSS.supports('-webkit-background-clip: text'));
 const uid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 function normalizeHex(value) { const raw = String(value || '').trim(), short = raw.match(/^#?([0-9a-f]{3})$/i); if (short)
     return `#${short[1].split('').map(c => c + c).join('').toUpperCase()}`; const full = raw.match(/^#?([0-9a-f]{6})$/i); return full ? `#${full[1].toUpperCase()}` : null; }
@@ -45,7 +44,7 @@ function sourceLabel(s) { return ({ cortex: 'Cortex · imported', transcript: 'T
 function evidenceLabel(s) { return ({ manual: 'manual correction', 'existing-color': 'existing color tag', 'speaker-label': 'speaker label', 'reporting-verb': 'reporting verb', 'action-beat': 'action beat', 'paragraph-continuity': 'same-paragraph continuity', 'previous-line': 'previous-line action', alternation: 'two-speaker alternation', 'bubble-author': 'bubble author', fallback: 'aggressive fallback', unresolved: 'no reliable evidence' })[s] || s; }
 export function setup(ctx) {
     const removeStyle = ctx.dom.addStyle(CSS), pending = new Map(), signatures = new Map(), dirty = new Set();
-    let modal = null, addModal = null, state = null, activeTab = 'character', activeChannel = 'dialogue', selectedId = null, sideScroll = 0, settingsOpen = false, busy = false, saveStatus = 'saved', reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, applying = false, revision = 0;
+    let modal = null, addModal = null, state = null, activeTab = 'character', activeChannel = 'dialogue', selectedId = null, sideScroll = 0, panelScroll = 0, settingsOpen = false, busy = false, saveStatus = 'saved', reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, applying = false, revision = 0, saveGeneration = 0, saveQueue = Promise.resolve();
     const request = (type, data = {}) => new Promise((resolve, reject) => { const requestId = uid(), timer = setTimeout(() => { pending.delete(requestId); reject(new Error('The extension backend did not answer.')); }, 12000); pending.set(requestId, { resolve, reject, timer }); ctx.sendToBackend({ type, requestId, ...data }); });
     const unsubBackend = ctx.onBackendMessage(payload => { const task = pending.get(payload?.requestId); if (!task)
         return; clearTimeout(task.timer); pending.delete(payload.requestId); payload.type === 'ldc_error' ? task.reject(new Error(payload.error || 'Unknown error')) : task.resolve(payload); });
@@ -92,9 +91,11 @@ export function setup(ctx) {
     function render() {
         if (!modal)
             return;
-        const oldSide = modal.root.querySelector('.ldc-side');
+        const oldSide = modal.root.querySelector('.ldc-side'), oldPanel = modal.root.querySelector('.ldc-panel');
         if (oldSide && activeTab === 'character')
             sideScroll = oldSide.scrollTop;
+        if (oldPanel)
+            panelScroll = oldPanel.scrollTop;
         if (!state) {
             modal.root.innerHTML = '<div class="ldc-loading">Reading the scene registry…</div>';
             return;
@@ -110,13 +111,16 @@ export function setup(ctx) {
         const unresolved = unresolvedSegments().length;
         modal.root.innerHTML = `<div class="ldc-shell"><div class="ldc-top"><div class="ldc-tabs"><button class="ldc-tab" data-tab="character" data-active="${activeTab === 'character' && !settingsOpen}">Characters</button><button class="ldc-tab" data-tab="persona" data-active="${activeTab === 'persona' && !settingsOpen}">Persona</button></div><div class="ldc-top-actions"><span class="ldc-engine-copy">${engine === 'dom' ? 'Visual only · messages unchanged' : 'Model sidecar · may persist tags'}</span>${unresolved ? `<button class="ldc-review" data-action="review-unresolved">${unresolved} unresolved · Review</button>` : ''}<div class="ldc-engine"><button data-engine="dom" data-active="${engine === 'dom'}">Local</button><button data-engine="llm" data-active="${engine === 'llm'}">LLM</button></div><button class="ldc-icon" data-action="settings" data-active="${settingsOpen}" title="Prism settings">${GEAR_ICON}</button></div></div>${needs ? `<div class="ldc-setup"><div class="ldc-setup-copy"><span class="ldc-setup-icon">${SPARK_ICON}</span><div><div class="ldc-setup-title">${esc(setupTitle)}</div><div class="ldc-setup-desc">Found ${state.characters.length} characters${state.persona ? ' and your active persona' : ''}. Existing imported and manual colors stay untouched.</div></div></div><button class="ldc-mini" data-action="setup">Set up scene</button></div>` : ''}<div class="ldc-main-wrap"><div class="ldc-main">${activeTab === 'character' ? `<aside class="ldc-side">${sidebar()}</aside><section class="ldc-panel">${charPanel(current())}</section>` : `<aside class="ldc-side"><div class="ldc-side-label">Active persona</div><div class="ldc-person" data-active="true"><span class="ldc-avatar">${esc(initials(state.persona?.name))}</span><span class="ldc-person-copy"><span class="ldc-person-name">${esc(state.persona?.name || 'No persona')}</span><span class="ldc-person-source">currently applied</span></span></div></aside><section class="ldc-panel">${personaPanel()}</section>`}</div>${settingsOpen ? settingsPanel() : ''}</div><div class="ldc-status"><span>${esc(state.chat.name)}</span><span class="ldc-bridge">${engine === 'dom' ? 'Local' : 'LLM sidecar'} · ${state.characters.length} characters · Cortex ${state.cortexAvailable ? 'linked' : 'unavailable'}</span></div></div>`;
         wire();
-        const next = modal.root.querySelector('.ldc-side');
+        const next = modal.root.querySelector('.ldc-side'), nextPanel = modal.root.querySelector('.ldc-panel');
         if (next && activeTab === 'character')
             next.scrollTop = sideScroll;
+        if (nextPanel)
+            nextPanel.scrollTop = panelScroll;
         setBusy(busy);
     }
-    async function saveBinding(kind, target, color, aliases = [], channels = null) { const response = await request('ldc_save_binding', { chatId: state.chat.id, kind, targetId: kind === 'persona' ? target.id : (target.entityId || target.characterId || target.id), name: target.name, aliases, color, channels, engine: state.config.engine, autoUserMode: state.config.autoUserMode }); acceptState(response.state); if (kind === 'character')
-        selectedId = state.characters.find(x => x.name === target.name)?.id || selectedId; render(); }
+    async function saveBinding(kind, target, color, aliases = [], channels = null, rerender = true) { const response = await request('ldc_save_binding', { chatId: state.chat.id, kind, targetId: kind === 'persona' ? target.id : (target.entityId || target.characterId || target.id), name: target.name, aliases, color, channels, engine: state.config.engine, autoUserMode: state.config.autoUserMode }); acceptState(response.state); if (kind === 'character' && rerender)
+        selectedId = state.characters.find(x => x.name === target.name)?.id || selectedId; if (rerender)
+        render(); }
     function openAddPerson(seedColor = null) {
         const detected = normalizeHex(seedColor);
         if (addModal) {
@@ -157,13 +161,35 @@ export function setup(ctx) {
     function readEditorChannels(target) { const channels = safeChannels(target?.binding), stop1 = normalizeHex(modal?.root.querySelector('[data-role=hex]')?.value), mode = modal?.root.querySelector('[data-role=paint-mode]')?.value === 'gradient' ? 'gradient' : 'solid', stop2 = normalizeHex(modal?.root.querySelector('[data-role=hex-2]')?.value) || (stop1 && mode === 'gradient' ? harmonicColor(stop1) : null), angle = Math.max(0, Math.min(360, Number(modal?.root.querySelector('[data-role=angle]')?.value) || 90)), anchor = normalizeHex(modal?.root.querySelector('[data-role=canonical]')?.value) || normalizeHex(target?.binding?.color) || stop1; if (!stop1 || !anchor)
         return null; channels[activeChannel] = { enabled: modal?.root.querySelector('[data-role=channel-enabled]')?.checked !== false, paint: safePaint({ mode, stops: mode === 'gradient' ? [stop1, stop2].filter(Boolean) : [stop1], angle, anchor }, anchor) }; for (const value of Object.values(channels))
         value.paint.anchor = anchor; return { channels, color: anchor }; }
-    async function saveEditor(kind) { if (!modal)
+    async function saveEditor(kind, rerender = false) { if (!modal)
         return; const target = kind === 'persona' ? state.persona : current(); if (!target)
         return; const read = readEditorChannels(target); if (!read)
-        throw new Error('Enter valid six-digit hex colors.'); const aliases = kind === 'character' ? String(modal.root.querySelector('[data-role=aliases]')?.value || '').split(',').map(x => x.trim()).filter(Boolean) : []; await saveBinding(kind, target, read.color, aliases, read.channels); }
-    function queueEditorSave(immediate = false) { clearTimeout(saveTimer); setSaveStatus('pending'); saveTimer = setTimeout(() => perform(async () => { setSaveStatus('saving'); await saveEditor(activeTab === 'persona' ? 'persona' : 'character'); setSaveStatus('saved'); }), immediate ? 0 : 450); }
-    function navigateEditor(action) { clearTimeout(saveTimer); if (saveStatus === 'pending')
-        perform(async () => { setSaveStatus('saving'); await saveEditor(activeTab === 'persona' ? 'persona' : 'character'); action(); saveStatus = 'saved'; render(); });
+        throw new Error('Enter valid six-digit hex colors.'); const aliases = kind === 'character' ? String(modal.root.querySelector('[data-role=aliases]')?.value || '').split(',').map(x => x.trim()).filter(Boolean) : []; await saveBinding(kind, target, read.color, aliases, read.channels, rerender); }
+    function updateEditorPreview() { if (!modal)
+        return; const target = activeTab === 'persona' ? state?.persona : current(), read = readEditorChannels(target); if (!read)
+        return; const paint = read.channels[activeChannel].paint, lines = [...modal.root.querySelectorAll('.ldc-preview [data-prism-paint]')], line = lines[activeChannel === 'thought' ? 1 : 0], gradient = paint.mode === 'gradient' && paint.stops.length >= 2, value = gradient ? `linear-gradient(${paint.angle}deg,${paint.stops.join(', ')})` : paint.stops[0]; if (line) {
+        line.dataset.prismPaint = gradient ? 'gradient' : 'solid';
+        line.style.setProperty('--ldc-fallback', paint.anchor);
+        line.style.setProperty('--ldc-color', paint.stops[0]);
+        if (gradient)
+            line.style.setProperty('--ldc-gradient', value);
+        else
+            line.style.removeProperty('--ldc-gradient');
+    } const editor = modal.root.querySelector('.ldc-gradient-editor'); if (editor)
+        editor.style.setProperty('--editor-gradient', value); modal.root.querySelectorAll('.ldc-stop span').forEach((stop, index) => stop.style.setProperty('--stop', paint.stops[index] || paint.stops[0])); }
+    function queueEditorSave(immediate = false) { clearTimeout(saveTimer); const generation = ++saveGeneration; setSaveStatus('pending'); saveTimer = setTimeout(() => { saveQueue = saveQueue.catch(() => { }).then(async () => { if (generation !== saveGeneration)
+        return; setSaveStatus('saving'); try {
+        await saveEditor(activeTab === 'persona' ? 'persona' : 'character', false);
+        if (generation === saveGeneration)
+            setSaveStatus('saved');
+    }
+    catch (error) {
+        if (generation === saveGeneration)
+            setSaveStatus('error');
+        await ctx.ui.showConfirm({ title: 'Prism', message: error?.message || String(error), confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'warning' });
+    } }); }, immediate ? 0 : 450); }
+    function navigateEditor(action) { clearTimeout(saveTimer); const pendingSave = saveStatus === 'pending'; ++saveGeneration; if (pendingSave)
+        perform(async () => { setSaveStatus('saving'); await saveQueue.catch(() => { }); await saveEditor(activeTab === 'persona' ? 'persona' : 'character', false); action(); saveStatus = 'saved'; render(); });
     else {
         action();
         saveStatus = 'saved';
@@ -200,29 +226,32 @@ export function setup(ctx) {
         for (const suffix of ['', '-2']) {
             const picker = modal.root.querySelector(`[data-role=picker${suffix}]`), hex = modal.root.querySelector(`[data-role=hex${suffix}]`);
             if (picker && hex) {
-                picker.oninput = () => { hex.value = picker.value.toUpperCase(); queueEditorSave(); };
+                picker.oninput = () => { hex.value = picker.value.toUpperCase(); updateEditorPreview(); queueEditorSave(); };
                 picker.onchange = () => queueEditorSave(true);
                 hex.oninput = () => { const color = normalizeHex(hex.value); if (color) {
                     picker.value = color;
+                    updateEditorPreview();
                     queueEditorSave();
                 } };
                 hex.onblur = () => { const color = normalizeHex(hex.value); if (color) {
                     hex.value = color;
+                    updateEditorPreview();
                     queueEditorSave(true);
                 } };
             }
         }
-        modal.root.querySelector('[data-role=paint-mode]')?.addEventListener('change', () => queueEditorSave(true));
+        modal.root.querySelector('[data-role=paint-mode]')?.addEventListener('change', () => { clearTimeout(saveTimer); ++saveGeneration; perform(async () => { setSaveStatus('saving'); await saveQueue.catch(() => { }); await saveEditor(activeTab === 'persona' ? 'persona' : 'character', false); saveStatus = 'saved'; render(); }); });
         modal.root.querySelector('[data-role=channel-enabled]')?.addEventListener('change', () => queueEditorSave(true));
         for (const role of ['angle', 'canonical', 'aliases']) {
             const input = modal.root.querySelector(`[data-role=${role}]`);
             if (input) {
-                input.addEventListener('input', () => queueEditorSave());
+                input.addEventListener('input', () => { if (role === 'angle' || role === 'canonical')
+                    updateEditorPreview(); queueEditorSave(); });
                 input.addEventListener('blur', () => queueEditorSave(true));
             }
         }
         modal.root.querySelector('[data-action=swap-colors]')?.addEventListener('click', () => { const first = modal.root.querySelector('[data-role=hex]'), second = modal.root.querySelector('[data-role=hex-2]'), picker1 = modal.root.querySelector('[data-role=picker]'), picker2 = modal.root.querySelector('[data-role=picker-2]'); if (!first || !second || !picker1 || !picker2)
-            return; [first.value, second.value] = [second.value, first.value]; picker1.value = first.value; picker2.value = second.value; queueEditorSave(true); });
+            return; [first.value, second.value] = [second.value, first.value]; picker1.value = first.value; picker2.value = second.value; updateEditorPreview(); queueEditorSave(true); });
         modal.root.querySelector('[data-role=auto-mode]')?.addEventListener('change', e => perform(async () => { const r = await request('ldc_update_options', { engine: state.config.engine, autoUserMode: e.target.value }); acceptState(r.state); render(); }));
         modal.root.querySelector('[data-role=mode]')?.addEventListener('change', e => perform(async () => { const r = await request('ldc_update_options', { engine: state.config.engine, domAttributionMode: e.target.value }); acceptState(r.state); render(); }));
         modal.root.querySelector('[data-role=uncertain]')?.addEventListener('change', e => perform(async () => { const r = await request('ldc_update_options', { engine: state.config.engine, markUncertain: e.target.checked }); acceptState(r.state); render(); }));
@@ -268,7 +297,7 @@ export function setup(ctx) {
     } }
     function applyPaint(element, raw) { const paint = safePaint(raw); rememberClass(element); if (!element.classList.contains('ldc-prism-paint'))
         for (const [property, key] of [['--ldc-color', 'prismOriginalLdcColor'], ['--ldc-fallback', 'prismOriginalLdcFallback'], ['--ldc-gradient', 'prismOriginalLdcGradient']])
-            element.dataset[key] = element.style.getPropertyValue(property) || '\u0000'; cleanupPaint(element); rememberClass(element); element.classList.add('ldc-prism-paint'); element.style.setProperty('--ldc-fallback', paint.anchor); element.style.setProperty('--ldc-color', paint.stops[0]); const canRenderGradient = SUPPORTS_GRADIENT_TEXT && paint.mode === 'gradient' && paint.stops.length >= 2; element.dataset.prismPaint = canRenderGradient ? 'gradient' : 'solid'; if (canRenderGradient)
+            element.dataset[key] = element.style.getPropertyValue(property) || '\u0000'; cleanupPaint(element); rememberClass(element); element.classList.add('ldc-prism-paint'); element.style.setProperty('--ldc-fallback', paint.anchor); element.style.setProperty('--ldc-color', paint.stops[0]); const gradient = paint.mode === 'gradient' && paint.stops.length >= 2; element.dataset.prismPaint = gradient ? 'gradient' : 'solid'; if (gradient)
         element.style.setProperty('--ldc-gradient', `linear-gradient(${paint.angle}deg,${paint.stops.join(', ')})`);
     else
         element.style.removeProperty('--ldc-gradient'); }
