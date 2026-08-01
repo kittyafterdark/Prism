@@ -69,7 +69,7 @@ function defaultPaint(anchor) {
 
 function safePaint(raw, fallbackColor) {
   const anchor = normalizeHex(raw?.anchor) || normalizeHex(fallbackColor) || '#B58CFF';
-  const stops = uniqueStrings(raw?.stops).map(normalizeHex).filter(Boolean).slice(0, 4);
+  const stops = (Array.isArray(raw?.stops) ? raw.stops : []).map(normalizeHex).filter(Boolean).slice(0, 4);
   if (raw?.mode === 'gradient' && stops.length >= 2) {
     return {
       mode: 'gradient',
@@ -1396,7 +1396,6 @@ spindle.onFrontendMessage(async (payload, userId) => {
       case 'ldc_save_binding': {
         const state = await saveBinding(payload, userId);
         reply('ldc_state', { state, saved: true });
-        spindle.toast.success('Dialogue color bound.', { userId });
         break;
       }
       case 'ldc_add_character': {

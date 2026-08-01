@@ -19,6 +19,8 @@ Existing formatting is authoritative. Prism indexes real or escaped `<font color
 - The editor autosaves, keeps identity and save state sticky, shows a single color in Solid mode, and reveals the harmonic second stop only when Gradient is enabled.
 - Color dragging updates the preview in place and saves without rebuilding or disabling the editor, preserving the native picker and both sidebar/editor scroll positions.
 - Gradient paint is delegated to CSS feature fallback directly, preventing supported Lumi renderers from being incorrectly downgraded to the anchor color.
+- Routine bindings and quote corrections use a persistent mint/gold `Saved` / `Saving…` indicator beside the Prism toolbar button and in the sticky editor footer instead of stacking success toasts.
+- Gradients support two or three stops from the compact selector beside Direction. Newly enabled gradients default to a mirrored `edge → harmonic accent → edge` treatment, while existing two-stop paints remain unchanged.
 - Dialogue and thought previews render their actual independent channel paint, and the top-bar unresolved review action jumps directly to teachable gaps.
 - Add missing people or remove noisy discovered entries directly from the scene roster; manual aliases can map generic bubble labels such as `narrator` to the right person.
 - Manual corrections remain chat-local and expire when the source message content changes.
