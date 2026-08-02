@@ -1,0 +1,65 @@
+[
+  {
+    "id": "solid-to-gradient-is-style-only",
+    "before": {
+      "selectedId": "scene-name:selby",
+      "speakerUid": "prism-speaker-selby",
+      "targetId": "scene-name:selby",
+      "name": "Mr. Selby",
+      "aliases": ["Selby"],
+      "roster": ["Triage", "Nurse Hale", "Mr. Selby", "Porter"]
+    },
+    "save": {
+      "name": "Mr. Selby",
+      "aliases": ["Selby"],
+      "paintMode": "gradient"
+    },
+    "expected": {
+      "cortexIdentityUpsert": false,
+      "targetId": "scene-name:selby",
+      "selectedSpeakerUid": "prism-speaker-selby",
+      "roster": ["Triage", "Nurse Hale", "Mr. Selby", "Porter"]
+    }
+  },
+  {
+    "id": "color-change-is-style-only",
+    "before": {
+      "speakerUid": "prism-speaker-selby",
+      "targetId": "scene-name:selby",
+      "name": "Mr. Selby",
+      "aliases": ["Selby"]
+    },
+    "save": {
+      "name": "Mr. Selby",
+      "aliases": ["Selby"],
+      "color": "#C9832E"
+    },
+    "expected": {
+      "cortexIdentityUpsert": false,
+      "targetId": "scene-name:selby"
+    }
+  },
+  {
+    "id": "alias-edit-may-reconcile-identity-without-losing-selection",
+    "before": {
+      "selectedId": "scene-name:selby",
+      "speakerUid": "prism-speaker-selby",
+      "targetId": "scene-name:selby",
+      "name": "Mr. Selby",
+      "aliases": ["Selby"]
+    },
+    "save": {
+      "name": "Mr. Selby",
+      "aliases": ["Selby", "Mr Selby"]
+    },
+    "backendResult": {
+      "targetId": "cortex-entity-73",
+      "speakerUid": "prism-speaker-selby"
+    },
+    "expected": {
+      "cortexIdentityUpsert": true,
+      "selectedId": "cortex-entity-73",
+      "selectedSpeakerUid": "prism-speaker-selby"
+    }
+  }
+]

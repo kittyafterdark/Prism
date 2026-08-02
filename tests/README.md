@@ -14,4 +14,6 @@
 
 `fixtures/hybrid-hydration.json` covers the closed-loop trust ladder: confirmed use, color drift, prose/tag conflicts, tentative new speakers, unknown colors, collision quarantine, aggregation, idempotency, and the human approval boundary.
 
+`fixtures/editor-stability.json` covers paint-only saves retaining their existing target identity, roster position, selected speaker, and scroll context while still permitting intentional alias edits to reconcile Cortex identity.
+
 The release verification harness loads the compiled frontend in a DOM fixture and exposes the backend reconciliation helpers under an isolated test build. It must confirm these fixtures before `dist/` is regenerated.

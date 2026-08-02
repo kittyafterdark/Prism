@@ -1381,13 +1381,22 @@ async function saveBinding(payload, userId) {
   }
 
   const old = findBinding(config, kind, targetId, name, aliases);
+  const aliasSignature = (values) => uniqueStrings(values)
+    .map(normalizeName)
+    .filter(Boolean)
+    .sort()
+    .join('\u241F');
+  const identityChanged = !old
+    || normalizeName(old.name) !== normalizeName(name)
+    || aliasSignature(old.aliases) !== aliasSignature(aliases);
   const previousColors = uniqueStrings([
     ...(old?.previousColors || []),
     ...(old?.color && old.color !== color ? [old.color] : []),
   ]).map(normalizeHex).filter(Boolean).filter((hex) => hex !== color);
 
-  let resolvedTargetId = targetId;
-  if (kind === 'character') {
+  let resolvedTargetId = String(old?.targetId || targetId);
+  let identityTouched = false;
+  if (kind === 'character' && identityChanged) {
     try {
       const entity = await spindle.memories.entities.upsert(chat.id, {
         name,
@@ -1396,10 +1405,11 @@ async function saveBinding(payload, userId) {
         confidence: 1,
       }, { userId });
       if (entity?.id) resolvedTargetId = String(entity.id);
+      identityTouched = true;
     } catch (error) {
       spindle.log.warn(`Cortex alias upsert skipped: ${error?.message || error}`);
     }
-  } else {
+  } else if (kind === 'persona' && identityChanged) {
     try {
       await spindle.memories.entities.upsert(chat.id, {
         name,
@@ -1407,6 +1417,7 @@ async function saveBinding(payload, userId) {
         aliases: [],
         confidence: 1,
       }, { userId });
+      identityTouched = true;
     } catch (error) {
       spindle.log.warn(`Persona Cortex upsert skipped: ${error?.message || error}`);
     }
@@ -1433,7 +1444,7 @@ async function saveBinding(payload, userId) {
   };
   ensureBindingIdentities(config);
   await saveConfig(chat.id, config);
-  await spindle.memories.cortex.invalidateCache(chat.id, userId).catch(() => {});
+  if (identityTouched) await spindle.memories.cortex.invalidateCache(chat.id, userId).catch(() => {});
 
   return buildState({ importCortex: false }, userId);
 }
