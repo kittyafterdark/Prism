@@ -4,7 +4,7 @@ declare const spindle: import("lumiverse-spindle-types").SpindleAPI;
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const RECOVERY_VAR = 'prism_transcript_recovery_v1';
-const PRISM_VERSION = '1.0.6';
+const PRISM_VERSION = '1.0.8';
 const FAST_OPTIONAL_TIMEOUT_MS = 4500;
 const TRANSCRIPT_TIMEOUT_MS = 12000;
 const HYDRATION_FETCH_TIMEOUT_MS = 5000;
@@ -56,6 +56,7 @@ const DEFAULT_CONFIG = Object.freeze({
 const ENGINE_VALUES = Object.freeze(['dom', 'hybrid', 'llm']);
 const recentRegistrySnapshots = new Map();
 const configOperationQueues = new Map();
+const globalPreferenceQueues = new Map();
 
 function configOperationScopeKey(userId, chatId) {
   return `${String(userId || 'default')}\u241F${String(chatId || 'no-chat')}`;
@@ -68,6 +69,16 @@ function enqueueConfigOperation(userId, chatId, operation) {
   configOperationQueues.set(key, current);
   return current.finally(() => {
     if (configOperationQueues.get(key) === current) configOperationQueues.delete(key);
+  });
+}
+
+function enqueueGlobalPreferenceOperation(userId, operation) {
+  const key = String(userId || 'default');
+  const previous = globalPreferenceQueues.get(key) || Promise.resolve();
+  const current = previous.catch(() => {}).then(operation);
+  globalPreferenceQueues.set(key, current);
+  return current.finally(() => {
+    if (globalPreferenceQueues.get(key) === current) globalPreferenceQueues.delete(key);
   });
 }
 
@@ -1853,40 +1864,50 @@ async function updateOptions(payload, userId) {
   if (typeof payload.hybridDiscovery === 'boolean') {
     config.hybridDiscovery = payload.hybridDiscovery;
   }
-  let globalState = await loadGlobalState(userId);
-  if (ENGINE_VALUES.includes(payload.engine)) {
-    globalState.preferences.preferredEngine = payload.engine;
-  }
-  if (['strict', 'balanced', 'aggressive'].includes(payload.domAttributionMode)) {
-    globalState.preferences.domAttributionMode = payload.domAttributionMode;
-  }
-  if (typeof payload.markUncertain === 'boolean') {
-    globalState.preferences.markUncertain = payload.markUncertain;
-  }
-  if (typeof payload.autoAssignMissing === 'boolean') {
-    globalState.preferences.autoAssignMissing = payload.autoAssignMissing;
-  }
-  if (['off', 'italics', 'single-quotes', 'italics-and-single-quotes'].includes(payload.thoughtDetection)) {
-    globalState.preferences.thoughtDetection = payload.thoughtDetection;
-  }
-  if (['preserve', 'enhance', 'replace'].includes(payload.existingStylePolicy)) {
-    globalState.preferences.existingStylePolicy = payload.existingStylePolicy;
-  }
-  if (typeof payload.useExistingAsEvidence === 'boolean') {
-    globalState.preferences.useExistingAsEvidence = payload.useExistingAsEvidence;
-  }
-  if (['off', 'quoted', 'whole'].includes(payload.autoUserMode)) {
-    globalState.preferences.personaMode = payload.autoUserMode;
-  }
-  if (['auto', 'compact', 'large'].includes(payload.modalSize)) {
-    globalState.preferences.modalSize = payload.modalSize;
-  }
-  if (typeof payload.modalExpanded === 'boolean') {
-    globalState.preferences.modalExpanded = payload.modalExpanded;
-  }
-  await saveGlobalState(globalState, userId);
+  await enqueueGlobalPreferenceOperation(userId, async () => {
+    const globalState = await loadGlobalState(userId);
+    if (ENGINE_VALUES.includes(payload.engine)) {
+      globalState.preferences.preferredEngine = payload.engine;
+    }
+    if (['strict', 'balanced', 'aggressive'].includes(payload.domAttributionMode)) {
+      globalState.preferences.domAttributionMode = payload.domAttributionMode;
+    }
+    if (typeof payload.markUncertain === 'boolean') {
+      globalState.preferences.markUncertain = payload.markUncertain;
+    }
+    if (typeof payload.autoAssignMissing === 'boolean') {
+      globalState.preferences.autoAssignMissing = payload.autoAssignMissing;
+    }
+    if (['off', 'italics', 'single-quotes', 'italics-and-single-quotes'].includes(payload.thoughtDetection)) {
+      globalState.preferences.thoughtDetection = payload.thoughtDetection;
+    }
+    if (['preserve', 'enhance', 'replace'].includes(payload.existingStylePolicy)) {
+      globalState.preferences.existingStylePolicy = payload.existingStylePolicy;
+    }
+    if (typeof payload.useExistingAsEvidence === 'boolean') {
+      globalState.preferences.useExistingAsEvidence = payload.useExistingAsEvidence;
+    }
+    if (['off', 'quoted', 'whole'].includes(payload.autoUserMode)) {
+      globalState.preferences.personaMode = payload.autoUserMode;
+    }
+    await saveGlobalState(globalState, userId);
+  });
   await saveConfig(chat.id, config);
   return buildState({ importCortex: false }, userId);
+}
+
+async function updateUiPreferences(payload, userId) {
+  return enqueueGlobalPreferenceOperation(userId, async () => {
+    const globalState = await loadGlobalState(userId);
+    if (['auto', 'compact', 'large'].includes(payload.modalSize)) {
+      globalState.preferences.modalSize = payload.modalSize;
+    }
+    if (typeof payload.modalExpanded === 'boolean') {
+      globalState.preferences.modalExpanded = payload.modalExpanded;
+    }
+    await saveGlobalState(globalState, userId);
+    return safePreferences(globalState.preferences);
+  });
 }
 
 async function resetTemporaryEvidence(payload, userId) {
@@ -2882,8 +2903,22 @@ spindle.onFrontendMessage(async (payload, userId) => {
   const requestId = payload?.requestId;
   const reply = (type, data = {}) => spindle.sendToFrontend({ type, requestId, ...data }, userId);
   try {
+    if (payload?.type === 'ldc_update_ui_preferences') {
+      const preferences = await updateUiPreferences(payload, userId);
+      reply('ldc_ui_preferences_result', { preferences, saved: true });
+      return;
+    }
     const activeChat = await spindle.chats.getActive(userId);
-    if (!activeChat) throw new Error('Open a chat first.');
+    if (!activeChat) {
+      // State probes run during startup and when leaving a chat. Returning an
+      // ordinary empty state keeps Prism quiet instead of asking the host to
+      // surface a redundant error toast.
+      if (payload?.type === 'ldc_load_state') {
+        reply('ldc_state', { state: { ok: false, noChat: true, error: 'Open a chat first.' } });
+        return;
+      }
+      throw new Error('Open a chat first.');
+    }
     const requestedChatId = String(payload?.chatId || activeChat.id || '');
     if (payload?.chatId && requestedChatId !== String(activeChat.id)) {
       throw new Error('The active chat changed before Prism could finish the request.');

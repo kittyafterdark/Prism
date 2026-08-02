@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.8 — Quiet no-chat state
+
+- Treats startup and chat-exit state probes without an active chat as an ordinary empty Prism state instead of throwing a backend error.
+- Removes the redundant **Open a chat first** host toast while preserving the inline no-chat message if Prism is opened manually.
+
+## 1.0.7 — Fast UI preferences and compact fit
+
+- Moves modal size and expanded-state persistence onto a global-only backend route that bypasses chat mutation queues and scene rebuilds.
+- Serializes global preference writes separately to prevent lost preference updates without blocking behind hydration.
+- Tightens Compact spacing, keeps scrolling inside Prism, hides compact pane scrollbars, and prevents the host modal from growing its own scrollbar.
+
 ## 1.0.6 — Responsive desktop modal
 
 - Prism now grows automatically on large and ultrawide displays instead of remaining fixed at 780px.

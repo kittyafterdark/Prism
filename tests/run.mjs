@@ -33,7 +33,7 @@ const backendCompiled = compile('backend.ts', `${backendSource}\n;globalThis.__p
   plausibleInferredSceneName, knownSceneIdentityByName,
   extractSceneNamesFromText, hydrateGeneratedMessage, resetTemporaryEvidence,
   addSceneCharacter, resolveObservationGroup, mergeSceneCharacter, loadConfig, saveConfig,
-  enqueueConfigOperation, configOperationQueues,
+  enqueueConfigOperation, configOperationQueues, enqueueGlobalPreferenceOperation, globalPreferenceQueues, updateUiPreferences,
   previewTranscriptMutation, applyTranscriptMutation, restoreTranscriptRecovery, importRegistry,
   recentRegistrySnapshots, applyPersonaColor, applyPersonaColorToLlmContent, personaColorContext, persistPersonaColorForMessage
 };`);
@@ -107,7 +107,7 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.6');
+  assert.equal(manifest.version, '1.0.8');
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -116,6 +116,11 @@ test('manifest and frontend generation lifecycle are release-ready', () => {
 });
 
 
+
+test('no-chat background state probes resolve quietly', () => {
+  assert.match(backendSource, /payload\?\.type === 'ldc_load_state'/);
+  assert.match(backendSource, /reply\('ldc_state', \{ state: \{ ok: false, noChat: true, error: 'Open a chat first\.' \} \}\)/);
+});
 
 test('responsive modal preferences are normalized and exposed to the frontend', () => {
   assert.deepEqual(api.safePreferences({ modalSize: 'large', modalExpanded: true }).modalSize, 'large');
@@ -126,6 +131,21 @@ test('responsive modal preferences are normalized and exposed to the frontend', 
   assert.match(frontendSource, /data-role="modal-size"/);
   assert.match(frontendSource, /data-prism-ultrawide/);
   assert.doesNotMatch(frontendSource, /showModal\(\{title:'Prism',width:780,maxHeight:680\}\)/);
+  assert.match(frontendSource, /ldc_update_ui_preferences/);
+  assert.match(frontendSource, /data-prism-size=compact.*scrollbar-width:none/s);
+  assert.match(frontendSource, /handle\.root\.style\.overflow='hidden'/);
+});
+
+test('UI preferences bypass chat queues and persist globally', async () => {
+  host.globalVars.clear();
+  api.globalPreferenceQueues.clear();
+  const preferences = await api.updateUiPreferences({ modalSize: 'compact', modalExpanded: true }, 'user-ui');
+  assert.equal(preferences.modalSize, 'compact');
+  assert.equal(preferences.modalExpanded, true);
+  const stored = JSON.parse(host.globalVars.get('prism_preferences_v1'));
+  assert.equal(stored.preferences.modalSize, 'compact');
+  assert.equal(stored.preferences.modalExpanded, true);
+  assert.equal(api.globalPreferenceQueues.size, 0);
 });
 
 test('persona DOM candidates use the stable speaker identity and remain paintable', () => {
