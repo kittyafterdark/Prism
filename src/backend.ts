@@ -532,35 +532,64 @@ function cleanSceneName(value) {
   return name;
 }
 
+const DISCOVERY_NAME_STOPWORDS = new Set([
+  'i', 'me', 'my', 'mine', 'myself',
+  'you', 'your', 'yours', 'yourself', 'yourselves',
+  'he', 'him', 'his', 'himself',
+  'she', 'her', 'hers', 'herself',
+  'it', 'its', 'itself',
+  'we', 'us', 'our', 'ours', 'ourselves',
+  'they', 'them', 'their', 'theirs', 'themselves',
+  'this', 'that', 'these', 'those',
+  'a', 'an', 'the', 'someone', 'somebody', 'nobody',
+  'let us', 'sometimes a', 'sometimes an', 'sometimes the',
+]);
+
+function cleanDiscoveredSceneName(value) {
+  const name = cleanSceneName(String(value || '').replace(/['’]s$/i, ''));
+  if (!name || DISCOVERY_NAME_STOPWORDS.has(name.toLocaleLowerCase())) return '';
+
+  // Prose fragments produced by a loose grammar usually contain lowercase
+  // lexical words ("The newspapers", "Let us"). Real multi-word names in
+  // automatic speech tags should otherwise look like proper names. Declared
+  // cast lists bypass this check below because their contents are explicit.
+  const particles = new Set(['da', 'de', 'del', 'della', 'di', 'du', 'la', 'le', 'of', 'the', 'van', 'von']);
+  const words = name.split(/\s+/).filter(Boolean);
+  if (words.length > 6) return '';
+  if (words.some((word, index) => {
+    const bare = word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+    if (!bare || /^\d/u.test(bare) || /^[\p{Lu}]/u.test(bare)) return false;
+    return index === 0 || !particles.has(bare.toLocaleLowerCase());
+  })) return '';
+
+  return name;
+}
+
 const REPORTING_VERB_SOURCE = '(?:say|said|says|ask|asked|asks|reply|replied|replies|answer|answered|answers|announce|announced|announces|observe|observed|observes|remark|remarked|remarks|state|stated|states|declare|declared|declares|note|noted|notes|explain|explained|explains|add|added|adds|continue|continued|continues|whisper|whispered|whispers|murmur|murmured|murmurs|mutter|muttered|mutters|breathe|breathed|breathes|hiss|hissed|hisses|growl|growled|growls|drawl|drawled|drawls|intone|intoned|intones|shout|shouted|shouts|yell|yelled|yells|cry|cried|cries|call|called|calls|snap|snapped|snaps|bark|barked|barks|exclaim|exclaimed|exclaims|retort|retorted|retorts|protest|protested|protests|insist|insisted|insists|warn|warned|warns|demand|demanded|demands|urge|urged|urges|correct|corrected|corrects|admit|admitted|admits|concede|conceded|concedes|agree|agreed|agrees|object|objected|objects|promise|promised|promises|laugh|laughed|laughs|sigh|sighed|sighs|scoff|scoffed|scoffs|groan|groaned|groans|repeat|repeated|repeats|echo|echoed|echoes|offer|offered|offers|assure|assured|assures)';
 
 function extractSceneNamesFromText(value) {
   const text = stripStructuredText(value);
   if (!text.trim()) return [];
   const names = [];
-  const add = (value) => {
-    const name = cleanSceneName(String(value || '').replace(/['’]s$/i, ''));
+  const add = (value, declared = false) => {
+    const name = declared
+      ? cleanSceneName(String(value || '').replace(/['’]s$/i, ''))
+      : cleanDiscoveredSceneName(value);
     if (name) names.push(name);
   };
 
-  const labelPattern = /(?:^|\n)\s*(?:[-*]\s+)?(?:\*\*|\[)?([^:\]\n]{1,80})(?:\*\*|\])?\s*:\s*(?=["“])/gmu;
+  const labelPattern = /(?:^|\n)\s*(?:[-*]\s+)?(?:\*\*|\[)?([^:\]\n*]{1,80}?)(?:\*\*|\])?\s*:\s*(?:\*\*)?\s*(?=["“])/gmu;
   let match;
-  while ((match = labelPattern.exec(text))) add(match[1]);
+  while ((match = labelPattern.exec(text))) add(match[1], true);
 
   const knownBefore = new RegExp(`(?:^|[\\n.!?]\\s+)([\\p{Lu}][\\p{L}\\p{N}'’. -]{0,60}?)\\s+${REPORTING_VERB_SOURCE}\\b(?:[^"“”\\n]{0,160})?[,:.]\\s*(?=["“])`, 'gmu');
   while ((match = knownBefore.exec(text))) add(match[1]);
   const knownAfter = new RegExp(`["”][^"“”\\n]{1,500}["”]\\s*[,;.!?—–-]*\\s*([\\p{Lu}][\\p{L}\\p{N}'’. -]{0,60}?)\\s+${REPORTING_VERB_SOURCE}\\b`, 'gmu');
   while ((match = knownAfter.exec(text))) add(match[1]);
-  const structuralBefore = /(?:^|[\n.!?]\s+)([\p{Lu}][\p{L}\p{N}'’. -]{0,60}?)\s+[\p{Ll}][\p{L}'’-]{2,28}\b(?:[^"“”\n]{0,120})?[,:.]\s*(?=["“])/gmu;
-  while ((match = structuralBefore.exec(text))) add(match[1]);
-  const structuralAfter = /["”][^"“”\n]{1,500}["”]\s*[,;.!?—–-]*\s*([\p{Lu}][\p{L}\p{N}'’. -]{0,60}?)\s+[\p{Ll}][\p{L}'’-]{2,28}\b/gmu;
-  while ((match = structuralAfter.exec(text))) add(match[1]);
-  const speechNoun = /["”][^"“”\n]{1,500}["”]\s*[,;.!?—–-]*\s*(?:(?:came|rang|called)\s+(?:from\s+)?)?([\p{Lu}][\p{L}\p{N}'’. -]{0,60}?)(?:['’]s)?\s+(?:voice|answer|reply|tone|words?)\b/gmu;
-  while ((match = speechNoun.exec(text))) add(match[1]);
 
   const castPattern = /(?:^|\n)\s*(?:cast|characters|speakers|npcs)\s*:\s*([^\n]{1,240})/gimu;
   while ((match = castPattern.exec(text))) {
-    for (const item of match[1].split(/[,;|/]/)) add(item.replace(/\s*\([^)]*\)\s*$/, ''));
+    for (const item of match[1].split(/[,;|/]/)) add(item.replace(/\s*\([^)]*\)\s*$/, ''), true);
   }
   return uniqueStrings(names);
 }

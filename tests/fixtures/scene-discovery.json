@@ -1,0 +1,32 @@
+[
+  {
+    "id": "ordinary-card-prose-does-not-invent-cast",
+    "text": "It is a client, he decided. Let us be clear. Sometimes a window opens. The newspapers ran the story.",
+    "expected": []
+  },
+  {
+    "id": "known-reporting-verb-discovers-speaker",
+    "text": "\"Absolutely not,\" Rina announced.",
+    "expected": ["Rina"]
+  },
+  {
+    "id": "unknown-verb-does-not-create-speaker",
+    "text": "\"Perhaps,\" Rina editorialized.",
+    "expected": []
+  },
+  {
+    "id": "explicit-speaker-label-discovers-speaker",
+    "text": "**Rina:** \"Move.\"",
+    "expected": ["Rina"]
+  },
+  {
+    "id": "declared-cast-list-discovers-speakers",
+    "text": "Characters: Rina, Hugo Vlad, The Herta",
+    "expected": ["Rina", "Hugo Vlad", "The Herta"]
+  },
+  {
+    "id": "pronoun-reporting-tag-is-not-a-person",
+    "text": "\"It is a client,\" he said.",
+    "expected": []
+  }
+]
