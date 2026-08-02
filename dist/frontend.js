@@ -157,7 +157,7 @@ function engineLabel(value) { return ({ dom: 'Local', hybrid: 'Hybrid', llm: 'LL
 function engineDescription(value) { return ({ dom: 'Visual only · heuristic paint', hybrid: 'Model tags first · local repair', llm: 'Model tags only · no local fill' })[normalizeEngine(value)]; }
 export function setup(ctx) {
     const removeStyle = ctx.dom.addStyle(CSS), pending = new Map(), signatures = new Map(), dirty = new Set(), hydratingMessages = new Set(), activeGenerationIds = new Set(), streamingMessageIds = new Set(), messageRoles = new Map();
-    let modal = null, modalHostHandle = null, fullscreenOverlay = null, bodyOverflowBefore = '', addModal = null, importModal = null, state = null, activeTab = 'character', activeChannel = 'dialogue', selectedId = null, sideScroll = 0, sideScrollLeft = 0, panelScroll = 0, settingsOpen = false, reviewOpen = false, busy = false, saveStatus = 'saved', hydrationStatus = 'idle', pendingReviewCount = 0, reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, applying = false, revision = 0, saveGeneration = 0, saveQueue = Promise.resolve(), stateLoadPromise = null, lastRoundtripMs = 0, lastBackendError = '', themeColorCache = null, themeColorSignature = '';
+    let modal = null, modalHostHandle = null, fullscreenOverlay = null, addModal = null, importModal = null, state = null, activeTab = 'character', activeChannel = 'dialogue', selectedId = null, sideScroll = 0, sideScrollLeft = 0, panelScroll = 0, settingsOpen = false, reviewOpen = false, busy = false, saveStatus = 'saved', hydrationStatus = 'idle', pendingReviewCount = 0, reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, applying = false, revision = 0, saveGeneration = 0, saveQueue = Promise.resolve(), stateLoadPromise = null, lastRoundtripMs = 0, lastBackendError = '', themeColorCache = null, themeColorSignature = '';
     const request = (type, data = {}, timeoutMs = 15000) => new Promise((resolve, reject) => { const requestId = uid(), startedAt = performance.now(), timer = setTimeout(() => { pending.delete(requestId); lastBackendError = `${type} timed out`; reject(new Error(`Prism's backend did not answer ${type} within ${Math.round(timeoutMs / 1000)} seconds.`)); }, timeoutMs); pending.set(requestId, { resolve, reject, timer, startedAt, type }); ctx.sendToBackend({ type, requestId, ...data }); });
     const loadState = (sync = false) => { if (stateLoadPromise)
         return stateLoadPromise; stateLoadPromise = request('ldc_load_state', { importCortex: sync, scanTranscript: sync }, sync ? 60000 : 15000).finally(() => { stateLoadPromise = null; }); return stateLoadPromise; };
@@ -242,12 +242,35 @@ export function setup(ctx) {
     function releaseFullscreenOverlay() { if (fullscreenOverlay) {
         fullscreenOverlay.remove();
         fullscreenOverlay = null;
-    } if (modalHostHandle?.root)
-        modalHostHandle.root.classList.remove('ldc-fullscreen-host-hidden'); if (bodyOverflowBefore !== '' || document.body.style.overflow === 'hidden') {
-        document.body.style.overflow = bodyOverflowBefore;
-        bodyOverflowBefore = '';
     } }
-    function createFullscreenModalProxy(handle) { releaseFullscreenOverlay(); const overlay = document.createElement('div'); overlay.className = 'ldc-fullscreen-root'; overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true'); overlay.setAttribute('aria-label', 'Prism'); copyThemeToOverlay(handle.root, overlay); document.body.appendChild(overlay); fullscreenOverlay = overlay; modalHostHandle = handle; syncFullscreenViewport(); handle.root.classList.add('ldc-fullscreen-host-hidden'); bodyOverflowBefore = document.body.style.overflow; document.body.style.overflow = 'hidden'; const proxy = { root: overlay, dismiss() { releaseFullscreenOverlay(); handle.dismiss(); }, onDismiss(callback) { return handle.onDismiss(callback); } }; handle.onDismiss(() => releaseFullscreenOverlay()); return proxy; }
+    function createStandaloneFullscreenModal() {
+        releaseFullscreenOverlay();
+        const overlay = document.createElement('div'), callbacks = new Set();
+        let dismissed = false;
+        overlay.className = 'ldc-fullscreen-root';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-label', 'Prism');
+        copyThemeToOverlay(document.querySelector('#root') || document.documentElement, overlay);
+        document.body.appendChild(overlay);
+        fullscreenOverlay = overlay;
+        syncFullscreenViewport();
+        const onKeydown = event => { if (event.key === 'Escape') {
+            event.preventDefault();
+            closePalette();
+        } };
+        window.addEventListener('keydown', onKeydown);
+        const dismiss = () => { if (dismissed)
+            return; dismissed = true; window.removeEventListener('keydown', onKeydown); releaseFullscreenOverlay(); for (const callback of [...callbacks]) {
+            try {
+                callback();
+            }
+            catch (error) {
+                console.warn('[Prism] fullscreen dismiss callback failed', error);
+            }
+        } callbacks.clear(); };
+        return { root: overlay, dismiss, onDismiss(callback) { callbacks.add(callback); return () => callbacks.delete(callback); } };
+    }
     function applyModalPresentation(layout = resolvedModalLayout(), dimensions = modalDimensions()) { if (!modal)
         return; const fullscreen = layout === 'tabs'; modal.root.classList.toggle('ldc-fullscreen-root', fullscreen); if (fullscreen) {
         syncFullscreenViewport();
@@ -327,7 +350,7 @@ export function setup(ctx) {
         const b = target.binding || {}, channels = safeChannels(b), color = channels.dialogue.paint.stops[0] || (isPersona ? '#7DB7FF' : '#B58CFF'), aliases = (b.aliases?.length ? b.aliases : target.aliases || []).join(', '), channel = channels[activeChannel], paint = channel.paint, gradient = paint.mode === 'gradient', stop1 = paint.stops[0], stop2 = paint.stops[1] || harmonicColor(stop1), rail = gradient ? `linear-gradient(${paint.angle}deg,${stop1},${stop2})` : stop1, subtitle = isPersona ? (target.title || (target.isNarrator ? 'Narrator persona' : 'Active persona')) : `${target.status || 'active'} · ${(b.aliases || target.aliases || []).length} aliases`;
         return `<div class="ldc-editor-head"><div class="ldc-profile"><span class="ldc-profile-avatar">${esc(initials(target.name))}</span><div><h3>${esc(target.name)}</h3><div class="ldc-sub">${esc(subtitle)}</div></div></div><span class="ldc-chip">${esc(sourceLabel(b.source || (isPersona ? 'active' : target.source)))}</span></div><div class="ldc-preview"><span ${paintAttrs(channels.dialogue.paint)}>“Prism keeps this local and reversible.”</span><span class="ldc-preview-line" ${paintAttrs(channels.thought.paint)}><i>This was, categorically, not safe.</i></span></div><div class="ldc-editor-controls"><div class="ldc-editor-switch"><div class="ldc-channel-tabs"><button data-channel="dialogue" data-active="${activeChannel === 'dialogue'}">Dialogue</button><button data-channel="thought" data-active="${activeChannel === 'thought'}">Thoughts</button></div><label class="ldc-mode-select"><span>Paint</span><select class="ldc-select" data-role="paint-mode"><option value="solid" ${!gradient ? 'selected' : ''}>Solid</option><option value="gradient" ${gradient ? 'selected' : ''}>Gradient</option></select></label></div><label class="ldc-enable"><input type="checkbox" data-role="channel-enabled" ${channel.enabled ? 'checked' : ''}> Enable ${activeChannel} paint</label><div class="ldc-gradient-editor" style="--editor-gradient:${rail}"><label class="ldc-stop" title="First color"><input data-role="picker" type="color" value="${stop1}"><span style="--stop:${stop1}"></span></label><div class="ldc-gradient-rail"></div>${gradient ? `<label class="ldc-stop" title="Second color"><input data-role="picker-2" type="color" value="${stop2}"><span style="--stop:${stop2}"></span></label>` : ''}</div><div class="ldc-hex-row" data-gradient="${gradient}"><input class="ldc-input" data-role="hex" value="${stop1}" maxlength="7">${gradient ? `<input class="ldc-input" data-role="hex-2" value="${stop2}" maxlength="7">` : ''}</div>${gradient ? `<div class="ldc-direction"><label><span>Direction</span><input class="ldc-input" data-role="angle" type="number" min="0" max="360" value="${paint.angle}"></label><button class="ldc-btn" data-action="swap-colors">Swap colors</button></div>` : ''}<details class="ldc-details"><summary>Identity and attribution</summary><label class="ldc-field"><span class="ldc-label">Registry color <span class="ldc-hint">Always follows the first dialogue stop</span></span><input class="ldc-input" data-role="canonical-readout" value="${color}" readonly aria-readonly="true"></label>${isPersona ? `<label class="ldc-field"><span class="ldc-label">Persona dialogue</span><select class="ldc-select" data-role="auto-mode"><option value="off" ${state.config.autoUserMode === 'off' ? 'selected' : ''}>Off</option><option value="quoted" ${state.config.autoUserMode === 'quoted' ? 'selected' : ''}>Quoted dialogue only</option><option value="whole" ${state.config.autoUserMode === 'whole' ? 'selected' : ''}>Whole message</option></select></label>` : `<label class="ldc-field"><span class="ldc-label">Aliases <span class="ldc-hint">Comma-separated</span></span><input class="ldc-input" data-role="aliases" value="${esc(aliases)}" placeholder="Hugo, Mr. Vlad, narrator"></label>`}</details></div><div class="ldc-savebar" data-status-hidden="${!showSaveIndicator}">${showSaveIndicator ? `<span data-save-status="${saveStatus}">${saveStatus === 'saving' ? 'Saving changes…' : saveStatus === 'pending' ? 'Changes waiting…' : saveStatus === 'error' ? 'Could not save changes' : 'Changes saved automatically'}</span>` : ''}${isPersona ? '' : `<button class="ldc-btn" data-action="remove-character">Remove from scene</button>`}</div>`;
     }
-    function diagnosticsText() { const d = state?.diagnostics || {}, last = d.lastHydration || state?.config?.lastHydration || null, messageSuffix = last?.messageId ? String(last.messageId).slice(-8) : 'none'; return [`Prism ${d.prismVersion || '1.0.20'}`, `Engine: ${engineLabel(state?.config?.engine)}`, `Config schema: ${d.configSchema || state?.config?.version || 'unknown'}`, `Registry revision: ${d.registryRevision || state?.registry?.revision || 'none'}`, `Confirmed speakers: ${d.confirmedSpeakers ?? state?.registry?.entries?.length ?? 0}`, `Registry collisions: ${d.registryCollisions ?? state?.registry?.conflicts?.length ?? 0}`, `Registry entries omitted by budget: ${d.registryTrimmed || 0}`, `New character reviews: ${d.tentativeGroups ?? pendingReviewCount}`, `Unresolved rendered segments: ${unresolvedSegments().length}`, `Cortex entities: ${d.cortexEntities || 'unknown'}`, `Cortex macro: ${d.cortexMacro || 'unknown'}`, `Last hydration: ${last?.status || 'none'}`, `Last hydration message: …${messageSuffix}`, `Interface: ${uiPreferences().modalSize}${uiPreferences().modalExpanded ? ' · expanded' : ''}`, `Toolbar mounted: ${document.querySelector('[data-prism-toolbar-button]') ? 'yes' : 'no'}`, `DOM helpers: ${ctx.dom?.listMessageElements && ctx.dom?.inject ? 'healthy' : 'unavailable'}`, `Frontend/backend roundtrip: ${lastRoundtripMs ? `${lastRoundtripMs} ms` : 'not measured'}`, `Last backend error: ${lastBackendError || 'none'}`].join('\n'); }
+    function diagnosticsText() { const d = state?.diagnostics || {}, last = d.lastHydration || state?.config?.lastHydration || null, messageSuffix = last?.messageId ? String(last.messageId).slice(-8) : 'none'; return [`Prism ${d.prismVersion || '1.0.21'}`, `Engine: ${engineLabel(state?.config?.engine)}`, `Config schema: ${d.configSchema || state?.config?.version || 'unknown'}`, `Registry revision: ${d.registryRevision || state?.registry?.revision || 'none'}`, `Confirmed speakers: ${d.confirmedSpeakers ?? state?.registry?.entries?.length ?? 0}`, `Registry collisions: ${d.registryCollisions ?? state?.registry?.conflicts?.length ?? 0}`, `Registry entries omitted by budget: ${d.registryTrimmed || 0}`, `New character reviews: ${d.tentativeGroups ?? pendingReviewCount}`, `Unresolved rendered segments: ${unresolvedSegments().length}`, `Cortex entities: ${d.cortexEntities || 'unknown'}`, `Cortex macro: ${d.cortexMacro || 'unknown'}`, `Last hydration: ${last?.status || 'none'}`, `Last hydration message: …${messageSuffix}`, `Interface: ${uiPreferences().modalSize}${uiPreferences().modalExpanded ? ' · expanded' : ''}`, `Toolbar mounted: ${document.querySelector('[data-prism-toolbar-button]') ? 'yes' : 'no'}`, `DOM helpers: ${ctx.dom?.listMessageElements && ctx.dom?.inject ? 'healthy' : 'unavailable'}`, `Frontend/backend roundtrip: ${lastRoundtripMs ? `${lastRoundtripMs} ms` : 'not measured'}`, `Last backend error: ${lastBackendError || 'none'}`].join('\n'); }
     function registryExportText() { return JSON.stringify({ format: 'prism-registry', version: 1, exportedAt: new Date().toISOString(), entries: (state?.registry?.entries || []).map(entry => ({ speakerUid: entry.speakerUid, kind: entry.kind, name: entry.name, aliases: entry.aliases, color: entry.color })) }, null, 2); }
     async function copyText(value) { if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(value);
@@ -1257,14 +1280,25 @@ export function setup(ctx) {
             sideScrollLeft = 0;
             panelScroll = 0;
         }
-        const dimensions = modalDimensions(), layout = resolvedModalLayout(), handle = ctx.ui.showModal({ title: 'Prism', width: dimensions.width, maxHeight: dimensions.maxHeight });
-        modalHostHandle = handle;
-        modal = layout === 'tabs' ? createFullscreenModalProxy(handle) : handle;
+        const dimensions = modalDimensions(), layout = resolvedModalLayout();
+        if (layout === 'tabs') {
+            const standalone = createStandaloneFullscreenModal();
+            modalHostHandle = null;
+            modal = standalone;
+            const activeModal = standalone;
+            standalone.onDismiss(() => { if (modal === activeModal)
+                modal = null; });
+        }
+        else {
+            const handle = ctx.ui.showModal({ title: 'Prism', width: dimensions.width, maxHeight: dimensions.maxHeight });
+            modalHostHandle = handle;
+            modal = handle;
+            const activeModal = handle;
+            handle.onDismiss(() => { if (modal === activeModal)
+                modal = null; if (modalHostHandle === handle)
+                modalHostHandle = null; });
+        }
         applyModalPresentation(layout, dimensions);
-        const activeModal = modal;
-        handle.onDismiss(() => { releaseFullscreenOverlay(); if (modal === activeModal)
-            modal = null; if (modalHostHandle === handle)
-            modalHostHandle = null; });
         render();
         if (state?.ok)
             return;

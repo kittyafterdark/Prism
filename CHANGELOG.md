@@ -1,19 +1,26 @@
 # Prism changelog
 
-## 1.0.9c — Real measured vertical overflow
+## 1.0.9e
+
+- High-scale/tabbed Prism no longer opens or hides a Lumiverse native modal behind its body-level workspace.
+- Removes the host modal's global vertical touch/scroll lock from the accessibility layout while preserving the normal native modal on desktop split layout.
+- Removes the body overflow mutation; the fixed Prism overlay and its own overscroll containment now own the fullscreen interaction.
+- Adds Escape-key dismissal directly to the standalone workspace.
+
+## 1.0.9d
 
 - Outranks the older tab-layout `height: 100%` / `overflow: hidden` rule on the fullscreen `.ldc-main` container.
 - Lets the editor content contribute its real height to the single `.ldc-main-wrap` scroll surface.
 - Removes the scrollbar-shaped placebo where content painted past a clipped box but could not be reached.
 
-## 1.0.9b — Single vertical scroll surface
+## 1.0.9c
 
 - Replaces the unreliable nested editor scroller with one native vertical scroll surface on the fullscreen main workspace.
 - Keeps the horizontal roster as its own horizontal scroller while the character editor flows normally beneath it.
 - Removes the competing JavaScript touch-drag fallback so Android/PWA no longer has two systems fighting over the same vertical gesture.
 - Preserves the fullscreen workspace scroll position across ordinary rerenders.
 
-## 1.0.9a — Accessibility scroll repair
+## 1.0.9b
 
 - Adds a guarded single-touch vertical drag and momentum fallback for Android/PWA WebViews that refuse the editor's native nested scroll gesture. Horizontal roster swipes and two-finger pinch zoom remain native.
 - Sizes the fullscreen accessibility portal from the live visual viewport and updates it as browser chrome, orientation, or the on-screen keyboard changes.
