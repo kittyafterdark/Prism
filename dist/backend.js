@@ -1,7 +1,7 @@
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const RECOVERY_VAR = 'prism_transcript_recovery_v1';
-const PRISM_VERSION = '1.0.25';
+const PRISM_VERSION = '1.0.26';
 const FAST_OPTIONAL_TIMEOUT_MS = 4500;
 const TRANSCRIPT_TIMEOUT_MS = 12000;
 const HYDRATION_FETCH_TIMEOUT_MS = 5000;
@@ -143,9 +143,11 @@ function safePreferences(raw) {
             ? source.modalSize
             : DEFAULT_PREFERENCES.modalSize,
         modalExpanded: source.modalExpanded === true,
-        modalLayout: ['auto', 'split', 'tabs'].includes(source.modalLayout)
-            ? source.modalLayout
-            : DEFAULT_PREFERENCES.modalLayout,
+        modalLayout: source.modalLayout === 'tabs'
+            ? 'horizontal'
+            : ['auto', 'split', 'horizontal', 'accessibility'].includes(source.modalLayout)
+                ? source.modalLayout
+                : DEFAULT_PREFERENCES.modalLayout,
         showSaveIndicator: source.showSaveIndicator !== false,
     };
 }
@@ -1880,7 +1882,7 @@ async function updateUiPreferences(payload, userId) {
         if (typeof payload.modalExpanded === 'boolean') {
             globalState.preferences.modalExpanded = payload.modalExpanded;
         }
-        if (['auto', 'split', 'tabs'].includes(payload.modalLayout)) {
+        if (['auto', 'split', 'horizontal', 'accessibility'].includes(payload.modalLayout)) {
             globalState.preferences.modalLayout = payload.modalLayout;
         }
         if (typeof payload.showSaveIndicator === 'boolean') {

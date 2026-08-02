@@ -107,8 +107,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.25');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.25'/);
+  assert.equal(manifest.version, '1.0.26');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.26'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -141,23 +141,24 @@ test('responsive modal preferences are normalized and exposed to the frontend', 
 });
 
 
-test('narrow split layout uses a dense landscape card instead of a portrait modal', () => {
-  assert.match(frontendSource, /function useLandscapeSplitAspect\(\).*vw<=980/);
-  assert.match(frontendSource, /function useLandscapeSplitDensity\(\).*modalSize==='auto'/);
-  assert.match(frontendSource, /if\(landscapeSplit\)\{width=Math\.min\(Math\.floor\(vw\*\.96\),1040\);contentHeight=clampHeight\(width\*\.68,430,vh-118\)\}/);
-  assert.match(frontendSource, /data-prism-density="\$\{landscapeDensity\?'landscape':'standard'\}"/);
-  assert.match(frontendSource, /data-prism-layout=split\]\[data-prism-density=landscape\].*zoom:\.82/s);
-  assert.match(frontendSource, /width:121\.95122%!important;height:121\.95122%!important/);
+test('layout routing makes horizontal first-class and reserves accessibility cards for high scale', () => {
+  assert.match(frontendSource, /function isPhoneLikeViewport\(\)/);
+  assert.match(frontendSource, /if\(scale>=1\.5\)return'tabs'/);
+  assert.match(frontendSource, /if\(isPhoneLikeViewport\(\)\)return'horizontal'/);
+  assert.match(frontendSource, /return'horizontal'/);
+  assert.match(frontendSource, /preference==='accessibility'\)return'tabs'/);
+  assert.match(frontendSource, /preference==='split'\|\|preference==='horizontal'/);
+  assert.doesNotMatch(frontendSource, /scale>1\.15/);
 });
 
-test('narrow split layout uses a contained cast carousel instead of floating initial tiles', () => {
+test('horizontal layout uses a contained cast carousel instead of floating initial tiles', () => {
   assert.match(frontendSource, /class="ldc-roster-rail"/);
   assert.match(frontendSource, /data-action="roster-prev"/);
   assert.match(frontendSource, /data-action="roster-next"/);
-  assert.match(frontendSource, /data-prism-layout=split\]\[data-prism-density=landscape\] \.ldc-main\{display:flex;flex-direction:column/);
+  assert.match(frontendSource, /data-prism-layout=horizontal\] \.ldc-main\{display:flex;flex-direction:column/);
   assert.match(frontendSource, /scroll-snap-type:x proximity/);
   assert.match(frontendSource, /mask-image:linear-gradient\(90deg,transparent 0,#000 18px/);
-  assert.match(frontendSource, /data-prism-density=landscape\] \.ldc-avatar\{width:18px;height:18px;border-radius:50%;background:transparent;font-size:0\}/);
+  assert.match(frontendSource, /data-prism-layout=horizontal\] \.ldc-avatar\{width:18px;height:18px;border-radius:50%;background:transparent;font-size:0\}/);
   assert.match(frontendSource, /roster\.scrollBy\(\{left:direction\*Math\.max\(180,Math\.floor\(roster\.clientWidth\*\.72\)\),behavior:'smooth'\}\)/);
 });
 
@@ -631,18 +632,20 @@ test('persona dialogue is colored in generation context and persisted user messa
 });
 
 
-test('accessibility layout and save-indicator preferences are persisted', () => {
-  const preferences = api.safePreferences({ modalLayout: 'tabs', showSaveIndicator: false });
-  assert.equal(preferences.modalLayout, 'tabs');
-  assert.equal(preferences.showSaveIndicator, false);
+test('layout preferences persist and legacy tabs migrate to horizontal', () => {
+  const legacy = api.safePreferences({ modalLayout: 'tabs', showSaveIndicator: false });
+  assert.equal(legacy.modalLayout, 'horizontal');
+  assert.equal(legacy.showSaveIndicator, false);
+  assert.equal(api.safePreferences({ modalLayout: 'split' }).modalLayout, 'split');
+  assert.equal(api.safePreferences({ modalLayout: 'horizontal' }).modalLayout, 'horizontal');
+  assert.equal(api.safePreferences({ modalLayout: 'accessibility' }).modalLayout, 'accessibility');
   assert.match(frontendSource, /function resolvedModalLayout\(\)/);
-  assert.match(frontendSource, /scale>1\.15/);
-  assert.match(frontendSource, /data-prism-layout=/);
-  assert.match(frontendSource, /Horizontal roster/);
+  assert.match(frontendSource, /scale>=1\.5/);
+  assert.match(frontendSource, /Horizontal carousel/);
+  assert.match(frontendSource, /Vertical sidebar/);
+  assert.match(frontendSource, /Accessibility cards/);
   assert.match(frontendSource, /ldc-settings-tab/);
-  assert.match(frontendSource, /ldc-roster-settings/);
-  assert.match(frontendSource, /data-action=\"settings-tab\"/);
-  assert.match(frontendSource, /position:sticky;top:0;z-index:20/);
+  assert.match(frontendSource, /data-action="settings-tab"/);
 });
 
 test('high-scale editor uses horizontal Paint and Identity cards', () => {
@@ -658,7 +661,7 @@ test('fullscreen child dialogs are portal-owned above the workspace', () => {
   assert.match(frontendSource, /function createPortalDialog\(title\)/);
   assert.match(frontendSource, /ldc-portal-dialog-backdrop/);
   assert.match(frontendSource, /2147483647/);
-  assert.match(frontendSource, /resolvedModalLayout\(\)===\'tabs\'\?createPortalDialog/);
+  assert.match(frontendSource, /resolvedModalLayout\(\)!==\'split\'\?createPortalDialog/);
 });
 
 test('mobile portal dialogs stay inside Prism and avoid browser focus zoom', () => {
