@@ -2,10 +2,10 @@
 
 ## 1.0.9f
 
-- High-scale/tabbed Prism no longer opens or hides a Lumiverse native modal behind its body-level workspace.
-- Removes the host modal's global vertical touch/scroll lock from the accessibility layout while preserving the normal native modal on desktop split layout.
-- Removes the body overflow mutation; the fixed Prism overlay and its own overscroll containment now own the fullscreen interaction.
-- Adds Escape-key dismissal directly to the standalone workspace.
+- Replaces the unreliable high-scale vertical editor scroll with a native horizontal two-card workspace: Paint and Identity.
+- Supports both tab clicks and swipe/side-scroll navigation with scroll snapping.
+- Keeps aliases, registry details, save state, and removal on the Identity card instead of below the fold.
+- Opens Add Character and high-scale confirmations in Prism-owned portal dialogs above the fullscreen workspace.
 
 ## 1.0.9e
 
