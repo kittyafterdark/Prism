@@ -1,11 +1,10 @@
 # Changelog
 
-## 1.0.4
+## 1.0.5 — Persona DOM identity fix
 
-- Fixed persona dialogue not appearing in user bubbles or generation context.
-- Hybrid/LLM now color the final user prompt inside the pre-generation interceptor, so the model receives the same canonical persona tags that Prism persists.
-- Post-send persona tagging now seeds the active persona binding from the global library when needed and marks formatting-only rewrites without rebuilding chat chunks.
-- Frontend refreshes exact user messages on `MESSAGE_SENT`, `MESSAGE_EDITED`, and `USER_MESSAGE_RENDERED`, rather than relying only on a private bubble attribute.
+- Persona dialogue candidates now use the binding's stable `speakerUid`, matching the override keys persisted by the backend.
+- Persona candidates explicitly report themselves as paintable when a canonical registry color exists, removing the false “color not assigned” underline and tooltip.
+- Manual reassignment of a user quote to the active persona no longer loses the speaker after state reload or strips its paint.
 
 ## 1.0.3
 

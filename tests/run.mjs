@@ -107,7 +107,7 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.4');
+  assert.equal(manifest.version, '1.0.5');
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -115,6 +115,13 @@ test('manifest and frontend generation lifecycle are release-ready', () => {
   assert.match(frontendSource, /function observationRoot\(\).*chatColumnInner/);
 });
 
+
+test('persona DOM candidates use the stable speaker identity and remain paintable', () => {
+  assert.match(frontendSource, /personaBinding\.speakerUid\|\|personaBinding\.targetId/);
+  assert.match(frontendSource, /key:`persona:\$\{personaStableId\}`/);
+  assert.match(frontendSource, /paintable:true,primary:false,tentative:false/);
+  assert.doesNotMatch(frontendSource, /key:`persona:\$\{personaBinding\.targetId\}`/);
+});
 
 test('manual roster additions materialize immediately and remain bound atomically', async () => {
   host.chatVars.clear();
