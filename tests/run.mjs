@@ -107,8 +107,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.22');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.22'/);
+  assert.equal(manifest.version, '1.0.23');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.23'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -638,6 +638,16 @@ test('fullscreen child dialogs are portal-owned above the workspace', () => {
   assert.match(frontendSource, /ldc-portal-dialog-backdrop/);
   assert.match(frontendSource, /2147483647/);
   assert.match(frontendSource, /resolvedModalLayout\(\)===\'tabs\'\?createPortalDialog/);
+});
+
+test('mobile portal dialogs stay inside Prism and avoid browser focus zoom', () => {
+  assert.match(frontendSource, /const portalParent=fullscreenOverlay\?\.isConnected\?fullscreenOverlay:document\.body/);
+  assert.match(frontendSource, /portalParent\.appendChild\(backdrop\)/);
+  assert.match(frontendSource, /ldc-fullscreen-root>\.ldc-portal-dialog-backdrop\{position:absolute/);
+  assert.match(frontendSource, /@media\(max-width:820px\),\(pointer:coarse\).*ldc-portal-dialog \.ldc-input.*font-size:16px!important/s);
+  assert.match(frontendSource, /coarsePointer=window\.matchMedia\?\.\('\(pointer: coarse\)'\)\.matches===true/);
+  assert.match(frontendSource, /if\(!coarsePointer&&window\.innerWidth>820\)requestAnimationFrame/);
+  assert.doesNotMatch(frontendSource, /nameInput\?\.focus\(\);/);
 });
 
 test('toolbar status can be completely omitted', () => {
