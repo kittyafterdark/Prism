@@ -21,6 +21,11 @@ Existing formatting is authoritative. Prism indexes real or escaped `<font color
 - Gradient paint is delegated to CSS feature fallback directly, preventing supported Lumi renderers from being incorrectly downgraded to the anchor color.
 - Routine bindings and quote corrections use a persistent mint/gold `Saved` / `Saving…` indicator beside the Prism toolbar button and in the sticky editor footer instead of stacking success toasts.
 - Gradients support two or three stops from the compact selector beside Direction. Newly enabled gradients default to a mirrored `edge → harmonic accent → edge` treatment, while existing two-stop paints remain unchanged.
+- Speaker recognition is independent from paint availability: uncolored scene members remain candidates for names, speech tags, continuity, bubble ownership, and manual corrections.
+- Cortex now reports registry health and exposes separate **Sync missing** and **Repair links** operations. Repair replaces generated/library/transcript colors, preserves manual decisions as visible conflicts, records previous colors, and brings registry-only people into the roster.
+- Bindings carry stable Prism speaker IDs and legacy references, so Cortex/card relinking migrates quote corrections instead of orphaning them.
+- Structural speech tags and speech-noun constructions supplement the reporting-verb dictionary in both rendered attribution and backend scene discovery.
+- Temporary generated or transcript-only `scene-name:` guesses remain chat-local until they gain a stable card/Cortex identity or are manually pinned.
 - Dialogue and thought previews render their actual independent channel paint, and the top-bar unresolved review action jumps directly to teachable gaps.
 - Add missing people or remove noisy discovered entries directly from the scene roster; manual aliases can map generic bubble labels such as `narrator` to the right person.
 - Manual corrections remain chat-local and expire when the source message content changes.

@@ -4,7 +4,7 @@ declare const spindle: import("lumiverse-spindle-types").SpindleAPI;
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const DEFAULT_CONFIG = Object.freeze({
-  version: 3,
+  version: 4,
   engine: 'dom',
   autoUserMode: 'quoted',
   promptCharacterColors: true,
@@ -13,6 +13,7 @@ const DEFAULT_CONFIG = Object.freeze({
   overrides: {},
   manualCharacters: {},
   hiddenCharacters: {},
+  cortexStatus: null,
 });
 
 const DEFAULT_PREFERENCES = Object.freeze({
@@ -37,6 +38,7 @@ function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
     overrides: {},
     manualCharacters: {},
     hiddenCharacters: {},
+    cortexStatus: null,
   };
 }
 
@@ -170,6 +172,8 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
           .filter((hex) => hex !== color),
         source: ['cortex', 'transcript', 'preset', 'generated', 'library'].includes(value.source) ? value.source : 'manual',
         pinned: typeof value.pinned === 'boolean' ? value.pinned : value.source !== 'generated',
+        speakerUid: String(value.speakerUid || `prism-speaker-${hashString(`${value.kind === 'persona' ? 'persona' : 'character'}:${normalizeName(name) || value.targetId || key}`).toString(36)}`),
+        legacyRefs: uniqueStrings([...(value.legacyRefs || []), String(value.targetId || '')]),
       };
     }
   }
@@ -200,7 +204,7 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
       const name = cleanSceneName(value?.name);
       if (!name) continue;
       const id = String(value?.id || key || `manual:${normalizeName(name)}`);
-      manualCharacters[id] = { id, name, aliases: uniqueStrings(value?.aliases), source: 'manual-roster' };
+      manualCharacters[id] = { id, name, aliases: uniqueStrings(value?.aliases), source: value?.source === 'cortex-registry' ? 'cortex-registry' : 'manual-roster' };
     }
   }
   const hiddenCharacters = {};
@@ -210,8 +214,18 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
     }
   }
 
+  const speakerKeyMap = new Map();
+  for (const binding of Object.values(bindings)) {
+    const currentKey = `${binding.kind}:${binding.speakerUid}`;
+    speakerKeyMap.set(`${binding.kind}:${binding.targetId}`, currentKey);
+    for (const legacyRef of binding.legacyRefs || []) speakerKeyMap.set(`${binding.kind}:${legacyRef}`, currentKey);
+  }
+  for (const override of Object.values(overrides)) {
+    if (override.speakerKey && speakerKeyMap.has(override.speakerKey)) override.speakerKey = speakerKeyMap.get(override.speakerKey);
+  }
+
   return {
-    version: 3,
+    version: 4,
     engine: raw.engine === 'llm' ? 'llm' : 'dom',
     autoUserMode: mode,
     promptCharacterColors: raw.promptCharacterColors !== false,
@@ -220,6 +234,7 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
     overrides,
     manualCharacters,
     hiddenCharacters,
+    cortexStatus: raw.cortexStatus && typeof raw.cortexStatus === 'object' ? raw.cortexStatus : null,
   };
 }
 
@@ -293,6 +308,33 @@ function findBinding(config, kind, targetId, name, aliases = []) {
     if (names.some((candidate) => candidates.has(candidate))) return binding;
   }
   return null;
+}
+
+function ensureBindingIdentities(config) {
+  let changed = false;
+  const keyMap = new Map();
+  for (const binding of Object.values(config.bindings || {})) {
+    if (!binding.speakerUid) {
+      binding.speakerUid = `prism-speaker-${hashString(`${binding.kind}:${normalizeName(binding.name) || binding.targetId}`).toString(36)}`;
+      changed = true;
+    }
+    const refs = uniqueStrings([...(binding.legacyRefs || []), binding.targetId]);
+    if (JSON.stringify(refs) !== JSON.stringify(binding.legacyRefs || [])) {
+      binding.legacyRefs = refs;
+      changed = true;
+    }
+    const speakerKey = `${binding.kind}:${binding.speakerUid}`;
+    keyMap.set(`${binding.kind}:${binding.targetId}`, speakerKey);
+    for (const ref of refs) keyMap.set(`${binding.kind}:${ref}`, speakerKey);
+  }
+  for (const override of Object.values(config.overrides || {})) {
+    const migrated = override.speakerKey && keyMap.get(override.speakerKey);
+    if (migrated && migrated !== override.speakerKey) {
+      override.speakerKey = migrated;
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 function libraryKeysForCharacter(character) {
@@ -399,6 +441,15 @@ function syncBindingsToLibrary(config, characters, persona, globalState) {
   for (const binding of Object.values(config.bindings)) {
     const color = normalizeHex(binding.color);
     if (!color) continue;
+    const character = binding.kind === 'character' ? characters.find((item) => (
+      String(item.id) === String(binding.targetId)
+      || normalizeName(item.name) === normalizeName(binding.name)
+    )) : null;
+    const stableIdentity = binding.kind === 'persona'
+      || Boolean(character?.characterId || character?.entityId)
+      || binding.source === 'cortex'
+      || (binding.source === 'manual' && binding.pinned === true);
+    if (!stableIdentity) continue;
     for (const key of bindingLibraryKeys(binding, characters, persona)) {
       const prior = globalState.library[key];
       const next = { color, channels: safeChannels(binding.channels, color), aliases: uniqueStrings(binding.aliases), name: binding.name, source: binding.source, pinned: binding.pinned !== false, updatedAt: Date.now() };
@@ -469,12 +520,14 @@ function cleanSceneName(value) {
   return name;
 }
 
+const REPORTING_VERB_SOURCE = '(?:say|said|says|ask|asked|asks|reply|replied|replies|answer|answered|answers|announce|announced|announces|observe|observed|observes|remark|remarked|remarks|state|stated|states|declare|declared|declares|note|noted|notes|explain|explained|explains|add|added|adds|continue|continued|continues|whisper|whispered|whispers|murmur|murmured|murmurs|mutter|muttered|mutters|breathe|breathed|breathes|hiss|hissed|hisses|growl|growled|growls|drawl|drawled|drawls|intone|intoned|intones|shout|shouted|shouts|yell|yelled|yells|cry|cried|cries|call|called|calls|snap|snapped|snaps|bark|barked|barks|exclaim|exclaimed|exclaims|retort|retorted|retorts|protest|protested|protests|insist|insisted|insists|warn|warned|warns|demand|demanded|demands|urge|urged|urges|correct|corrected|corrects|admit|admitted|admits|concede|conceded|concedes|agree|agreed|agrees|object|objected|objects|promise|promised|promises|laugh|laughed|laughs|sigh|sighed|sighs|scoff|scoffed|scoffs|groan|groaned|groans|repeat|repeated|repeats|echo|echoed|echoes|offer|offered|offers|assure|assured|assures)';
+
 function extractSceneNamesFromText(value) {
   const text = stripStructuredText(value);
   if (!text.trim()) return [];
   const names = [];
   const add = (value) => {
-    const name = cleanSceneName(value);
+    const name = cleanSceneName(String(value || '').replace(/['’]s$/i, ''));
     if (name) names.push(name);
   };
 
@@ -482,8 +535,16 @@ function extractSceneNamesFromText(value) {
   let match;
   while ((match = labelPattern.exec(text))) add(match[1]);
 
-  const speechPattern = /(?:^|[\n.!?]\s+)([\p{Lu}][\p{L}\p{N}'’. -]{0,60}?)\s+(?:said|says|asked|asks|replied|replies|whispered|whispers|shouted|shouts|murmured|murmurs)\s*[,.:]\s*(?=["“])/gmu;
-  while ((match = speechPattern.exec(text))) add(match[1]);
+  const knownBefore = new RegExp(`(?:^|[\\n.!?]\\s+)([\\p{Lu}][\\p{L}\\p{N}'’. -]{0,60}?)\\s+${REPORTING_VERB_SOURCE}\\b(?:[^"“”\\n]{0,160})?[,:.]\\s*(?=["“])`, 'gmu');
+  while ((match = knownBefore.exec(text))) add(match[1]);
+  const knownAfter = new RegExp(`["”][^"“”\\n]{1,500}["”]\\s*[,;.!?—–-]*\\s*([\\p{Lu}][\\p{L}\\p{N}'’. -]{0,60}?)\\s+${REPORTING_VERB_SOURCE}\\b`, 'gmu');
+  while ((match = knownAfter.exec(text))) add(match[1]);
+  const structuralBefore = /(?:^|[\n.!?]\s+)([\p{Lu}][\p{L}\p{N}'’. -]{0,60}?)\s+[\p{Ll}][\p{L}'’-]{2,28}\b(?:[^"“”\n]{0,120})?[,:.]\s*(?=["“])/gmu;
+  while ((match = structuralBefore.exec(text))) add(match[1]);
+  const structuralAfter = /["”][^"“”\n]{1,500}["”]\s*[,;.!?—–-]*\s*([\p{Lu}][\p{L}\p{N}'’. -]{0,60}?)\s+[\p{Ll}][\p{L}'’-]{2,28}\b/gmu;
+  while ((match = structuralAfter.exec(text))) add(match[1]);
+  const speechNoun = /["”][^"“”\n]{1,500}["”]\s*[,;.!?—–-]*\s*(?:(?:came|rang|called)\s+(?:from\s+)?)?([\p{Lu}][\p{L}\p{N}'’. -]{0,60}?)(?:['’]s)?\s+(?:voice|answer|reply|tone|words?)\b/gmu;
+  while ((match = speechNoun.exec(text))) add(match[1]);
 
   const castPattern = /(?:^|\n)\s*(?:cast|characters|speakers|npcs)\s*:\s*([^\n]{1,240})/gimu;
   while ((match = castPattern.exec(text))) {
@@ -802,9 +863,45 @@ async function importTranscriptRegistry(chat, characters, config, userId) {
   return { config, imported, detected: detectedColors.size };
 }
 
-async function importCortexRegistry(chat, primaryCharacter, characters, config, userId) {
+function migrateOverrideSpeakerKey(config, oldKey, newKey) {
+  if (!oldKey || !newKey || oldKey === newKey) return 0;
+  let migrated = 0;
+  for (const override of Object.values(config.overrides || {})) {
+    if (override.speakerKey === oldKey) {
+      override.speakerKey = newKey;
+      migrated += 1;
+    }
+  }
+  return migrated;
+}
+
+function cortexMayReplace(binding, repairMode) {
+  if (!binding) return true;
+  if (binding.source === 'manual') return false;
+  return repairMode && ['generated', 'library', 'transcript', 'preset', 'cortex'].includes(binding.source);
+}
+
+async function importCortexRegistry(chat, primaryCharacter, characters, config, userId, mode = 'missing') {
   let imported = 0;
+  let repaired = 0;
   let macroText = '';
+  const conflicts = [];
+  const registryOnly = [];
+  const repairMode = mode === 'repair';
+  const health = {
+    entitiesAvailable: true,
+    macroResolved: false,
+    registryEntries: 0,
+    matchedEntries: 0,
+    importedEntries: 0,
+    repairedEntries: 0,
+    localOnlyCharacters: 0,
+    registryOnlyCharacters: 0,
+    conflicts,
+    unmatchedEntries: registryOnly,
+    lastError: null,
+    lastSyncAt: Date.now(),
+  };
   try {
     const result = await spindle.macros.resolve('{{characterColors}}', {
       chatId: chat.id,
@@ -813,43 +910,86 @@ async function importCortexRegistry(chat, primaryCharacter, characters, config, 
       userId,
     });
     macroText = result?.text || '';
+    health.macroResolved = true;
   } catch (error) {
-    spindle.log.warn(`Cortex color macro could not be resolved: ${error?.message || error}`);
-    return { config, imported, macroText: '' };
+    health.lastError = error?.message || String(error);
+    spindle.log.warn(`Cortex color macro could not be resolved: ${health.lastError}`);
+    config.cortexStatus = health;
+    await saveConfig(chat.id, config);
+    return { config, imported, repaired, macroText: '', health };
   }
 
   const registry = parseCortexColorMacro(macroText);
+  health.registryEntries = registry.length;
+  const registryNames = new Set(registry.map((item) => normalizeName(item.name)));
   for (const item of registry) {
     const normalized = normalizeName(item.name);
-    const sceneCharacter = characters.find((character) => {
+    if (config.hiddenCharacters?.[normalized]) continue;
+    let sceneCharacter = characters.find((character) => {
       const names = [character.name, ...(character.aliases || [])].map(normalizeName);
       return names.includes(normalized);
     });
-    const existing = findBinding(
-      config,
-      'character',
-      sceneCharacter?.id || normalized,
-      item.name,
-      sceneCharacter?.aliases || [],
-    );
-    if (existing) continue;
+    if (!sceneCharacter) {
+      const targetId = `cortex-name:${normalized}`;
+      sceneCharacter = mergeSceneCharacter(characters, {
+        id: targetId,
+        key: `character:${targetId}`,
+        entityId: null,
+        characterId: null,
+        name: item.name,
+        aliases: [],
+        status: 'registry-only',
+        source: 'cortex-registry',
+      });
+      config.manualCharacters[targetId] = { id: targetId, name: item.name, aliases: [], source: 'cortex-registry' };
+      registryOnly.push({ name: item.name, color: item.color, targetId });
+    }
+    health.matchedEntries += 1;
+    const targetId = String(sceneCharacter.entityId || sceneCharacter.characterId || sceneCharacter.id || `cortex-name:${normalized}`);
+    const existing = findBinding(config, 'character', targetId, sceneCharacter.name, sceneCharacter.aliases || []);
+    const oldEntry = existing ? Object.entries(config.bindings).find(([, binding]) => binding === existing) : null;
+    if (existing && normalizeHex(existing.color) === item.color) {
+      if (repairMode && oldEntry?.[0] !== `character:${targetId}` && existing.source !== 'manual') {
+        delete config.bindings[oldEntry[0]];
+        existing.targetId = targetId;
+        existing.name = sceneCharacter.name;
+        existing.aliases = uniqueStrings([...(existing.aliases || []), ...(sceneCharacter.aliases || [])]);
+        config.bindings[`character:${targetId}`] = existing;
+        migrateOverrideSpeakerKey(config, oldEntry[0], `character:${targetId}`);
+        repaired += 1;
+      }
+      continue;
+    }
+    if (existing && !cortexMayReplace(existing, repairMode)) {
+      conflicts.push({ name: sceneCharacter.name, localColor: normalizeHex(existing.color), cortexColor: item.color, source: existing.source, pinned: existing.pinned === true });
+      continue;
+    }
+    if (existing && !repairMode) continue;
 
-    const targetId = sceneCharacter?.id || `cortex-name:${normalized}`;
-    config.bindings[`character:${targetId}`] = {
-      kind: 'character',
-      targetId,
-      name: sceneCharacter?.name || item.name,
-      aliases: uniqueStrings(sceneCharacter?.aliases),
-      color: item.color,
-      channels: safeChannels(null, item.color),
-      previousColors: [],
-      source: 'cortex',
+    const previousColors = uniqueStrings([...(existing?.previousColors || []), existing?.color])
+      .map(normalizeHex).filter(Boolean).filter((color) => color !== item.color);
+    const nextKey = `character:${targetId}`;
+    if (oldEntry) delete config.bindings[oldEntry[0]];
+    config.bindings[nextKey] = {
+      kind: 'character', targetId, name: sceneCharacter.name || item.name,
+      aliases: uniqueStrings([...(sceneCharacter.aliases || []), ...(existing?.aliases || [])]),
+      color: item.color, channels: safeChannels(null, item.color), previousColors,
+      source: 'cortex', pinned: true,
+      speakerUid: existing?.speakerUid || `prism-speaker-${hashString(`character:${normalized}`).toString(36)}`,
+      legacyRefs: uniqueStrings([...(existing?.legacyRefs || []), existing?.targetId, targetId]),
     };
-    imported += 1;
+    if (oldEntry) migrateOverrideSpeakerKey(config, oldEntry[0], nextKey);
+    if (existing) repaired += 1;
+    else imported += 1;
   }
 
-  if (imported > 0) await saveConfig(chat.id, config);
-  return { config, imported, macroText };
+  health.importedEntries = imported;
+  health.repairedEntries = repaired;
+  health.registryOnlyCharacters = registryOnly.length;
+  health.localOnlyCharacters = characters.filter((character) => ![character.name, ...(character.aliases || [])].map(normalizeName).some((name) => registryNames.has(name))).length;
+  config.cortexStatus = health;
+  await saveConfig(chat.id, config);
+  return { config, imported, repaired, macroText, health };
 }
 
 async function buildState(options = {}, userId) {
@@ -880,7 +1020,7 @@ async function buildState(options = {}, userId) {
       name: manual.name,
       aliases: uniqueStrings(manual.aliases),
       status: 'active',
-      source: 'manual-roster',
+      source: manual.source === 'cortex-registry' ? 'cortex-registry' : 'manual-roster',
     });
   }
   scene.characters = scene.characters.filter(
@@ -891,6 +1031,9 @@ async function buildState(options = {}, userId) {
   let transcriptImportedCount = 0;
   let transcriptColorsDetected = 0;
   let cortexMacroText = '';
+  let cortexHealth = config.cortexStatus && typeof config.cortexStatus === 'object'
+    ? { ...config.cortexStatus, entitiesAvailable: scene.cortexAvailable }
+    : { entitiesAvailable: scene.cortexAvailable, macroResolved: false, registryEntries: 0, matchedEntries: 0, importedEntries: 0, repairedEntries: 0, localOnlyCharacters: scene.characters.length, registryOnlyCharacters: 0, conflicts: [], unmatchedEntries: [], lastError: scene.cortexAvailable ? null : 'Cortex entity list unavailable.', lastSyncAt: null };
   if (options.importCortex !== false) {
     const imported = await importCortexRegistry(
       chat,
@@ -898,10 +1041,12 @@ async function buildState(options = {}, userId) {
       scene.characters,
       config,
       userId,
+      options.cortexMode === 'repair' ? 'repair' : 'missing',
     );
     config = imported.config;
     cortexImportedCount = imported.imported;
     cortexMacroText = imported.macroText;
+    cortexHealth = { ...imported.health, entitiesAvailable: scene.cortexAvailable };
     const transcriptImported = await importTranscriptRegistry(chat, scene.characters, config, userId);
     config = transcriptImported.config;
     transcriptImportedCount = transcriptImported.imported;
@@ -909,7 +1054,8 @@ async function buildState(options = {}, userId) {
   }
 
   const librarySeededCount = seedBindingsFromLibrary(config, scene.characters, persona, globalState);
-  if (librarySeededCount > 0) await saveConfig(chat.id, config);
+  const identityMigrated = ensureBindingIdentities(config);
+  if (librarySeededCount > 0 || identityMigrated) await saveConfig(chat.id, config);
   if (syncBindingsToLibrary(config, scene.characters, persona, globalState)) {
     globalState = await saveGlobalState(globalState, userId);
   }
@@ -945,6 +1091,7 @@ async function buildState(options = {}, userId) {
     config,
     preferences: globalState.preferences,
     cortexAvailable: scene.cortexAvailable,
+    cortex: cortexHealth,
     cortexImportedCount,
     transcriptImportedCount,
     transcriptColorsDetected,
@@ -1076,7 +1223,10 @@ async function saveBinding(payload, userId) {
     previousColors,
     source: 'manual',
     pinned: true,
+    speakerUid: old?.speakerUid || `prism-speaker-${hashString(`${kind}:${normalizeName(name) || resolvedTargetId}`).toString(36)}`,
+    legacyRefs: uniqueStrings([...(old?.legacyRefs || []), old?.targetId, targetId, resolvedTargetId]),
   };
+  ensureBindingIdentities(config);
   await saveConfig(chat.id, config);
   await spindle.memories.cortex.invalidateCache(chat.id, userId).catch(() => {});
 
@@ -1246,7 +1396,7 @@ async function saveQuoteOverride(payload, userId) {
   const existingColor = normalizeHex(payload.existingColor);
   const speakerKey = payload.speakerKey == null ? null : String(payload.speakerKey);
   if (existingColor && speakerKey) {
-    const binding = config.bindings[speakerKey];
+    const binding = config.bindings[speakerKey] || Object.values(config.bindings).find((candidate) => `${candidate.kind}:${candidate.speakerUid}` === speakerKey);
     const alreadyOwned = Object.values(config.bindings).some((candidate) => (
       candidate !== binding
       && [candidate.color, candidate.channels?.dialogue?.paint?.anchor, ...(candidate.previousColors || [])]
@@ -1412,6 +1562,16 @@ spindle.onFrontendMessage(async (payload, userId) => {
       }
       case 'ldc_update_options': {
         const state = await updateOptions(payload, userId);
+        reply('ldc_state', { state, saved: true });
+        break;
+      }
+      case 'ldc_cortex_sync': {
+        const state = await buildState({ importCortex: true, cortexMode: 'missing' }, userId);
+        reply('ldc_state', { state, saved: true });
+        break;
+      }
+      case 'ldc_cortex_repair': {
+        const state = await buildState({ importCortex: true, cortexMode: 'repair' }, userId);
         reply('ldc_state', { state, saved: true });
         break;
       }

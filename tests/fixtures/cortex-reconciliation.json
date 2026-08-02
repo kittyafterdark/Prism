@@ -1,0 +1,8 @@
+[
+  {"id":"sync-missing-preserves-generated","mode":"missing","local":{"name":"Rina","color":"#AA55FF","source":"generated"},"cortex":{"name":"Rina","color":"#53C7FF"},"expected":{"color":"#AA55FF","repaired":0}},
+  {"id":"repair-generated","mode":"repair","local":{"name":"Rina","color":"#AA55FF","source":"generated"},"cortex":{"name":"Rina","color":"#53C7FF"},"expected":{"color":"#53C7FF","previousColors":["#AA55FF"],"repaired":1}},
+  {"id":"repair-preserves-manual","mode":"repair","local":{"name":"Rina","color":"#AA55FF","source":"manual","pinned":true},"cortex":{"name":"Rina","color":"#53C7FF"},"expected":{"color":"#AA55FF","conflict":true}},
+  {"id":"registry-only-roster","mode":"missing","local":null,"cortex":{"name":"Robin","color":"#FF9A3D"},"expected":{"status":"registry-only","source":"cortex-registry"}},
+  {"id":"stable-override-relink","mode":"repair","local":{"name":"Rina","targetId":"scene-name:rina","speakerUid":"prism-speaker-rina"},"cortex":{"name":"Rina","targetId":"cortex:123"},"expected":{"speakerUid":"prism-speaker-rina","overridePreserved":true}},
+  {"id":"temporary-generated-stays-local","binding":{"name":"Temp","targetId":"scene-name:temp","source":"generated","pinned":false},"expected":{"globalLibraryWrite":false}}
+]

@@ -1,0 +1,12 @@
+[
+  {"id":"known-verb-after","text":"\"Absolutely not,\" Rina announced.","speaker":"Rina","source":"reporting-verb"},
+  {"id":"unknown-verb-after","text":"\"Perhaps,\" Rina editorialized.","speaker":"Rina","source":"structural-speech-tag"},
+  {"id":"unknown-verb-before","text":"Lycaon capitulated with visible dignity. \"The fruit plate.\"","speaker":"Lycaon","source":"structural-speech-tag"},
+  {"id":"speech-noun","text":"\"Robin.\" Lycaon's voice finally found its register of command.","speaker":"Lycaon","source":"speech-noun"},
+  {"id":"known-without-paint","text":"\"The registry is incomplete,\" Rina observed.","speaker":"Rina","source":"reporting-verb","paintable":false},
+  {"id":"cross-node-markdown","html":"<p>\"This is <em>extremely</em> inconvenient,\" Hugo said.</p>","speaker":"Hugo","source":"reporting-verb"},
+  {"id":"structured-json","text":"{\"drive\":\"id\",\"long_1_state\":true}","speaker":null,"structured":true},
+  {"id":"legacy-anchor","html":"<font color=\"#B85CFF\">\"That is not a plan.\"</font>","speaker":"Hugo","source":"existing-color"},
+  {"id":"duplicate-legacy-color","html":"<font color=\"#FF9A3D\">\"Fine.\"</font>","speaker":null,"reason":"ambiguous-color"},
+  {"id":"staccato-seed-required","text":"\"First line.\"\n\n\"Rapid response.\"","speaker":null,"reason":"no-dialogue-seed"}
+]
