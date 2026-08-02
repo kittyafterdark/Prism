@@ -12,12 +12,13 @@ function withTimeout(promise, timeoutMs, label) {
     ]).finally(() => clearTimeout(timer));
 }
 const DEFAULT_CONFIG = Object.freeze({
-    version: 9,
+    version: 10,
     engine: 'hybrid',
     autoUserMode: 'quoted',
     personaEnabled: true,
     promptCharacterColors: true,
     promptThoughtColors: false,
+    hybridDiscovery: true,
     bindings: {},
     overrides: {},
     manualCharacters: {},
@@ -57,6 +58,7 @@ function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
         personaEnabled: DEFAULT_CONFIG.personaEnabled,
         promptCharacterColors: DEFAULT_CONFIG.promptCharacterColors,
         promptThoughtColors: DEFAULT_CONFIG.promptThoughtColors,
+        hybridDiscovery: DEFAULT_CONFIG.hybridDiscovery,
         bindings: {},
         overrides: {},
         manualCharacters: {},
@@ -346,12 +348,13 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
             override.speakerKey = speakerKeyMap.get(override.speakerKey);
     }
     return {
-        version: 9,
+        version: 10,
         engine: normalizeEngine(raw.engine, preferredEngine),
         autoUserMode: mode,
         personaEnabled: raw.personaEnabled !== false,
         promptCharacterColors: raw.promptCharacterColors !== false,
         promptThoughtColors: raw.promptThoughtColors === true,
+        hybridDiscovery: raw.hybridDiscovery !== false,
         bindings,
         overrides,
         manualCharacters,
@@ -1445,6 +1448,9 @@ async function updateOptions(payload, userId) {
     if (typeof payload.promptThoughtColors === 'boolean') {
         config.promptThoughtColors = payload.promptThoughtColors;
     }
+    if (typeof payload.hybridDiscovery === 'boolean') {
+        config.hybridDiscovery = payload.hybridDiscovery;
+    }
     let globalState = await loadGlobalState(userId);
     if (ENGINE_VALUES.includes(payload.engine)) {
         globalState.preferences.preferredEngine = payload.engine;
@@ -1915,6 +1921,58 @@ function compileRegistry(config) {
     const pendingCount = Object.values(config.observations || {}).filter((observation) => observation.status === 'pending').length;
     return { revision, entries, byColor, bySpeakerUid, conflicts, pendingCount };
 }
+const HYBRID_DISCOVERY_PALETTE = Object.freeze([
+    '#C9832E', '#D572E4', '#4FB7C5', '#E05D7B', '#7DCB5B', '#5E8DE3',
+    '#E0B83F', '#B777E3', '#43B88A', '#E46F3D', '#6BC5E8', '#CF6FA8',
+    '#9DBB4A', '#8A7DE8', '#E08A5B', '#5BC0A5', '#D65C5C', '#7FAEDB',
+    '#C6A04A', '#A36CD5', '#55B6A7', '#E1779A', '#6F9EEA', '#D49A4A',
+]);
+function provisionalRegistryHints(config, registry) {
+    const confirmedColors = new Set((registry.entries || []).map((entry) => entry.color));
+    const candidates = pendingReviewGroups(config)
+        .filter((group) => group.kind === 'new-speaker')
+        .filter((group) => group.inferredName && group.observedColor)
+        .filter((group) => group.confidence >= 0.75)
+        .filter((group) => !confirmedColors.has(group.observedColor));
+    const bestByName = new Map();
+    for (const group of candidates) {
+        const key = normalizeName(group.inferredName);
+        if (!key)
+            continue;
+        const current = bestByName.get(key);
+        const currentScore = current
+            ? (current.count * 100) + (current.confidence * 10) + (current.lastSeenAt / 1e13)
+            : -1;
+        const score = (group.count * 100) + (group.confidence * 10) + (group.lastSeenAt / 1e13);
+        if (!current || score > currentScore)
+            bestByName.set(key, group);
+    }
+    const ownersByColor = new Map();
+    for (const group of bestByName.values()) {
+        if (!ownersByColor.has(group.observedColor))
+            ownersByColor.set(group.observedColor, []);
+        ownersByColor.get(group.observedColor).push(group);
+    }
+    return [...bestByName.values()]
+        .filter((group) => ownersByColor.get(group.observedColor)?.length === 1)
+        .map((group) => ({
+        name: group.inferredName,
+        color: group.observedColor,
+        count: group.count,
+        confidence: group.confidence,
+    }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+}
+function hybridDiscoveryPalette(config, registry, provisional) {
+    const unavailable = new Set([
+        ...(registry.entries || []).map((entry) => entry.color),
+        ...(registry.conflicts || []).map((conflict) => conflict.color),
+        ...(provisional || []).map((entry) => entry.color),
+        ...pendingReviewGroups(config).map((group) => group.observedColor),
+        ...Object.values(config.bindings || {}).flatMap((binding) => binding.previousColors || []),
+    ]);
+    return HYBRID_DISCOVERY_PALETTE.filter((color) => !unavailable.has(color)).slice(0, 12);
+}
 function rememberRegistrySnapshot(chatId, snapshot) {
     if (!chatId || !snapshot)
         return;
@@ -1930,7 +1988,7 @@ function latestRegistrySnapshot(chatId, config) {
 }
 function registryInstruction(config, registry = compileRegistry(config)) {
     const bindings = registry.entries;
-    if (!usesModelTags(config.engine) || !config.promptCharacterColors || bindings.length === 0)
+    if (!usesModelTags(config.engine) || !config.promptCharacterColors)
         return '';
     const rows = bindings.map((binding) => {
         const aliases = uniqueStrings(binding.aliases);
@@ -1940,15 +1998,36 @@ function registryInstruction(config, registry = compileRegistry(config)) {
     const thoughtInstruction = config.promptThoughtColors
         ? 'For direct internal thought only, use <i><font color="#RRGGBB">thought</font></i> with the same speaker anchor. Do not mark actions, narration, description, or ordinary emphasis as thought.'
         : 'Do not color internal thoughts.';
-    return [
+    const base = [
         '[Prism Dialogue Markup Registry]',
-        `Prism registry revision: ${registry.revision}`,
-        'Mark speaker identity in the response with portable HTML font tags. For every bound speaker below, wrap each complete spoken segment, including its quotation marks, in exactly <font color="#RRGGBB">"dialogue"</font>.',
-        `Use only the listed canonical hex for that speaker. Do not add style attributes, CSS, gradients, data attributes, or invented colors. Do not color narration, actions, scene description, or reporting clauses. ${thoughtInstruction}`,
-        'If a speaker is uncertain or unbound, leave that segment uncolored instead of guessing. Preserve all wording and punctuation. When several listed characters speak, tag each segment with its own speaker color.',
-        'Prism will preserve these tags as authoritative identity anchors and may locally repair any untagged gaps after rendering.',
-        rows,
-    ].join('\n');
+        `Prism confirmed registry revision: ${registry.revision}`,
+        'Mark speaker identity with portable HTML font tags. Wrap each complete spoken segment, including its quotation marks, in exactly <font color="#RRGGBB">"dialogue"</font>.',
+        `Do not add style attributes, CSS, gradients, or data attributes. Do not color narration, actions, scene description, or reporting clauses. ${thoughtInstruction}`,
+        "Preserve all wording and punctuation. When several characters speak, tag each segment with that speaker's own color.",
+    ];
+    if (bindings.length) {
+        base.push('Confirmed speakers follow. Their canonical hex values are authoritative: always use the exact listed hex and never substitute another color.', rows);
+    }
+    else {
+        base.push('No speakers are confirmed in Prism yet. Hybrid discovery rules below still apply.');
+    }
+    const discoveryEnabled = config.engine === 'hybrid' && config.hybridDiscovery !== false;
+    if (discoveryEnabled) {
+        const provisional = provisionalRegistryHints(config, registry);
+        const palette = hybridDiscoveryPalette(config, registry, provisional);
+        base.push('[Prism Hybrid Discovery]', 'Clearly identified unbound speakers SHOULD still be colored. Do not suppress an identifiable NPC merely because they are absent from the confirmed registry.', 'For an unbound speaker, use this priority: (1) reuse the exact color visibly associated with that same speaker in recent conversation context; (2) reuse their provisional continuity hint below; (3) if no prior color exists, choose one unused color from the discovery palette below.', 'A prior visible color for an unbound speaker is a continuity anchor, not an invented guess. Reuse it unless it conflicts with a confirmed speaker color.', 'Keep each provisional speaker color consistent throughout the response. Never reuse a confirmed registry color for an unbound speaker, and never assign one provisional color to two different speakers.', 'Leave dialogue uncolored only when the speaker identity itself is genuinely ambiguous. Prism will rehydrate provisional tags after generation and ask the user to approve, merge, recolor, or dismiss them.');
+        if (provisional.length) {
+            base.push('Provisional continuity hints awaiting user approval:', provisional.map((entry) => `- ${entry.name}: ${entry.color}`).join('\n'));
+        }
+        if (palette.length) {
+            base.push(`Unused discovery palette: ${palette.join(', ')}`);
+        }
+    }
+    else {
+        base.push('If a speaker is uncertain or unbound, leave that segment uncolored instead of guessing.');
+    }
+    base.push('Prism preserves tags as identity anchors, applies reversible local paint, and studies new Hybrid colors after rendering.');
+    return base.join('\n');
 }
 spindle.registerInterceptor(async (messages, context) => {
     const chatId = String(context?.chatId || '');

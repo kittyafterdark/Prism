@@ -1,9 +1,9 @@
 {
-  "version": "0.8.0",
+  "version": "0.8.1",
   "name": "Prism",
   "identifier": "lumi_dialogue_colors",
   "author": "kittyafterdark",
-  "description": "Compose reversible dialogue and thought paint over authoritative font tags, with Local, Hybrid, and LLM-assisted attribution.",
+  "description": "Compose reversible dialogue and thought paint over authoritative font tags, with Local, closed-loop Hybrid discovery, and LLM-assisted attribution.",
   "github": "https://github.com/kittyafterdark/Prism",
   "homepage": "https://github.com/kittyafterdark/Prism",
   "permissions": [
