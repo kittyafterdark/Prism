@@ -107,8 +107,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.15');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.15'/);
+  assert.equal(manifest.version, '1.0.16');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.16'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -138,6 +138,12 @@ test('responsive modal preferences are normalized and exposed to the frontend', 
   assert.match(frontendSource, /height:`\$\{dimensions\.contentHeight\}px`/);
   assert.match(frontendSource, /ldc-shell\{--prism-ui-scale:1;width:100%;height:100%;min-height:0;max-height:100%/);
   assert.doesNotMatch(frontendSource, /height:94dvh/);
+});
+
+test('high-scale channel tabs retain intrinsic height on narrow layouts', () => {
+  assert.match(frontendSource, /data-prism-layout=tabs.*ldc-editor-switch\{display:grid!important;grid-template-columns:minmax\(0,1fr\) auto!important;align-items:center!important;gap:10px!important;flex:0 0 auto!important/s);
+  assert.match(frontendSource, /data-prism-layout=tabs.*ldc-channel-tabs\{display:flex!important;flex:0 0 auto!important;width:100%!important;height:auto!important;min-height:0!important/s);
+  assert.match(frontendSource, /ldc-channel-tabs button\{flex:1 1 0!important;height:auto!important;min-height:38px!important/s);
 });
 
 test('high-scale gradient controls stay compact and inside the viewport', () => {
