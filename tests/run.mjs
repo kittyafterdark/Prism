@@ -107,8 +107,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.16');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.16'/);
+  assert.equal(manifest.version, '1.0.17');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.17'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -184,6 +184,10 @@ test('high-scale fullscreen uses an unscaled body portal with one scroll surface
   assert.match(frontendSource, /ldc-fullscreen-root \.ldc-main-wrap\{flex:1 1 0!important;height:0!important/);
   assert.match(frontendSource, /ldc-main>\.ldc-panel\{flex:1 1 0!important;width:100%!important;height:0!important/);
   assert.match(frontendSource, /overflow-y:auto!important;-webkit-overflow-scrolling:touch!important/);
+  assert.match(frontendSource, /ldc-fullscreen-root\{[^}]*touch-action:auto!important/);
+  assert.doesNotMatch(frontendSource, /ldc-fullscreen-root\{[^}]*touch-action:none!important/);
+  assert.match(frontendSource, /ldc-fullscreen-root \.ldc-panel\{[^}]*touch-action:pan-y pinch-zoom!important/);
+  assert.match(frontendSource, /ldc-fullscreen-root \.ldc-roster-scroll\{touch-action:pan-x pinch-zoom!important/);
   assert.match(frontendSource, /releaseFullscreenOverlay\(\)/);
 });
 

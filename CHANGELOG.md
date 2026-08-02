@@ -1,46 +1,31 @@
-## 1.0.15
+# Changelog
 
+## 1.0.9 — The blind fucks update
+
+- Removes the fullscreen portal's ancestor-level `touch-action: none`, which blocked every descendant scroll gesture even though the editor displayed a scrollbar.
+- Gives the editor pane explicit vertical pan ownership and the roster strip explicit horizontal pan ownership.
+- Keeps pinch zoom available while preventing the two scroll surfaces from stealing each other's gestures.
 - Mounts the high-scale accessibility workspace in a body-level fullscreen portal, outside Lumi's transformed UI-scale tree.
 - Fixes 1.30× UI scale expanding Prism beyond the visible viewport in both PWA and browser installs.
 - Makes the editor pane the single vertical scroll surface with mobile momentum scrolling.
 - Clamps every high-scale editor row and control to the visible width to prevent sideways clipping.
 - Restores body scrolling and removes the portal cleanly when Prism closes or switches layouts.
-
-# Changelog
-
-## 1.0.14 — Fullscreen accessibility workspace
-
 - Makes the horizontal/high-scale layout a true viewport-filling Prism workspace so PWA and browser installs no longer disagree about Lumi's outer modal shell.
 - Removes the redundant character profile header and bottom chat-status footer in horizontal mode; the selected roster chip remains the active-character indicator.
 - Replaces the oversized **Remove from scene** action with an accessible trash icon in horizontal mode while retaining its confirmation step.
-
-## 1.0.13 — Sticky high-scale utility rail
-
 - Adds a sticky accessibility utility rail containing Local/Hybrid/LLM, expand, Settings, and Close controls so hostile zoom cannot strand the modal.
 - Removes the redundant Settings button from the horizontal roster action grid.
 - Makes the saved/sync preference authoritative in the editor footer and updates it optimistically before persistence.
-
-## 1.0.12 — Compact high-scale paint controls
-
 - Replaces gradient rails with compact circular stop buttons in the horizontal accessibility layout.
 - Keeps all two- and three-stop hex values visible at high UI scale with tighter, centered inputs.
 - Moves **Reverse direction** onto its own full-width row beneath Direction and Stops so it cannot escape the viewport.
-
-## 1.0.11 — Reachable mobile settings
-
 - Adds a first-class **Settings** tab whenever the horizontal accessibility layout is active.
 - Adds a second **Settings** action beside the roster controls, so configuration remains reachable even when hostile mobile scaling pushes the header off-screen.
 - Pins the accessibility header while its workspace scrolls and changes mobile roster actions to a clean two-by-two grid.
-
-## 1.0.10 — Accessibility roster layout
-
 - Adds an Auto/Split/Horizontal roster preference. Auto switches to the horizontal roster above roughly 1.15× effective UI scale or on cramped viewports.
 - Reflows the character roster above the editor, removes chunky roster initials, and prevents high-scale/mobile controls from colliding.
 - Adds a global toggle to hide Prism saved/sync indicators from both the chat toolbar and editor footer.
 - Keeps the accessibility layout available as a manual preference at normal UI scale.
-
-## 1.0.9 — Viewport-fit modal
-
 - Gives the host modal body one explicit viewport-safe height and makes Prism fill it exactly.
 - Shortens Compact and Auto layouts so they stop drifting toward the bottom edge with dead editor space.
 - Budgets for Lumi's title bar and modal chrome instead of sizing the inner shell against the whole viewport.
