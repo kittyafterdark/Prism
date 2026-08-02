@@ -107,8 +107,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.19');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.19'/);
+  assert.equal(manifest.version, '1.0.20');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.20'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -650,3 +650,11 @@ for (const item of tests) {
 }
 console.log(`\n${passed}/${tests.length} Prism checks passed.`);
 if (failed) throw new Error(`${failed} Prism regression check${failed === 1 ? '' : 's'} failed.`);
+
+
+test('fullscreen scroll content outranks the clipped tab main rule', () => {
+  assert.match(frontendSource, /ldc-fullscreen-root \.ldc-shell\[data-prism-layout=tabs\] \.ldc-main\{[^}]*flex:0 0 auto!important[^}]*height:auto!important[^}]*min-height:100%!important[^}]*overflow:visible!important/);
+  const clipped = frontendSource.indexOf('.ldc-shell[data-prism-layout=tabs] .ldc-main{');
+  const flowing = frontendSource.indexOf('.ldc-fullscreen-root .ldc-shell[data-prism-layout=tabs] .ldc-main{');
+  assert.ok(clipped >= 0 && flowing > clipped, 'flowing fullscreen override must come after the clipped tab-layout rule');
+});
