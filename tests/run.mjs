@@ -107,7 +107,7 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.9');
+  assert.equal(manifest.version, '1.0.10');
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -544,6 +544,23 @@ test('persona dialogue is colored in generation context and persisted user messa
   assert.equal(host.messages[0].content, 'Narration. <font color="#57D6C7">"Hello there."</font>');
   assert.equal(host.messages[0].metadata.lumi_dialogue_color, '#57D6C7');
   assert.equal(host.updates[0].patch.skipChunkRebuild, true);
+});
+
+
+test('accessibility layout and save-indicator preferences are persisted', () => {
+  const preferences = api.safePreferences({ modalLayout: 'tabs', showSaveIndicator: false });
+  assert.equal(preferences.modalLayout, 'tabs');
+  assert.equal(preferences.showSaveIndicator, false);
+  assert.match(frontendSource, /function resolvedModalLayout\(\)/);
+  assert.match(frontendSource, /scale>1\.15/);
+  assert.match(frontendSource, /data-prism-layout=/);
+  assert.match(frontendSource, /Horizontal roster/);
+});
+
+test('toolbar status can be completely omitted', () => {
+  assert.match(frontendSource, /uiPreferences\(\)\.showSaveIndicator\?`<button type="button" class="ldc-toolbar-save-state"/);
+  assert.match(frontendSource, /data-role="save-indicator"/);
+  assert.match(frontendSource, /function rebuildToolbar\(\)/);
 });
 
 let passed = 0;

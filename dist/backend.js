@@ -95,6 +95,8 @@ const DEFAULT_PREFERENCES = Object.freeze({
     useExistingAsEvidence: true,
     modalSize: 'auto',
     modalExpanded: false,
+    modalLayout: 'auto',
+    showSaveIndicator: true,
 });
 function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
     return {
@@ -141,6 +143,10 @@ function safePreferences(raw) {
             ? source.modalSize
             : DEFAULT_PREFERENCES.modalSize,
         modalExpanded: source.modalExpanded === true,
+        modalLayout: ['auto', 'split', 'tabs'].includes(source.modalLayout)
+            ? source.modalLayout
+            : DEFAULT_PREFERENCES.modalLayout,
+        showSaveIndicator: source.showSaveIndicator !== false,
     };
 }
 function defaultPaint(anchor) {
@@ -1873,6 +1879,12 @@ async function updateUiPreferences(payload, userId) {
         }
         if (typeof payload.modalExpanded === 'boolean') {
             globalState.preferences.modalExpanded = payload.modalExpanded;
+        }
+        if (['auto', 'split', 'tabs'].includes(payload.modalLayout)) {
+            globalState.preferences.modalLayout = payload.modalLayout;
+        }
+        if (typeof payload.showSaveIndicator === 'boolean') {
+            globalState.preferences.showSaveIndicator = payload.showSaveIndicator;
         }
         await saveGlobalState(globalState, userId);
         return safePreferences(globalState.preferences);
