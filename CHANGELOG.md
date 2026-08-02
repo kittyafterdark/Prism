@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.11 — Reachable mobile settings
+
+- Adds a first-class **Settings** tab whenever the horizontal accessibility layout is active.
+- Adds a second **Settings** action beside the roster controls, so configuration remains reachable even when hostile mobile scaling pushes the header off-screen.
+- Pins the accessibility header while its workspace scrolls and changes mobile roster actions to a clean two-by-two grid.
+
 ## 1.0.10 — Accessibility roster layout
 
 - Adds an Auto/Split/Horizontal roster preference. Auto switches to the horizontal roster above roughly 1.15× effective UI scale or on cramped viewports.

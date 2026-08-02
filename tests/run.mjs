@@ -107,7 +107,7 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.10');
+  assert.equal(manifest.version, '1.0.11');
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -555,6 +555,10 @@ test('accessibility layout and save-indicator preferences are persisted', () => 
   assert.match(frontendSource, /scale>1\.15/);
   assert.match(frontendSource, /data-prism-layout=/);
   assert.match(frontendSource, /Horizontal roster/);
+  assert.match(frontendSource, /ldc-settings-tab/);
+  assert.match(frontendSource, /ldc-roster-settings/);
+  assert.match(frontendSource, /data-action=\"settings-tab\"/);
+  assert.match(frontendSource, /position:sticky;top:0;z-index:20/);
 });
 
 test('toolbar status can be completely omitted', () => {
