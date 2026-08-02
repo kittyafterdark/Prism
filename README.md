@@ -6,14 +6,14 @@ Existing formatting is authoritative. Prism indexes real or escaped `<font color
 
 ## Local-first workflow
 
-- v0.7.4 excludes Lumi theme paint from legacy speaker evidence, removes hidden characters from the model registry, and adds a persisted persona master switch. v0.7.3 fixes live solid-color previews in the editor and gives solid paint the same full-width visual preview treatment as gradients. v0.7.2 keeps thought paint linked to dialogue paint until it is deliberately customized, and makes roster swatches render the actual dialogue solid/gradient paint. v0.7.1 refined the modal language and settings layout. v0.7.0 added a **Hybrid** engine: the model emits portable canonical `<font color>` identity tags first, then Prism preserves those tags as authoritative anchors and applies a conservative DOM overpass only to untagged gaps.
+- v0.7.5 makes the first dialogue paint stop the single canonical registry color everywhere: saved bindings, Cortex/legacy matching, persona tags, and Hybrid/LLM prompt rows are normalized to the same value. Existing split-color configs migrate automatically and preserve the stale registry hex only as legacy history. v0.7.4 excludes Lumi theme paint from legacy speaker evidence, removes hidden characters from the model registry, and adds a persisted persona master switch. v0.7.3 fixes live solid-color previews in the editor and gives solid paint the same full-width visual preview treatment as gradients. v0.7.2 keeps thought paint linked to dialogue paint until it is deliberately customized, and makes roster swatches render the actual dialogue solid/gradient paint. v0.7.1 refined the modal language and settings layout. v0.7.0 added a **Hybrid** engine: the model emits portable canonical `<font color>` identity tags first, then Prism preserves those tags as authoritative anchors and applies a conservative DOM overpass only to untagged gaps.
 
 - **Set up scene** imports Cortex, preset, and transcript colors, then fills only missing character/persona colors.
 - **Local / Hybrid / LLM** is visible in the modal top bar and remembered across chats.
 - **Balanced attribution** uses labels, speech verbs, action beats, continuity, and bubble authors without silently blaming the primary character.
 - Paragraph-aware dialogue turns recognize expanded reporting verbs, preserve prose continuations, and alternate quote-only replies only after two speakers are established.
 - Existing legacy colors can establish dialogue turns, teach Prism their owner, and receive the owner’s current local paint without changing the underlying tag.
-- Dialogue and thought channels have independent solid/gradient paint, with the canonical hex retained for Cortex and portable transcript markup.
+- Dialogue and thought channels have independent solid/gradient paint. The first dialogue stop is the canonical hex used for Cortex matching and portable transcript markup; there is no separate color value to drift out of sync.
 - Italic and single-quoted thought detection is opt-in and never participates in dialogue alternation.
 - Low-confidence dialogue is marked with a dotted underline.
 - Every detected segment—including unresolved, disabled, and ignored dialogue—is wrapped as a teachable target. Right-click, long-press, or focus it and press Enter to assign its speaker or content type.

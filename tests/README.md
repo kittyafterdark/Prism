@@ -10,4 +10,6 @@
 
 `fixtures/registry-visibility.json` covers hidden-character prompt removal, stale binding deduplication, and disabled persona exclusion.
 
+`fixtures/registry-color-sync.json` covers migration from split visual/canonical colors, first-stop prompt hydration, and custom thought paint retaining the dialogue registry anchor.
+
 The release verification harness loads the compiled frontend in a DOM fixture and exposes the backend reconciliation helpers under an isolated test build. It must confirm these fixtures before `dist/` is regenerated.

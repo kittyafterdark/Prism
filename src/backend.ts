@@ -16,7 +16,7 @@ function withTimeout(promise, timeoutMs, label) {
   ]).finally(() => clearTimeout(timer));
 }
 const DEFAULT_CONFIG = Object.freeze({
-  version: 7,
+  version: 8,
   engine: 'dom',
   autoUserMode: 'quoted',
   personaEnabled: true,
@@ -117,26 +117,41 @@ function paintSignature(raw, fallbackColor) {
 }
 
 function safeChannels(raw, fallbackColor, assumeLegacyThoughtLink = false) {
+  const canonical = normalizeHex(fallbackColor)
+    || normalizeHex(raw?.dialogue?.paint?.stops?.[0])
+    || '#B58CFF';
+  const dialoguePaint = safePaint(raw?.dialogue?.paint, canonical);
+  dialoguePaint.stops[0] = canonical;
+  dialoguePaint.anchor = canonical;
   const dialogue = {
     enabled: raw?.dialogue?.enabled !== false,
-    paint: safePaint(raw?.dialogue?.paint, fallbackColor),
+    paint: dialoguePaint,
   };
-  const storedThoughtPaint = safePaint(raw?.thought?.paint, fallbackColor);
+  const storedThoughtPaint = safePaint(raw?.thought?.paint, canonical);
+  storedThoughtPaint.anchor = canonical;
   const explicitlyLinked = typeof raw?.thought?.linkedToDialogue === 'boolean'
     ? raw.thought.linkedToDialogue
     : null;
-  const matchesDialogue = paintSignature(storedThoughtPaint, fallbackColor) === paintSignature(dialogue.paint, fallbackColor);
+  const matchesDialogue = paintSignature(storedThoughtPaint, canonical) === paintSignature(dialogue.paint, canonical);
   const looksLikeLegacyDefault = assumeLegacyThoughtLink
-    && paintSignature(storedThoughtPaint, fallbackColor) === paintSignature(defaultPaint(fallbackColor), fallbackColor);
+    && paintSignature(storedThoughtPaint, canonical) === paintSignature(defaultPaint(canonical), canonical);
   const linkedToDialogue = explicitlyLinked ?? (!raw?.thought?.paint || matchesDialogue || looksLikeLegacyDefault);
+  const thoughtPaint = linkedToDialogue ? safePaint(dialogue.paint, canonical) : storedThoughtPaint;
+  thoughtPaint.anchor = canonical;
   return {
     dialogue,
     thought: {
       enabled: raw?.thought?.enabled === true,
       linkedToDialogue,
-      paint: linkedToDialogue ? safePaint(dialogue.paint, fallbackColor) : storedThoughtPaint,
+      paint: thoughtPaint,
     },
   };
+}
+
+function bindingRegistryColor(binding, fallbackColor = null) {
+  return normalizeHex(binding?.channels?.dialogue?.paint?.stops?.[0])
+    || normalizeHex(binding?.color)
+    || normalizeHex(fallbackColor);
 }
 
 function safeGlobalState(raw) {
@@ -144,7 +159,8 @@ function safeGlobalState(raw) {
   const library = {};
   if (source.library && typeof source.library === 'object') {
     for (const [key, item] of Object.entries(source.library)) {
-      const color = normalizeHex(item?.color);
+      const storedColor = normalizeHex(item?.color);
+      const color = normalizeHex(item?.channels?.dialogue?.paint?.stops?.[0]) || storedColor;
       if (!color) continue;
       library[key] = {
         color,
@@ -157,7 +173,7 @@ function safeGlobalState(raw) {
       };
     }
   }
-  return { version: 3, preferences: safePreferences(source.preferences), library };
+  return { version: 4, preferences: safePreferences(source.preferences), library };
 }
 
 function normalizeHex(value) {
@@ -199,7 +215,8 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
   if (raw.bindings && typeof raw.bindings === 'object') {
     for (const [key, value] of Object.entries(raw.bindings)) {
       if (!value || typeof value !== 'object') continue;
-      const color = normalizeHex(value.color);
+      const storedColor = normalizeHex(value.color);
+      const color = normalizeHex(value.channels?.dialogue?.paint?.stops?.[0]) || storedColor;
       const name = String(value.name || '').trim();
       if (!color || !name) continue;
       bindings[key] = {
@@ -209,7 +226,10 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
         aliases: uniqueStrings(value.aliases),
         color,
         channels: safeChannels(value.channels, color, Number(raw.version || 0) < 6),
-        previousColors: uniqueStrings(value.previousColors)
+        previousColors: uniqueStrings([
+          ...(value.previousColors || []),
+          ...(storedColor && storedColor !== color ? [storedColor] : []),
+        ])
           .map(normalizeHex)
           .filter(Boolean)
           .filter((hex) => hex !== color),
@@ -268,7 +288,7 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
   }
 
   return {
-    version: 7,
+    version: 8,
     engine: normalizeEngine(raw.engine, preferredEngine),
     autoUserMode: mode,
     personaEnabled: raw.personaEnabled !== false,
@@ -285,7 +305,12 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
 async function loadGlobalState(userId) {
   try {
     const text = await spindle.variables.global.get(GLOBAL_PREFS_VAR, userId);
-    return safeGlobalState(text ? JSON.parse(text) : null);
+    const parsed = text ? JSON.parse(text) : null;
+    const safe = safeGlobalState(parsed);
+    if (parsed && JSON.stringify(parsed) !== JSON.stringify(safe)) {
+      await spindle.variables.global.set(GLOBAL_PREFS_VAR, JSON.stringify(safe), userId);
+    }
+    return safe;
   } catch (error) {
     spindle.log.warn(`Could not read Prism preferences: ${error?.message || error}`);
     return safeGlobalState(null);
@@ -303,7 +328,12 @@ async function loadConfig(chatId, userId) {
   try {
     const text = await spindle.variables.chat.get(chatId, CONFIG_VAR);
     if (!text) return cloneDefaultConfig(globalState.preferences.preferredEngine);
-    return safeConfig(JSON.parse(text), globalState.preferences.preferredEngine);
+    const parsed = JSON.parse(text);
+    const safe = safeConfig(parsed, globalState.preferences.preferredEngine);
+    if (JSON.stringify(parsed) !== JSON.stringify(safe)) {
+      await spindle.variables.chat.set(chatId, CONFIG_VAR, JSON.stringify(safe));
+    }
+    return safe;
   } catch (error) {
     spindle.log.warn(`Could not read dialogue color config: ${error?.message || error}`);
     return cloneDefaultConfig(globalState.preferences.preferredEngine);
@@ -483,7 +513,7 @@ function bindingLibraryKeys(binding, characters, persona) {
 function syncBindingsToLibrary(config, characters, persona, globalState) {
   let changed = false;
   for (const binding of Object.values(config.bindings)) {
-    const color = normalizeHex(binding.color);
+    const color = bindingRegistryColor(binding);
     if (!color) continue;
     const character = binding.kind === 'character' ? characters.find((item) => (
       String(item.id) === String(binding.targetId)
@@ -910,8 +940,9 @@ async function importTranscriptRegistry(chat, characters, config, userId) {
     if (ranked[0]) assignments.set(color, ranked[0][0]);
   }
   for (const binding of Object.values(config.bindings)) {
-    if (binding.kind === 'character' && normalizeHex(binding.color)) {
-      assignments.set(normalizeHex(binding.color), normalizeName(binding.name));
+    const registryColor = bindingRegistryColor(binding);
+    if (binding.kind === 'character' && registryColor) {
+      assignments.set(registryColor, normalizeName(binding.name));
     }
   }
 
@@ -1031,7 +1062,7 @@ async function importCortexRegistry(chat, primaryCharacter, characters, config, 
     const targetId = String(sceneCharacter.entityId || sceneCharacter.characterId || sceneCharacter.id || `cortex-name:${normalized}`);
     const existing = findBinding(config, 'character', targetId, sceneCharacter.name, sceneCharacter.aliases || []);
     const oldEntry = existing ? Object.entries(config.bindings).find(([, binding]) => binding === existing) : null;
-    if (existing && normalizeHex(existing.color) === item.color) {
+    if (existing && bindingRegistryColor(existing) === item.color) {
       if (repairMode && oldEntry?.[0] !== `character:${targetId}` && existing.source !== 'manual') {
         delete config.bindings[oldEntry[0]];
         existing.targetId = targetId;
@@ -1044,12 +1075,12 @@ async function importCortexRegistry(chat, primaryCharacter, characters, config, 
       continue;
     }
     if (existing && !cortexMayReplace(existing, repairMode)) {
-      conflicts.push({ name: sceneCharacter.name, localColor: normalizeHex(existing.color), cortexColor: item.color, source: existing.source, pinned: existing.pinned === true });
+      conflicts.push({ name: sceneCharacter.name, localColor: bindingRegistryColor(existing), cortexColor: item.color, source: existing.source, pinned: existing.pinned === true });
       continue;
     }
     if (existing && !repairMode) continue;
 
-    const previousColors = uniqueStrings([...(existing?.previousColors || []), existing?.color])
+    const previousColors = uniqueStrings([...(existing?.previousColors || []), bindingRegistryColor(existing)])
       .map(normalizeHex).filter(Boolean).filter((color) => color !== item.color);
     const nextKey = `character:${targetId}`;
     if (oldEntry) delete config.bindings[oldEntry[0]];
@@ -1196,7 +1227,7 @@ function replaceKnownColors(content, config, kind) {
   let output = String(content || '');
   for (const binding of Object.values(config.bindings)) {
     if (kind && binding.kind !== kind) continue;
-    const current = normalizeHex(binding.color);
+    const current = bindingRegistryColor(binding);
     if (!current) continue;
     const oldColors = uniqueStrings(binding.previousColors)
       .map(normalizeHex)
@@ -1247,8 +1278,10 @@ async function saveBinding(payload, userId) {
   const targetId = String(payload.targetId || '').trim();
   const name = String(payload.name || '').trim();
   const aliases = uniqueStrings(payload.aliases);
-  const color = normalizeHex(payload.color);
-  if (!targetId || !name || !color) throw new Error('A target, name, and valid hex color are required.');
+  const requestedChannels = payload.channels || null;
+  const color = normalizeHex(requestedChannels?.dialogue?.paint?.stops?.[0])
+    || normalizeHex(payload.color);
+  if (!targetId || !name || !color) throw new Error('A target, name, and valid dialogue color are required.');
 
   const config = await loadConfig(chat.id, userId);
   if (ENGINE_VALUES.includes(payload.engine)) {
@@ -1309,7 +1342,7 @@ async function saveBinding(payload, userId) {
     name,
     aliases,
     color,
-    channels: safeChannels(payload.channels || old?.channels, color),
+    channels: safeChannels(requestedChannels || old?.channels, color),
     previousColors,
     source: 'manual',
     pinned: true,
@@ -1420,7 +1453,7 @@ async function assignSceneColors(payload, userId) {
   let assigned = 0;
   const usedColors = Object.values(config.bindings)
     .filter((binding) => !regenerate || binding.pinned !== false || binding.source !== 'generated')
-    .map((binding) => normalizeHex(binding.color))
+    .map((binding) => bindingRegistryColor(binding))
     .filter(Boolean);
 
   config.engine = normalizeEngine(config.engine, globalState.preferences.preferredEngine);
@@ -1492,12 +1525,12 @@ async function saveQuoteOverride(payload, userId) {
     const binding = config.bindings[speakerKey] || Object.values(config.bindings).find((candidate) => `${candidate.kind}:${candidate.speakerUid}` === speakerKey);
     const alreadyOwned = Object.values(config.bindings).some((candidate) => (
       candidate !== binding
-      && [candidate.color, candidate.channels?.dialogue?.paint?.anchor, ...(candidate.previousColors || [])]
+      && [bindingRegistryColor(candidate), candidate.channels?.dialogue?.paint?.anchor, ...(candidate.previousColors || [])]
         .map(normalizeHex).filter(Boolean).includes(existingColor)
     ));
-    if (binding && !alreadyOwned && normalizeHex(binding.color) !== existingColor) {
+    if (binding && !alreadyOwned && bindingRegistryColor(binding) !== existingColor) {
       binding.previousColors = uniqueStrings([...(binding.previousColors || []), existingColor])
-        .map(normalizeHex).filter(Boolean).filter((color) => color !== normalizeHex(binding.color));
+        .map(normalizeHex).filter(Boolean).filter((color) => color !== bindingRegistryColor(binding));
     }
   }
   const overrideKey = `${messageId}:${Math.max(0, Number(payload.swipeId) || 0)}:${segmentKey}`;
@@ -1533,7 +1566,7 @@ async function recolorExisting(chatId, userId) {
       const bindingKind = (message.role === 'user' || message.is_user === true) ? 'persona' : 'character';
       let next = replaceKnownColors(swipe, config, bindingKind);
       if (message.role === 'user' && personaBinding) {
-        next = applyPersonaColor(next, personaBinding.color, config.autoUserMode);
+        next = applyPersonaColor(next, bindingRegistryColor(personaBinding), config.autoUserMode);
       }
       return next;
     });
@@ -1561,7 +1594,7 @@ function registryBindingPriority(binding) {
 function visibleRegistryBindings(config) {
   const selected = new Map();
   for (const binding of Object.values(config.bindings || {})) {
-    if (!normalizeHex(binding.color)) continue;
+    if (!bindingRegistryColor(binding)) continue;
     if (binding.kind === 'persona' && config.personaEnabled === false) continue;
     if (binding.kind !== 'persona' && config.hiddenCharacters?.[normalizeName(binding.name)]) continue;
     const key = `${binding.kind}:${normalizeName(binding.name)}`;
@@ -1578,7 +1611,7 @@ function registryInstruction(config) {
   const rows = bindings.map((binding) => {
     const aliases = uniqueStrings(binding.aliases);
     const aliasText = aliases.length ? ` (aliases: ${aliases.join(', ')})` : '';
-    return `- ${binding.name}${aliasText}: ${binding.color}`;
+    return `- ${binding.name}${aliasText}: ${bindingRegistryColor(binding)}`;
   }).join('\n');
 
   const thoughtInstruction = config.promptThoughtColors
@@ -1629,14 +1662,16 @@ spindle.on('MESSAGE_SENT', async (payload, userId) => {
     const binding = findBinding(config, 'persona', persona.id, persona.name, []);
     if (!binding) return;
 
-    const nextContent = applyPersonaColor(message.content, binding.color, config.autoUserMode);
+    const registryColor = bindingRegistryColor(binding);
+    if (!registryColor) return;
+    const nextContent = applyPersonaColor(message.content, registryColor, config.autoUserMode);
     if (nextContent === message.content) return;
     await spindle.chat.updateMessage(chatId, message.id, {
       content: nextContent,
       metadata: {
         ...(message.metadata || {}),
         lumi_dialogue_colors_applied: true,
-        lumi_dialogue_color: binding.color,
+        lumi_dialogue_color: registryColor,
       },
     }, userId);
   } catch (error) {

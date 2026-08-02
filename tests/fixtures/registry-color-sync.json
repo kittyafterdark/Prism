@@ -1,0 +1,48 @@
+[
+  {
+    "id": "gradient-first-stop-becomes-registry-color",
+    "storedColor": "#B58CFF",
+    "dialoguePaint": {
+      "mode": "gradient",
+      "stops": ["#D34C8B", "#4CC9F0"],
+      "anchor": "#B58CFF"
+    },
+    "expected": {
+      "color": "#D34C8B",
+      "dialogueAnchor": "#D34C8B",
+      "promptColor": "#D34C8B",
+      "previousColors": ["#B58CFF"]
+    }
+  },
+  {
+    "id": "solid-color-becomes-registry-color",
+    "storedColor": "#B58CFF",
+    "dialoguePaint": {
+      "mode": "solid",
+      "stops": ["#62D49A"],
+      "anchor": "#B58CFF"
+    },
+    "expected": {
+      "color": "#62D49A",
+      "dialogueAnchor": "#62D49A",
+      "promptColor": "#62D49A",
+      "previousColors": ["#B58CFF"]
+    }
+  },
+  {
+    "id": "custom-thought-color-keeps-dialogue-registry-anchor",
+    "storedColor": "#D34C8B",
+    "dialoguePaint": {
+      "mode": "gradient",
+      "stops": ["#D34C8B", "#4CC9F0"]
+    },
+    "thoughtPaint": {
+      "mode": "solid",
+      "stops": ["#FFD166"]
+    },
+    "expected": {
+      "thoughtVisualColor": "#FFD166",
+      "thoughtAnchor": "#D34C8B"
+    }
+  }
+]
