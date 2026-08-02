@@ -43,13 +43,13 @@ body .ldc-toolbar-save-state[data-prism-save-status=syncing] i,body .ldc-savebar
 .ldc-card-controls-action .ldc-btn{min-height:34px}
 .ldc-settings code{font:inherit;color:var(--lumiverse-text-muted)}
 @media(max-width:620px){.ldc-settings{width:100%;padding:14px 12px}.ldc-settings-grid{grid-template-columns:1fr}.ldc-settings-card{min-height:0}.ldc-cortex-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.ldc-cortex-card{grid-column:1}}
-/* Responsive desktop sizing. The host modal receives matching dimensions in openPalette(). */
-.ldc-shell{--prism-ui-scale:1;width:100%;height:min(82dvh,860px);min-height:500px;font-size:calc(12px * var(--prism-ui-scale))}
-.ldc-main-wrap,.ldc-main,.ldc-panel,.ldc-side{min-height:0}.ldc-main{height:100%}.ldc-panel,.ldc-side{max-height:none}
-.ldc-shell[data-prism-size=compact]{--prism-ui-scale:.92;height:min(82dvh,790px);min-height:0}
-.ldc-shell[data-prism-size=large]{--prism-ui-scale:1.1;height:min(90dvh,960px)}
-.ldc-shell[data-prism-expanded=true]{--prism-ui-scale:1.12;height:94dvh}
-.ldc-shell[data-prism-ultrawide=true][data-prism-size=auto]{--prism-ui-scale:1.12;height:min(90dvh,940px)}
+/* Responsive desktop sizing. The host body owns the height; Prism fills it exactly. */
+.ldc-shell{--prism-ui-scale:1;width:100%;height:100%;min-height:0;max-height:100%;font-size:calc(12px * var(--prism-ui-scale))}
+.ldc-top,.ldc-setup,.ldc-status{flex:0 0 auto}.ldc-main-wrap{min-height:0;overflow:hidden}.ldc-main,.ldc-panel,.ldc-side{min-height:0}.ldc-main{height:100%;overflow:hidden}.ldc-panel,.ldc-side{max-height:none;overscroll-behavior:contain}
+.ldc-shell[data-prism-size=compact]{--prism-ui-scale:.92}
+.ldc-shell[data-prism-size=large]{--prism-ui-scale:1.1}
+.ldc-shell[data-prism-expanded=true]{--prism-ui-scale:1.12}
+.ldc-shell[data-prism-ultrawide=true][data-prism-size=auto]{--prism-ui-scale:1.12}
 .ldc-shell[data-prism-size=large] .ldc-main,.ldc-shell[data-prism-ultrawide=true][data-prism-size=auto] .ldc-main{grid-template-columns:minmax(250px,300px) minmax(0,1fr)}
 .ldc-shell[data-prism-expanded=true] .ldc-main{grid-template-columns:minmax(270px,320px) minmax(0,1fr)}
 .ldc-shell .ldc-tab,.ldc-shell .ldc-engine button{font-size:calc(11px * var(--prism-ui-scale))}.ldc-shell .ldc-engine button{font-size:calc(10px * var(--prism-ui-scale))}
@@ -63,7 +63,7 @@ body .ldc-toolbar-save-state[data-prism-save-status=syncing] i,body .ldc-savebar
 .ldc-shell .ldc-editor-head,.ldc-shell .ldc-savebar{padding-left:calc(18px * var(--prism-ui-scale));padding-right:calc(18px * var(--prism-ui-scale))}.ldc-shell .ldc-editor-controls{padding-left:calc(18px * var(--prism-ui-scale));padding-right:calc(18px * var(--prism-ui-scale))}
 /* Compact keeps scrolling internal and visually quiet instead of giving the host modal a second scrollbar. */
 .ldc-shell[data-prism-size=compact] .ldc-top{padding:5px 8px}.ldc-shell[data-prism-size=compact] .ldc-main{margin-top:6px}.ldc-shell[data-prism-size=compact] .ldc-side{padding:8px 7px}.ldc-shell[data-prism-size=compact] .ldc-person{padding:6px}.ldc-shell[data-prism-size=compact] .ldc-editor-head{padding:10px 14px}.ldc-shell[data-prism-size=compact] .ldc-preview{margin:9px 14px;padding:9px 11px;line-height:1.45}.ldc-shell[data-prism-size=compact] .ldc-editor-controls{padding:0 14px 10px}.ldc-shell[data-prism-size=compact] .ldc-enable{margin:7px 0 6px}.ldc-shell[data-prism-size=compact] .ldc-gradient-editor{padding:8px 10px}.ldc-shell[data-prism-size=compact] .ldc-hex-row{margin-top:6px}.ldc-shell[data-prism-size=compact] .ldc-direction{margin-top:6px}.ldc-shell[data-prism-size=compact] .ldc-details{margin-top:8px}.ldc-shell[data-prism-size=compact] .ldc-details summary{padding:8px 0}.ldc-shell[data-prism-size=compact] .ldc-savebar{padding:7px 14px}.ldc-shell[data-prism-size=compact] .ldc-status{padding:7px 9px}.ldc-shell[data-prism-size=compact] .ldc-panel,.ldc-shell[data-prism-size=compact] .ldc-side,.ldc-shell[data-prism-size=compact] .ldc-settings{scrollbar-width:none;overscroll-behavior:contain}.ldc-shell[data-prism-size=compact] .ldc-panel::-webkit-scrollbar,.ldc-shell[data-prism-size=compact] .ldc-side::-webkit-scrollbar,.ldc-shell[data-prism-size=compact] .ldc-settings::-webkit-scrollbar{width:0;height:0}
-@media(max-width:720px){.ldc-shell,.ldc-shell[data-prism-size],.ldc-shell[data-prism-expanded=true]{--prism-ui-scale:1;width:100%;height:92dvh;min-height:460px}.ldc-shell[data-prism-size=large] .ldc-main,.ldc-shell[data-prism-expanded=true] .ldc-main,.ldc-shell[data-prism-ultrawide=true][data-prism-size=auto] .ldc-main{grid-template-columns:minmax(126px,145px) minmax(0,1fr)}}
+@media(max-width:720px){.ldc-shell,.ldc-shell[data-prism-size],.ldc-shell[data-prism-expanded=true]{--prism-ui-scale:1;width:100%;height:100%;min-height:0;max-height:100%}.ldc-shell[data-prism-size=large] .ldc-main,.ldc-shell[data-prism-expanded=true] .ldc-main,.ldc-shell[data-prism-ultrawide=true][data-prism-size=auto] .ldc-main{grid-template-columns:minmax(126px,145px) minmax(0,1fr)}}
 `;
 const VERBS = [
     'say', 'said', 'says', 'ask', 'asked', 'asks', 'reply', 'replied', 'replies', 'answer', 'answered', 'answers',
@@ -126,34 +126,34 @@ export function setup(ctx) {
         return; state.preferences = { ...(state.preferences || {}), ...(preferences || {}) }; }
     async function saveUiPreferences(patch) { const response = await request('ldc_update_ui_preferences', patch, 5000); acceptUiPreferences(response.preferences); return response.preferences; }
     function isUltrawideViewport() { return window.innerWidth >= 2200 && window.innerHeight >= 850; }
-    function modalDimensions() { const { modalSize, modalExpanded } = uiPreferences(), vw = Math.max(320, window.innerWidth || 1280), vh = Math.max(480, window.innerHeight || 800), mobile = vw <= 720; let width, maxHeight; if (mobile) {
+    function modalDimensions() { const { modalSize, modalExpanded } = uiPreferences(), vw = Math.max(320, window.innerWidth || 1280), vh = Math.max(480, window.innerHeight || 800), mobile = vw <= 720, clampHeight = (target, min, safe) => Math.max(300, Math.min(safe, Math.max(Math.min(min, safe), Math.floor(target)))); let width, contentHeight; if (mobile) {
         width = Math.floor(vw * .96);
-        maxHeight = Math.floor(vh * .92);
+        contentHeight = clampHeight(vh * .84, 460, vh - 92);
     }
     else if (modalExpanded) {
         width = Math.min(Math.floor(vw * .96), 1800);
-        maxHeight = Math.floor(vh * .94);
+        contentHeight = clampHeight(vh - 150, 620, vh - 130);
     }
     else if (modalSize === 'compact') {
         width = Math.min(Math.floor(vw * .90), 980);
-        maxHeight = Math.min(Math.floor(vh * .90), 840);
+        contentHeight = clampHeight(vh * .66, 500, vh - 170);
     }
     else if (modalSize === 'large') {
         width = Math.min(Math.floor(vw * .94), 1500);
-        maxHeight = Math.min(Math.floor(vh * .92), 960);
+        contentHeight = clampHeight(vh * .82, 620, vh - 130);
     }
     else if (vw >= 3200 && vh >= 900) {
         width = Math.min(Math.floor(vw * .60), 1580);
-        maxHeight = Math.min(Math.floor(vh * .92), 980);
+        contentHeight = clampHeight(vh * .80, 620, vh - 140);
     }
     else if (vw >= 2200 && vh >= 850) {
         width = Math.min(Math.floor(vw * .72), 1480);
-        maxHeight = Math.min(Math.floor(vh * .90), 940);
+        contentHeight = clampHeight(vh * .78, 600, vh - 145);
     }
     else {
         width = Math.min(Math.floor(vw * .94), 1180);
-        maxHeight = Math.min(Math.floor(vh * .88), 860);
-    } return { width: Math.max(360, width), maxHeight: Math.max(520, maxHeight) }; }
+        contentHeight = clampHeight(vh * .74, 540, vh - 150);
+    } const maxHeight = Math.max(360, Math.min(vh - 24, contentHeight + 96)); return { width: Math.max(360, width), contentHeight, maxHeight }; }
     function current() { return state?.characters?.find(c => String(c.id) === String(selectedId)) || state?.characters?.[0] || null; }
     function missingCount() { return (state?.characters || []).filter(c => !bindingRegistryColor(c.binding)).length + (state?.config?.personaEnabled !== false && state?.persona && !bindingRegistryColor(state.persona.binding) ? 1 : 0); }
     function setBusy(value) { busy = value; modal?.root.querySelectorAll('button,input,select').forEach(el => { el.disabled = value; }); }
@@ -224,7 +224,7 @@ export function setup(ctx) {
         const b = target.binding || {}, channels = safeChannels(b), color = channels.dialogue.paint.stops[0] || (isPersona ? '#7DB7FF' : '#B58CFF'), aliases = (b.aliases?.length ? b.aliases : target.aliases || []).join(', '), channel = channels[activeChannel], paint = channel.paint, gradient = paint.mode === 'gradient', stop1 = paint.stops[0], stop2 = paint.stops[1] || harmonicColor(stop1), rail = gradient ? `linear-gradient(${paint.angle}deg,${stop1},${stop2})` : stop1, subtitle = isPersona ? (target.title || (target.isNarrator ? 'Narrator persona' : 'Active persona')) : `${target.status || 'active'} · ${(b.aliases || target.aliases || []).length} aliases`;
         return `<div class="ldc-editor-head"><div class="ldc-profile"><span class="ldc-profile-avatar">${esc(initials(target.name))}</span><div><h3>${esc(target.name)}</h3><div class="ldc-sub">${esc(subtitle)}</div></div></div><span class="ldc-chip">${esc(sourceLabel(b.source || (isPersona ? 'active' : target.source)))}</span></div><div class="ldc-preview"><span ${paintAttrs(channels.dialogue.paint)}>“Prism keeps this local and reversible.”</span><span class="ldc-preview-line" ${paintAttrs(channels.thought.paint)}><i>This was, categorically, not safe.</i></span></div><div class="ldc-editor-controls"><div class="ldc-editor-switch"><div class="ldc-channel-tabs"><button data-channel="dialogue" data-active="${activeChannel === 'dialogue'}">Dialogue</button><button data-channel="thought" data-active="${activeChannel === 'thought'}">Thoughts</button></div><label class="ldc-mode-select"><span>Paint</span><select class="ldc-select" data-role="paint-mode"><option value="solid" ${!gradient ? 'selected' : ''}>Solid</option><option value="gradient" ${gradient ? 'selected' : ''}>Gradient</option></select></label></div><label class="ldc-enable"><input type="checkbox" data-role="channel-enabled" ${channel.enabled ? 'checked' : ''}> Enable ${activeChannel} paint</label><div class="ldc-gradient-editor" style="--editor-gradient:${rail}"><label class="ldc-stop" title="First color"><input data-role="picker" type="color" value="${stop1}"><span style="--stop:${stop1}"></span></label><div class="ldc-gradient-rail"></div>${gradient ? `<label class="ldc-stop" title="Second color"><input data-role="picker-2" type="color" value="${stop2}"><span style="--stop:${stop2}"></span></label>` : ''}</div><div class="ldc-hex-row" data-gradient="${gradient}"><input class="ldc-input" data-role="hex" value="${stop1}" maxlength="7">${gradient ? `<input class="ldc-input" data-role="hex-2" value="${stop2}" maxlength="7">` : ''}</div>${gradient ? `<div class="ldc-direction"><label><span>Direction</span><input class="ldc-input" data-role="angle" type="number" min="0" max="360" value="${paint.angle}"></label><button class="ldc-btn" data-action="swap-colors">Swap colors</button></div>` : ''}<details class="ldc-details"><summary>Identity and attribution</summary><label class="ldc-field"><span class="ldc-label">Registry color <span class="ldc-hint">Always follows the first dialogue stop</span></span><input class="ldc-input" data-role="canonical-readout" value="${color}" readonly aria-readonly="true"></label>${isPersona ? `<label class="ldc-field"><span class="ldc-label">Persona dialogue</span><select class="ldc-select" data-role="auto-mode"><option value="off" ${state.config.autoUserMode === 'off' ? 'selected' : ''}>Off</option><option value="quoted" ${state.config.autoUserMode === 'quoted' ? 'selected' : ''}>Quoted dialogue only</option><option value="whole" ${state.config.autoUserMode === 'whole' ? 'selected' : ''}>Whole message</option></select></label>` : `<label class="ldc-field"><span class="ldc-label">Aliases <span class="ldc-hint">Comma-separated</span></span><input class="ldc-input" data-role="aliases" value="${esc(aliases)}" placeholder="Hugo, Mr. Vlad, narrator"></label>`}</details></div><div class="ldc-savebar"><span data-save-status="${saveStatus}">${saveStatus === 'saving' ? 'Saving changes…' : saveStatus === 'pending' ? 'Changes waiting…' : saveStatus === 'error' ? 'Could not save changes' : 'Changes saved automatically'}</span>${isPersona ? '' : `<button class="ldc-btn" data-action="remove-character">Remove from scene</button>`}</div>`;
     }
-    function diagnosticsText() { const d = state?.diagnostics || {}, last = d.lastHydration || state?.config?.lastHydration || null, messageSuffix = last?.messageId ? String(last.messageId).slice(-8) : 'none'; return [`Prism ${d.prismVersion || '1.0.8'}`, `Engine: ${engineLabel(state?.config?.engine)}`, `Config schema: ${d.configSchema || state?.config?.version || 'unknown'}`, `Registry revision: ${d.registryRevision || state?.registry?.revision || 'none'}`, `Confirmed speakers: ${d.confirmedSpeakers ?? state?.registry?.entries?.length ?? 0}`, `Registry collisions: ${d.registryCollisions ?? state?.registry?.conflicts?.length ?? 0}`, `Registry entries omitted by budget: ${d.registryTrimmed || 0}`, `New character reviews: ${d.tentativeGroups ?? pendingReviewCount}`, `Unresolved rendered segments: ${unresolvedSegments().length}`, `Cortex entities: ${d.cortexEntities || 'unknown'}`, `Cortex macro: ${d.cortexMacro || 'unknown'}`, `Last hydration: ${last?.status || 'none'}`, `Last hydration message: …${messageSuffix}`, `Interface: ${uiPreferences().modalSize}${uiPreferences().modalExpanded ? ' · expanded' : ''}`, `Toolbar mounted: ${document.querySelector('[data-prism-toolbar-button]') ? 'yes' : 'no'}`, `DOM helpers: ${ctx.dom?.listMessageElements && ctx.dom?.inject ? 'healthy' : 'unavailable'}`, `Frontend/backend roundtrip: ${lastRoundtripMs ? `${lastRoundtripMs} ms` : 'not measured'}`, `Last backend error: ${lastBackendError || 'none'}`].join('\n'); }
+    function diagnosticsText() { const d = state?.diagnostics || {}, last = d.lastHydration || state?.config?.lastHydration || null, messageSuffix = last?.messageId ? String(last.messageId).slice(-8) : 'none'; return [`Prism ${d.prismVersion || '1.0.9'}`, `Engine: ${engineLabel(state?.config?.engine)}`, `Config schema: ${d.configSchema || state?.config?.version || 'unknown'}`, `Registry revision: ${d.registryRevision || state?.registry?.revision || 'none'}`, `Confirmed speakers: ${d.confirmedSpeakers ?? state?.registry?.entries?.length ?? 0}`, `Registry collisions: ${d.registryCollisions ?? state?.registry?.conflicts?.length ?? 0}`, `Registry entries omitted by budget: ${d.registryTrimmed || 0}`, `New character reviews: ${d.tentativeGroups ?? pendingReviewCount}`, `Unresolved rendered segments: ${unresolvedSegments().length}`, `Cortex entities: ${d.cortexEntities || 'unknown'}`, `Cortex macro: ${d.cortexMacro || 'unknown'}`, `Last hydration: ${last?.status || 'none'}`, `Last hydration message: …${messageSuffix}`, `Interface: ${uiPreferences().modalSize}${uiPreferences().modalExpanded ? ' · expanded' : ''}`, `Toolbar mounted: ${document.querySelector('[data-prism-toolbar-button]') ? 'yes' : 'no'}`, `DOM helpers: ${ctx.dom?.listMessageElements && ctx.dom?.inject ? 'healthy' : 'unavailable'}`, `Frontend/backend roundtrip: ${lastRoundtripMs ? `${lastRoundtripMs} ms` : 'not measured'}`, `Last backend error: ${lastBackendError || 'none'}`].join('\n'); }
     function registryExportText() { return JSON.stringify({ format: 'prism-registry', version: 1, exportedAt: new Date().toISOString(), entries: (state?.registry?.entries || []).map(entry => ({ speakerUid: entry.speakerUid, kind: entry.kind, name: entry.name, aliases: entry.aliases, color: entry.color })) }, null, 2); }
     async function copyText(value) { if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(value);
@@ -1139,8 +1139,7 @@ export function setup(ctx) {
             panelScroll = 0;
         }
         const dimensions = modalDimensions(), handle = ctx.ui.showModal({ title: 'Prism', width: dimensions.width, maxHeight: dimensions.maxHeight });
-        handle.root.style.overflow = 'hidden';
-        handle.root.style.minHeight = '0';
+        Object.assign(handle.root.style, { display: 'flex', flexDirection: 'column', height: `${dimensions.contentHeight}px`, maxHeight: `${dimensions.contentHeight}px`, minHeight: '0', overflow: 'hidden' });
         modal = handle;
         handle.onDismiss(() => { if (modal === handle)
             modal = null; });

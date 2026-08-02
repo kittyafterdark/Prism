@@ -107,7 +107,7 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.8');
+  assert.equal(manifest.version, '1.0.9');
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -133,7 +133,17 @@ test('responsive modal preferences are normalized and exposed to the frontend', 
   assert.doesNotMatch(frontendSource, /showModal\(\{title:'Prism',width:780,maxHeight:680\}\)/);
   assert.match(frontendSource, /ldc_update_ui_preferences/);
   assert.match(frontendSource, /data-prism-size=compact.*scrollbar-width:none/s);
-  assert.match(frontendSource, /handle\.root\.style\.overflow='hidden'/);
+  assert.match(frontendSource, /contentHeight/);
+  assert.match(frontendSource, /height:`\$\{dimensions\.contentHeight\}px`/);
+  assert.match(frontendSource, /ldc-shell\{--prism-ui-scale:1;width:100%;height:100%;min-height:0;max-height:100%/);
+  assert.doesNotMatch(frontendSource, /height:94dvh/);
+});
+
+test('modal body height is budgeted below viewport chrome', () => {
+  assert.match(frontendSource, /contentHeight=clampHeight\(vh\*\.66,500,vh-170\)/);
+  assert.match(frontendSource, /contentHeight=clampHeight\(vh\*\.74,540,vh-150\)/);
+  assert.match(frontendSource, /Object\.assign\(handle\.root\.style,\{display:'flex',flexDirection:'column',height:`\$\{dimensions\.contentHeight\}px`/);
+  assert.match(frontendSource, /ldc-main-wrap\{min-height:0;overflow:hidden\}/);
 });
 
 test('UI preferences bypass chat queues and persist globally', async () => {

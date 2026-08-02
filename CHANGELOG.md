@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.8.2 — Viewport-fit modal
+
+- Gives the host modal body one explicit viewport-safe height and makes Prism fill it exactly.
+- Shortens Compact and Auto layouts so they stop drifting toward the bottom edge with dead editor space.
+- Budgets for Lumi's title bar and modal chrome instead of sizing the inner shell against the whole viewport.
+- Keeps scrolling inside the roster, editor, settings, and review panes; the modal shell itself stays fixed.
+- I am not bumping version until this shi is fully fixed ngl
+
 ## 1.0.8 — Quiet no-chat state
 
 - Treats startup and chat-exit state probes without an active chat as an ordinary empty Prism state instead of throwing a backend error.
