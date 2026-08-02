@@ -16,8 +16,8 @@ function withTimeout(promise, timeoutMs, label) {
   ]).finally(() => clearTimeout(timer));
 }
 const DEFAULT_CONFIG = Object.freeze({
-  version: 8,
-  engine: 'dom',
+  version: 9,
+  engine: 'hybrid',
   autoUserMode: 'quoted',
   personaEnabled: true,
   promptCharacterColors: true,
@@ -26,13 +26,18 @@ const DEFAULT_CONFIG = Object.freeze({
   overrides: {},
   manualCharacters: {},
   hiddenCharacters: {},
+  observations: {},
+  hydratedMessages: {},
+  dismissedObservationKeys: {},
+  registryUsage: {},
   cortexStatus: null,
 });
 
 const ENGINE_VALUES = Object.freeze(['dom', 'hybrid', 'llm']);
+const recentRegistrySnapshots = new Map();
 
-function normalizeEngine(value, fallback = 'dom') {
-  return ENGINE_VALUES.includes(value) ? value : (ENGINE_VALUES.includes(fallback) ? fallback : 'dom');
+function normalizeEngine(value, fallback = 'hybrid') {
+  return ENGINE_VALUES.includes(value) ? value : (ENGINE_VALUES.includes(fallback) ? fallback : 'hybrid');
 }
 
 function usesModelTags(engine) {
@@ -44,7 +49,7 @@ function usesDomOverpass(engine) {
 }
 
 const DEFAULT_PREFERENCES = Object.freeze({
-  preferredEngine: 'dom',
+  preferredEngine: 'hybrid',
   domAttributionMode: 'balanced',
   autoAssignMissing: true,
   personaMode: 'quoted',
@@ -66,6 +71,10 @@ function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
     overrides: {},
     manualCharacters: {},
     hiddenCharacters: {},
+    observations: {},
+    hydratedMessages: {},
+    dismissedObservationKeys: {},
+    registryUsage: {},
     cortexStatus: null,
   };
 }
@@ -277,6 +286,67 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
     }
   }
 
+  const observations = {};
+  if (raw.observations && typeof raw.observations === 'object') {
+    for (const [key, value] of Object.entries(raw.observations)) {
+      if (!value || typeof value !== 'object') continue;
+      const id = String(value.id || key || '').trim();
+      const messageId = String(value.messageId || '').trim();
+      const contentHash = String(value.contentHash || '').trim();
+      const observedColor = normalizeHex(value.observedColor);
+      if (!id || !messageId || !contentHash || !observedColor) continue;
+      const kind = ['new-speaker', 'unknown-color', 'color-drift', 'speaker-conflict', 'color-collision', 'alias-suggestion'].includes(value.kind)
+        ? value.kind
+        : 'unknown-color';
+      observations[id] = {
+        id,
+        groupKey: String(value.groupKey || `${kind}:${normalizeName(value.inferredName)}:${observedColor}`),
+        messageId,
+        swipeId: Math.max(0, Number(value.swipeId) || 0),
+        contentHash,
+        quote: String(value.quote || '').slice(0, 1200),
+        surroundingText: String(value.surroundingText || '').slice(0, 1600),
+        observedColor,
+        inferredName: cleanSceneName(value.inferredName) || null,
+        matchedSpeakerUid: value.matchedSpeakerUid ? String(value.matchedSpeakerUid) : null,
+        registryRevision: String(value.registryRevision || ''),
+        kind,
+        confidence: Math.max(0, Math.min(1, Number(value.confidence) || 0)),
+        status: ['pending', 'approved', 'dismissed'].includes(value.status) ? value.status : 'pending',
+        resolvedSpeakerUid: value.resolvedSpeakerUid ? String(value.resolvedSpeakerUid) : null,
+        source: ['font', 'inline-style', 'bbcode', 'escaped-tag'].includes(value.source) ? value.source : 'font',
+        occurrenceIndex: Math.max(0, Number(value.occurrenceIndex) || 0),
+        createdAt: Math.max(0, Number(value.createdAt) || Date.now()),
+        lastSeenAt: Math.max(0, Number(value.lastSeenAt) || Number(value.createdAt) || Date.now()),
+      };
+    }
+  }
+  const hydratedMessages = {};
+  if (raw.hydratedMessages && typeof raw.hydratedMessages === 'object') {
+    for (const [key, value] of Object.entries(raw.hydratedMessages).slice(-300)) {
+      if (!key || !value || typeof value !== 'object') continue;
+      hydratedMessages[String(key)] = {
+        contentHash: String(value.contentHash || ''),
+        swipeId: Math.max(0, Number(value.swipeId) || 0),
+        registryRevision: String(value.registryRevision || ''),
+        at: Math.max(0, Number(value.at) || 0),
+      };
+    }
+  }
+  const dismissedObservationKeys = {};
+  if (raw.dismissedObservationKeys && typeof raw.dismissedObservationKeys === 'object') {
+    for (const [key, value] of Object.entries(raw.dismissedObservationKeys)) {
+      if (value === true && key) dismissedObservationKeys[String(key)] = true;
+    }
+  }
+  const registryUsage = {};
+  if (raw.registryUsage && typeof raw.registryUsage === 'object') {
+    for (const [key, value] of Object.entries(raw.registryUsage)) {
+      if (!key || !value || typeof value !== 'object') continue;
+      registryUsage[String(key)] = { count: Math.max(0, Number(value.count) || 0), lastSeenAt: Math.max(0, Number(value.lastSeenAt) || 0) };
+    }
+  }
+
   const speakerKeyMap = new Map();
   for (const binding of Object.values(bindings)) {
     const currentKey = `${binding.kind}:${binding.speakerUid}`;
@@ -288,7 +358,7 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
   }
 
   return {
-    version: 8,
+    version: 9,
     engine: normalizeEngine(raw.engine, preferredEngine),
     autoUserMode: mode,
     personaEnabled: raw.personaEnabled !== false,
@@ -298,6 +368,10 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
     overrides,
     manualCharacters,
     hiddenCharacters,
+    observations,
+    hydratedMessages,
+    dismissedObservationKeys,
+    registryUsage,
     cortexStatus: raw.cortexStatus && typeof raw.cortexStatus === 'object' ? raw.cortexStatus : null,
   };
 }
@@ -1192,6 +1266,8 @@ async function buildState(options = {}, userId) {
   const personaBinding = persona
     ? findBinding(config, 'persona', persona.id, persona.name, [])
     : null;
+  const registry = compileRegistry(config);
+  const reviewGroups = pendingReviewGroups(config);
 
   return {
     ok: true,
@@ -1207,6 +1283,9 @@ async function buildState(options = {}, userId) {
         }
       : null,
     config,
+    registry,
+    reviewGroups,
+    pendingReviewCount: reviewGroups.length,
     preferences: globalState.preferences,
     cortexAvailable: scene.cortexAvailable,
     cortex: cortexHealth,
@@ -1586,6 +1665,248 @@ async function recolorExisting(chatId, userId) {
   return { changed };
 }
 
+function decodeObservedText(value) {
+  return String(value || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractPortableColorTags(content) {
+  const text = String(content || '');
+  const found = [];
+  const patterns = [
+    { source: 'font', pattern: /<font\b[^>]*\bcolor\s*=\s*["']?(#[0-9a-f]{3,6})["']?[^>]*>([\s\S]*?)<\/font>/gi },
+    { source: 'inline-style', pattern: /<span\b[^>]*\bstyle\s*=\s*["'][^"']*\bcolor\s*:\s*(#[0-9a-f]{3,6})[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi },
+    { source: 'bbcode', pattern: /\[color\s*=\s*["']?(#[0-9a-f]{3,6})["']?\]([\s\S]*?)\[\/color\]/gi },
+  ];
+  for (const { source, pattern } of patterns) {
+    let match;
+    while ((match = pattern.exec(text))) {
+      const color = normalizeHex(match[1]);
+      const quote = decodeObservedText(match[2]);
+      if (!color || !quote) continue;
+      found.push({ start: match.index, end: match.index + match[0].length, color, quote, source });
+    }
+  }
+  return found.sort((a, b) => a.start - b.start || b.end - a.end)
+    .filter((entry, index, list) => !list.slice(0, index).some((parent) => entry.start >= parent.start && entry.end <= parent.end));
+}
+
+function knownRegistrySpeakerByName(registry, value) {
+  const name = normalizeName(value);
+  if (!name) return null;
+  const matches = registry.entries.filter((entry) => [entry.name, ...(entry.aliases || [])].map(normalizeName).includes(name));
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function inferTagSpeakerName(content, tag) {
+  const before = decodeObservedText(String(content || '').slice(Math.max(0, tag.start - 280), tag.start));
+  const after = decodeObservedText(String(content || '').slice(tag.end, tag.end + 280));
+  const probe = `${before.slice(-220)} "${tag.quote.replace(/^[“”"]|[“”"]$/g, '')}" ${after.slice(0, 220)}`;
+  const names = extractSceneNamesFromText(probe);
+  if (names.length === 1) return names[0];
+  const afterStructural = after.match(/^\s*[,;.!?—–-]*\s*([\p{Lu}][\p{L}\p{N}'’. -]{0,60}?)\s+[\p{Ll}][\p{L}'’-]{2,28}\b/u);
+  const beforeStructural = before.match(/([\p{Lu}][\p{L}\p{N}'’. -]{0,60}?)\s+[\p{Ll}][\p{L}'’-]{2,28}\b(?:[^.!?]{0,140})?$/u);
+  return cleanDiscoveredSceneName(afterStructural?.[1] || beforeStructural?.[1]) || null;
+}
+
+function classifyTagObservation(tag, inferredName, registry) {
+  const colorOwner = registry.byColor?.[tag.color] || null;
+  const inferredSpeaker = knownRegistrySpeakerByName(registry, inferredName);
+  const collision = (registry.conflicts || []).find((item) => item.color === tag.color);
+  if (collision) return { kind: 'color-collision', confidence: 0.98, matchedSpeakerUid: inferredSpeaker?.speakerUid || null, confirmed: false };
+  if (colorOwner && !inferredName) return { kind: 'confirmed-use', confidence: 0.9, matchedSpeakerUid: colorOwner.speakerUid, confirmed: true };
+  if (colorOwner && inferredSpeaker?.speakerUid === colorOwner.speakerUid) return { kind: 'confirmed-use', confidence: 0.99, matchedSpeakerUid: colorOwner.speakerUid, confirmed: true };
+  if (colorOwner && inferredSpeaker) return { kind: 'speaker-conflict', confidence: 0.96, matchedSpeakerUid: inferredSpeaker.speakerUid, confirmed: false };
+  if (colorOwner && inferredName) return { kind: 'alias-suggestion', confidence: 0.82, matchedSpeakerUid: colorOwner.speakerUid, confirmed: false };
+  if (!colorOwner && inferredSpeaker) return { kind: 'color-drift', confidence: 0.95, matchedSpeakerUid: inferredSpeaker.speakerUid, confirmed: false };
+  if (!colorOwner && inferredName) return { kind: 'new-speaker', confidence: 0.9, matchedSpeakerUid: null, confirmed: false };
+  return { kind: 'unknown-color', confidence: 0.55, matchedSpeakerUid: null, confirmed: false };
+}
+
+function pendingReviewGroups(config) {
+  const groups = new Map();
+  for (const observation of Object.values(config.observations || {})) {
+    if (observation.status !== 'pending') continue;
+    if (!groups.has(observation.groupKey)) groups.set(observation.groupKey, {
+      groupKey: observation.groupKey,
+      kind: observation.kind,
+      inferredName: observation.inferredName,
+      observedColor: observation.observedColor,
+      matchedSpeakerUid: observation.matchedSpeakerUid,
+      confidence: observation.confidence,
+      count: 0,
+      messageIds: new Set(),
+      examples: [],
+      firstSeenAt: observation.createdAt,
+      lastSeenAt: observation.lastSeenAt,
+    });
+    const group = groups.get(observation.groupKey);
+    group.count += 1;
+    group.messageIds.add(observation.messageId);
+    group.confidence = Math.max(group.confidence, observation.confidence);
+    group.firstSeenAt = Math.min(group.firstSeenAt, observation.createdAt);
+    group.lastSeenAt = Math.max(group.lastSeenAt, observation.lastSeenAt);
+    if (observation.quote && !group.examples.includes(observation.quote) && group.examples.length < 4) group.examples.push(observation.quote);
+  }
+  return [...groups.values()].map((group) => ({ ...group, messageCount: group.messageIds.size, messageIds: undefined }))
+    .sort((a, b) => b.confidence - a.confidence || b.lastSeenAt - a.lastSeenAt);
+}
+
+async function hydrateGeneratedMessage(payload, userId) {
+  const chat = await spindle.chats.getActive(userId);
+  if (!chat || (payload.chatId && String(payload.chatId) !== String(chat.id))) throw new Error('The active chat changed before Prism could hydrate it.');
+  const config = await loadConfig(chat.id, userId);
+  if (config.engine !== 'hybrid') return { state: await buildState({ importCortex: false }, userId), observations: [], pendingCount: pendingReviewGroups(config).length, skipped: 'not-hybrid' };
+  const messages = await withTimeout(spindle.chat.getMessages(chat.id, userId), TRANSCRIPT_TIMEOUT_MS, 'Generated message hydration');
+  const requestedId = String(payload.messageId || '');
+  const message = messages.find((item) => String(item.id) === requestedId)
+    || [...messages].reverse().find((item) => item.role === 'assistant' || item.is_user === false);
+  if (!message) throw new Error('Prism could not find the generated assistant message.');
+  const swipeId = Math.max(0, Number(message.swipe_id) || 0);
+  const content = Array.isArray(message.swipes) && message.swipes.length
+    ? String(message.swipes[Math.min(swipeId, message.swipes.length - 1)] || '')
+    : String(message.content || '');
+  const contentHash = hashString(content).toString(36);
+  const hydrationKey = `${message.id}:${swipeId}:${contentHash}`;
+  if (config.hydratedMessages?.[hydrationKey]) {
+    return { state: await buildState({ importCortex: false }, userId), observations: [], pendingCount: pendingReviewGroups(config).length, skipped: 'already-hydrated' };
+  }
+
+  const registry = latestRegistrySnapshot(chat.id, config);
+  const tags = extractPortableColorTags(content);
+  const added = [];
+  const occurrences = new Map();
+  for (const tag of tags) {
+    const occurrenceIndex = occurrences.get(`${tag.color}:${tag.quote}`) || 0;
+    occurrences.set(`${tag.color}:${tag.quote}`, occurrenceIndex + 1);
+    const inferredName = inferTagSpeakerName(content, tag);
+    const classification = classifyTagObservation(tag, inferredName, registry);
+    if (classification.confirmed) {
+      const usage = config.registryUsage[classification.matchedSpeakerUid] || { count: 0, lastSeenAt: 0 };
+      usage.count += 1;
+      usage.lastSeenAt = Date.now();
+      config.registryUsage[classification.matchedSpeakerUid] = usage;
+      continue;
+    }
+    const groupKey = [classification.kind, normalizeName(inferredName), tag.color, classification.matchedSpeakerUid || ''].join(':');
+    if (config.dismissedObservationKeys?.[groupKey]) continue;
+    const id = `obs-${hashString([message.id, swipeId, contentHash, tag.start, tag.color, occurrenceIndex].join('|')).toString(36)}`;
+    const observation = {
+      id, groupKey, messageId: String(message.id), swipeId, contentHash,
+      quote: tag.quote, surroundingText: decodeObservedText(content.slice(Math.max(0, tag.start - 140), tag.end + 140)),
+      observedColor: tag.color, inferredName, matchedSpeakerUid: classification.matchedSpeakerUid,
+      registryRevision: registry.revision, kind: classification.kind, confidence: classification.confidence,
+      status: 'pending', resolvedSpeakerUid: null, source: tag.source, occurrenceIndex,
+      createdAt: Date.now(), lastSeenAt: Date.now(),
+    };
+    config.observations[id] = observation;
+    added.push(observation);
+  }
+  config.hydratedMessages[hydrationKey] = { contentHash, swipeId, registryRevision: registry.revision, at: Date.now() };
+  const hydrationKeys = Object.keys(config.hydratedMessages);
+  while (hydrationKeys.length > 300) delete config.hydratedMessages[hydrationKeys.shift()];
+  await saveConfig(chat.id, config);
+  const state = await buildState({ importCortex: false }, userId);
+  return { state, observations: added, pendingCount: pendingReviewGroups(config).length, registryRevision: registry.revision };
+}
+
+function bindingBySpeakerUid(config, speakerUid) {
+  return Object.values(config.bindings || {}).find((binding) => String(binding.speakerUid) === String(speakerUid)) || null;
+}
+
+function setBindingRegistryColor(binding, rawColor) {
+  const color = normalizeHex(rawColor);
+  if (!binding || !color) return false;
+  const oldColor = bindingRegistryColor(binding);
+  if (oldColor && oldColor !== color) {
+    binding.previousColors = uniqueStrings([...(binding.previousColors || []), oldColor])
+      .map(normalizeHex).filter(Boolean).filter((value) => value !== color);
+  }
+  binding.color = color;
+  binding.channels = safeChannels(binding.channels, color);
+  binding.channels.dialogue.paint.stops[0] = color;
+  binding.channels.dialogue.paint.anchor = color;
+  binding.channels.thought.paint.anchor = color;
+  if (binding.channels.thought.linkedToDialogue !== false) binding.channels.thought.paint = safePaint(binding.channels.dialogue.paint, color);
+  return oldColor !== color;
+}
+
+async function resolveObservationGroup(payload, userId) {
+  const chat = await spindle.chats.getActive(userId);
+  if (!chat || (payload.chatId && String(payload.chatId) !== String(chat.id))) throw new Error('The active chat changed before Prism could save the review.');
+  const config = await loadConfig(chat.id, userId);
+  const groupKey = String(payload.groupKey || '');
+  const observations = Object.values(config.observations || {}).filter((observation) => observation.groupKey === groupKey && observation.status === 'pending');
+  if (!groupKey || observations.length === 0) return { state: await buildState({ importCortex: false }, userId), pendingCount: pendingReviewGroups(config).length };
+  if (payload.action === 'dismiss') {
+    for (const observation of observations) observation.status = 'dismissed';
+    config.dismissedObservationKeys[groupKey] = true;
+    await saveConfig(chat.id, config);
+    const state = await buildState({ importCortex: false }, userId);
+    return { state, pendingCount: state.pendingReviewCount, dismissed: observations.length };
+  }
+
+  const first = observations[0];
+  let binding = payload.mergeSpeakerUid ? bindingBySpeakerUid(config, payload.mergeSpeakerUid) : null;
+  const name = cleanSceneName(payload.name || first.inferredName || binding?.name);
+  if (!binding && !name) throw new Error('Name this tentative character or merge it with an existing character.');
+  const color = normalizeHex(payload.color) || bindingRegistryColor(binding) || first.observedColor;
+  if (!color) throw new Error('Choose a valid six-digit registry color.');
+  const collision = visibleRegistryBindings(config).find((candidate) => candidate !== binding && bindingRegistryColor(candidate) === color);
+  if (collision) throw new Error(`${color} already belongs to ${collision.name}. Choose another color before approving.`);
+
+  if (!binding) {
+    let targetId = `manual:${hashString(normalizeName(name)).toString(36)}`;
+    try {
+      const entity = await spindle.memories.entities.upsert(chat.id, { name, type: 'character', aliases: uniqueStrings(payload.aliases), confidence: 1 }, { userId });
+      if (entity?.id) targetId = String(entity.id);
+    } catch (error) {
+      spindle.log.warn(`Tentative character Cortex upsert skipped: ${error?.message || error}`);
+    }
+    const aliases = uniqueStrings(payload.aliases).filter((alias) => normalizeName(alias) !== normalizeName(name));
+    const manualId = `manual:${hashString(normalizeName(name)).toString(36)}`;
+    config.manualCharacters[manualId] = { id: manualId, name, aliases, source: 'manual-roster' };
+    delete config.hiddenCharacters[normalizeName(name)];
+    binding = {
+      kind: 'character', targetId, name, aliases, color,
+      channels: safeChannels(null, color), previousColors: [], source: 'manual', pinned: true,
+      speakerUid: `prism-speaker-${hashString(`character:${normalizeName(name)}`).toString(36)}`,
+      legacyRefs: uniqueStrings([manualId, targetId]),
+    };
+    config.bindings[`character:${targetId}`] = binding;
+  } else {
+    const inferredAlias = first.inferredName && normalizeName(first.inferredName) !== normalizeName(binding.name) ? first.inferredName : null;
+    binding.aliases = uniqueStrings([...(binding.aliases || []), ...(payload.aliases || []), inferredAlias]);
+    binding.source = 'manual';
+    binding.pinned = true;
+    setBindingRegistryColor(binding, color);
+  }
+
+  const observedColorOwnedElsewhere = visibleRegistryBindings(config).some((candidate) => candidate !== binding && bindingRegistryColor(candidate) === first.observedColor);
+  if (!observedColorOwnedElsewhere && first.observedColor !== bindingRegistryColor(binding)) {
+    binding.previousColors = uniqueStrings([...(binding.previousColors || []), first.observedColor])
+      .map(normalizeHex).filter(Boolean).filter((value) => value !== bindingRegistryColor(binding));
+  }
+  for (const observation of observations) {
+    observation.status = 'approved';
+    observation.resolvedSpeakerUid = binding.speakerUid;
+    observation.lastSeenAt = Date.now();
+  }
+  delete config.dismissedObservationKeys[groupKey];
+  ensureBindingIdentities(config);
+  await saveConfig(chat.id, config);
+  const state = await buildState({ importCortex: false }, userId);
+  return { state, pendingCount: state.pendingReviewCount, approved: observations.length, speakerUid: binding.speakerUid };
+}
+
 function registryBindingPriority(binding) {
   const sourcePriority = { manual: 60, cortex: 50, transcript: 40, preset: 30, library: 20, generated: 10 };
   return (binding.pinned === true ? 100 : 0) + (sourcePriority[binding.source] || 0);
@@ -1604,14 +1925,55 @@ function visibleRegistryBindings(config) {
   return [...selected.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function registryInstruction(config) {
-  const bindings = visibleRegistryBindings(config);
+function compileRegistry(config) {
+  const candidates = visibleRegistryBindings(config).map((binding) => ({
+    speakerUid: String(binding.speakerUid || `prism-speaker-${hashString(`${binding.kind}:${normalizeName(binding.name)}`).toString(36)}`),
+    kind: binding.kind === 'persona' ? 'persona' : 'character',
+    targetId: String(binding.targetId || ''),
+    name: String(binding.name || ''),
+    aliases: uniqueStrings(binding.aliases).sort((a, b) => a.localeCompare(b)),
+    color: bindingRegistryColor(binding),
+    source: binding.source || 'manual',
+  })).filter((entry) => entry.color && entry.name);
+  const ownersByColor = new Map();
+  for (const entry of candidates) {
+    if (!ownersByColor.has(entry.color)) ownersByColor.set(entry.color, []);
+    ownersByColor.get(entry.color).push(entry);
+  }
+  const conflicts = [...ownersByColor.entries()]
+    .filter(([, owners]) => owners.length > 1)
+    .map(([color, owners]) => ({ color, speakers: owners.map((entry) => ({ speakerUid: entry.speakerUid, name: entry.name })) }));
+  const conflictingColors = new Set(conflicts.map((conflict) => conflict.color));
+  const entries = candidates.filter((entry) => !conflictingColors.has(entry.color));
+  const revisionSource = entries.map((entry) => [entry.speakerUid, entry.kind, entry.name, entry.color, ...entry.aliases].join('|')).sort().join('\n');
+  const revision = hashString(revisionSource).toString(16).padStart(8, '0');
+  const byColor = Object.fromEntries(entries.map((entry) => [entry.color, entry]));
+  const bySpeakerUid = Object.fromEntries(entries.map((entry) => [entry.speakerUid, entry]));
+  const pendingCount = Object.values(config.observations || {}).filter((observation) => observation.status === 'pending').length;
+  return { revision, entries, byColor, bySpeakerUid, conflicts, pendingCount };
+}
+
+function rememberRegistrySnapshot(chatId, snapshot) {
+  if (!chatId || !snapshot) return;
+  const history = recentRegistrySnapshots.get(String(chatId)) || [];
+  history.push({ ...snapshot, injectedAt: Date.now() });
+  while (history.length > 6) history.shift();
+  recentRegistrySnapshots.set(String(chatId), history);
+}
+
+function latestRegistrySnapshot(chatId, config) {
+  const history = recentRegistrySnapshots.get(String(chatId)) || [];
+  return history.at(-1) || compileRegistry(config);
+}
+
+function registryInstruction(config, registry = compileRegistry(config)) {
+  const bindings = registry.entries;
   if (!usesModelTags(config.engine) || !config.promptCharacterColors || bindings.length === 0) return '';
 
   const rows = bindings.map((binding) => {
     const aliases = uniqueStrings(binding.aliases);
     const aliasText = aliases.length ? ` (aliases: ${aliases.join(', ')})` : '';
-    return `- ${binding.name}${aliasText}: ${bindingRegistryColor(binding)}`;
+    return `- ${binding.name}${aliasText}: ${binding.color}`;
   }).join('\n');
 
   const thoughtInstruction = config.promptThoughtColors
@@ -1619,6 +1981,7 @@ function registryInstruction(config) {
     : 'Do not color internal thoughts.';
   return [
     '[Prism Dialogue Markup Registry]',
+    `Prism registry revision: ${registry.revision}`,
     'Mark speaker identity in the response with portable HTML font tags. For every bound speaker below, wrap each complete spoken segment, including its quotation marks, in exactly <font color="#RRGGBB">"dialogue"</font>.',
     `Use only the listed canonical hex for that speaker. Do not add style attributes, CSS, gradients, data attributes, or invented colors. Do not color narration, actions, scene description, or reporting clauses. ${thoughtInstruction}`,
     'If a speaker is uncertain or unbound, leave that segment uncolored instead of guessing. Preserve all wording and punctuation. When several listed characters speak, tag each segment with its own speaker color.',
@@ -1632,8 +1995,10 @@ spindle.registerInterceptor(async (messages, context) => {
   if (!chatId) return messages;
   const userId = context?.userId;
   const config = await loadConfig(chatId, userId);
-  const instruction = registryInstruction(config);
+  const registry = compileRegistry(config);
+  const instruction = registryInstruction(config, registry);
   if (!instruction) return messages;
+  rememberRegistrySnapshot(chatId, registry);
 
   const injected = { role: 'system', content: instruction };
   const next = [...messages];
@@ -1662,7 +2027,8 @@ spindle.on('MESSAGE_SENT', async (payload, userId) => {
     const binding = findBinding(config, 'persona', persona.id, persona.name, []);
     if (!binding) return;
 
-    const registryColor = bindingRegistryColor(binding);
+    const registry = compileRegistry(config);
+    const registryColor = registry.bySpeakerUid?.[binding.speakerUid]?.color || null;
     if (!registryColor) return;
     const nextContent = applyPersonaColor(message.content, registryColor, config.autoUserMode);
     if (nextContent === message.content) return;
@@ -1690,6 +2056,16 @@ spindle.onFrontendMessage(async (payload, userId) => {
           scanTranscript: payload.scanTranscript === true,
         }, userId);
         reply('ldc_state', { state });
+        break;
+      }
+      case 'ldc_hydrate_message': {
+        const result = await hydrateGeneratedMessage(payload, userId);
+        reply('ldc_hydrate_result', result);
+        break;
+      }
+      case 'ldc_review_observation': {
+        const result = await resolveObservationGroup(payload, userId);
+        reply('ldc_review_result', result);
         break;
       }
       case 'ldc_save_binding': {

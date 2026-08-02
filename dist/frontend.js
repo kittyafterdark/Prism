@@ -3,6 +3,9 @@ const GEAR_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path
 const SPARK_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M12 3.5c.6 4.8 3.1 7.3 7.8 8-4.7.7-7.2 3.2-7.8 8-.7-4.8-3.2-7.3-7.8-8 4.6-.7 7.1-3.2 7.8-8Z" stroke="currentColor" stroke-width="1.55"/></svg>`;
 const CSS = `
 .ldc-shell,.ldc-shell *{box-sizing:border-box}.ldc-shell{--psoft:color-mix(in srgb,var(--lumiverse-primary) 15%,transparent);display:flex;flex-direction:column;min-height:430px;color:var(--lumiverse-text);font-size:12px;overflow:hidden}
+body .ldc-toolbar-save-state[data-prism-save-status=syncing] i,body .ldc-savebar [data-save-status][data-prism-save-status=syncing]::before{background:#63d9ef;box-shadow:0 0 8px color-mix(in srgb,#63d9ef 48%,transparent)}body .ldc-toolbar-save-state[data-prism-save-status=awaiting] i,body .ldc-savebar [data-save-status][data-prism-save-status=awaiting]::before{background:#e4b94f;box-shadow:0 0 9px color-mix(in srgb,#e4b94f 55%,transparent)}.ldc-toolbar-save-state[data-prism-save-status=awaiting]{cursor:pointer;color:#e4c979}.ldc-toolbar-save-state[data-prism-save-status=awaiting]:hover{text-decoration:underline;text-underline-offset:2px}
+.ldc-review-inbox .ldc-heading{position:sticky;top:-18px;z-index:2;padding:14px 0;background:color-mix(in srgb,var(--lumiverse-bg-elevated) 98%,transparent)}.ldc-review-list{display:grid;gap:11px}.ldc-observation-card{padding:13px;border:1px solid color-mix(in srgb,#e4b94f 38%,var(--lumiverse-border));border-radius:13px;background:linear-gradient(145deg,color-mix(in srgb,#e4b94f 7%,transparent),var(--lumiverse-fill-subtle))}.ldc-observation-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.ldc-observation-head h4{margin:0;font-size:12px}.ldc-observation-meta{margin-top:3px;color:var(--lumiverse-text-dim);font-size:8.5px}.ldc-observation-color{display:flex;align-items:center;gap:6px;color:var(--lumiverse-text-muted);font-size:9px}.ldc-observation-color i{width:12px;height:12px;border-radius:50%;background:var(--observed);box-shadow:0 0 8px color-mix(in srgb,var(--observed) 55%,transparent)}.ldc-observation-examples{display:grid;gap:5px;margin:10px 0;padding:9px;border-left:2px solid color-mix(in srgb,#e4b94f 52%,transparent);color:var(--lumiverse-text-muted);font-size:9.5px}.ldc-observation-form{display:grid;grid-template-columns:minmax(110px,1fr) 110px minmax(150px,1fr);gap:8px}.ldc-observation-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:10px}.ldc-observation-empty{display:grid;place-items:center;min-height:280px;color:var(--lumiverse-text-dim);text-align:center}.ldc-tentative-label{margin-top:12px;padding-top:10px;border-top:1px solid var(--lumiverse-border);color:#e4c979}.ldc-tentative-person{cursor:pointer;border-color:color-mix(in srgb,#e4b94f 30%,transparent)}.ldc-tentative-person .ldc-inline-swatch{background:#e4b94f}
+@media(max-width:620px){.ldc-observation-form{grid-template-columns:1fr}.ldc-observation-actions{justify-content:stretch}.ldc-observation-actions .ldc-btn{flex:1}}
 .ldc-persona-master{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:14px 18px 0;padding:10px 12px;border:1px solid var(--lumiverse-border);border-radius:11px;background:var(--lumiverse-fill-subtle);cursor:pointer}.ldc-persona-master span{display:grid;gap:2px}.ldc-persona-master strong{font-size:10px}.ldc-persona-master small{color:var(--lumiverse-text-dim);font-size:8.5px}
 .ldc-toolbar-host{display:flex;align-items:center;gap:4px}.ldc-toolbar-button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--lumiverse-primary);opacity:.8;cursor:pointer}.ldc-toolbar-button:hover{opacity:1;border-color:var(--lumiverse-border);background:var(--lumiverse-fill-subtle);filter:drop-shadow(0 0 7px color-mix(in srgb,var(--lumiverse-primary) 45%,transparent))}.ldc-toolbar-button svg{width:16px}.ldc-toolbar-save-state,.ldc-savebar [data-save-status]{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;color:var(--lumiverse-text-dim);font-size:9px;font-weight:700}.ldc-toolbar-save-state i,.ldc-savebar [data-save-status]::before{content:"";width:6px;height:6px;flex:0 0 auto;border-radius:50%;background:#73dfbd;box-shadow:0 0 8px color-mix(in srgb,#73dfbd 45%,transparent)}.ldc-toolbar-save-state[data-prism-save-status=pending] i,.ldc-toolbar-save-state[data-prism-save-status=saving] i,.ldc-savebar [data-save-status][data-prism-save-status=pending]::before,.ldc-savebar [data-save-status][data-prism-save-status=saving]::before{background:#d6af55;box-shadow:0 0 8px color-mix(in srgb,#d6af55 45%,transparent)}.ldc-toolbar-save-state[data-prism-save-status=error] i,.ldc-savebar [data-save-status][data-prism-save-status=error]::before{background:var(--lumiverse-danger);box-shadow:0 0 8px color-mix(in srgb,var(--lumiverse-danger) 45%,transparent)}
 .ldc-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 10px;border-bottom:1px solid var(--lumiverse-border)}.ldc-tabs{display:flex;gap:4px}.ldc-tab,.ldc-engine button{border:0;border-radius:9px;background:transparent;color:var(--lumiverse-text-muted);font-size:11px;font-weight:800;cursor:pointer}.ldc-tab{padding:7px 11px}.ldc-tab[data-active=true]{color:var(--lumiverse-text);background:var(--psoft)}.ldc-top-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;min-width:0}.ldc-engine-copy{max-width:270px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--lumiverse-text-dim);font-size:9px}.ldc-engine{display:flex;flex:0 0 auto;gap:3px;padding:3px;border:1px solid var(--lumiverse-border);border-radius:11px;background:var(--lumiverse-fill-subtle)}.ldc-engine button{padding:5px 9px;font-size:10px}.ldc-engine button[data-active=true]{color:var(--lumiverse-text);background:var(--psoft)}.ldc-icon{display:grid;place-items:center;width:29px;height:29px;padding:0;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--lumiverse-text-dim);cursor:pointer}.ldc-icon:hover,.ldc-icon[data-active=true]{border-color:var(--lumiverse-border);background:var(--lumiverse-fill-subtle);color:var(--lumiverse-text)}.ldc-icon svg{width:15px}
@@ -67,22 +70,31 @@ function normalizeEngine(value) { return ['dom', 'hybrid', 'llm'].includes(value
 function engineLabel(value) { return ({ dom: 'Local', hybrid: 'Hybrid', llm: 'LLM sidecar' })[normalizeEngine(value)]; }
 function engineDescription(value) { return ({ dom: 'Visual only · heuristic paint', hybrid: 'Model tags first · local repair', llm: 'Model tags only · no local fill' })[normalizeEngine(value)]; }
 export function setup(ctx) {
-    const removeStyle = ctx.dom.addStyle(CSS), pending = new Map(), signatures = new Map(), dirty = new Set();
-    let modal = null, addModal = null, state = null, activeTab = 'character', activeChannel = 'dialogue', selectedId = null, sideScroll = 0, panelScroll = 0, settingsOpen = false, busy = false, saveStatus = 'saved', reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, applying = false, revision = 0, saveGeneration = 0, saveQueue = Promise.resolve(), stateLoadPromise = null;
+    const removeStyle = ctx.dom.addStyle(CSS), pending = new Map(), signatures = new Map(), dirty = new Set(), hydratingMessages = new Set();
+    let modal = null, addModal = null, state = null, activeTab = 'character', activeChannel = 'dialogue', selectedId = null, sideScroll = 0, panelScroll = 0, settingsOpen = false, reviewOpen = false, busy = false, saveStatus = 'saved', hydrationStatus = 'idle', pendingReviewCount = 0, reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, applying = false, revision = 0, saveGeneration = 0, saveQueue = Promise.resolve(), stateLoadPromise = null;
     const request = (type, data = {}, timeoutMs = 15000) => new Promise((resolve, reject) => { const requestId = uid(), timer = setTimeout(() => { pending.delete(requestId); reject(new Error(`Prism's backend did not answer ${type} within ${Math.round(timeoutMs / 1000)} seconds.`)); }, timeoutMs); pending.set(requestId, { resolve, reject, timer }); ctx.sendToBackend({ type, requestId, ...data }); });
     const loadState = (sync = false) => { if (stateLoadPromise)
         return stateLoadPromise; stateLoadPromise = request('ldc_load_state', { importCortex: sync, scanTranscript: sync }, sync ? 60000 : 15000).finally(() => { stateLoadPromise = null; }); return stateLoadPromise; };
     const unsubBackend = ctx.onBackendMessage(payload => { const task = pending.get(payload?.requestId); if (!task)
         return; clearTimeout(task.timer); pending.delete(payload.requestId); payload.type === 'ldc_error' ? task.reject(new Error(payload.error || 'Unknown error')) : task.resolve(payload); });
-    function acceptState(next) { state = next; revision++; signatures.clear(); schedule(true); }
+    function acceptState(next) { state = next; pendingReviewCount = Math.max(0, Number(next?.pendingReviewCount) || 0); if (pendingReviewCount > 0 && hydrationStatus !== 'error')
+        hydrationStatus = 'awaiting';
+    else if (hydrationStatus === 'awaiting')
+        hydrationStatus = 'idle'; revision++; signatures.clear(); schedule(true); refreshPrismStatus(); }
     function current() { return state?.characters?.find(c => String(c.id) === String(selectedId)) || state?.characters?.[0] || null; }
     function missingCount() { return (state?.characters || []).filter(c => !bindingRegistryColor(c.binding)).length + (state?.config?.personaEnabled !== false && state?.persona && !bindingRegistryColor(state.persona.binding) ? 1 : 0); }
     function setBusy(value) { busy = value; modal?.root.querySelectorAll('button,input,select').forEach(el => { el.disabled = value; }); }
-    function saveStatusLabel(value) { return value === 'saving' || value === 'pending' ? 'Saving…' : value === 'error' ? 'Save failed' : 'Saved'; }
-    function setSaveStatus(value) { saveStatus = value; document.querySelectorAll('[data-prism-save-status],.ldc-shell [data-save-status]').forEach(node => { node.dataset.prismSaveStatus = value; const label = node.querySelector('[data-prism-save-label]'); if (label)
-        label.textContent = saveStatusLabel(value);
+    function visiblePrismStatus() { if (saveStatus === 'error' || hydrationStatus === 'error')
+        return { state: 'error', label: 'Prism error' }; if (saveStatus === 'saving' || saveStatus === 'pending' || hydrationStatus === 'syncing')
+        return { state: 'syncing', label: 'Syncing…' }; if (pendingReviewCount > 0)
+        return { state: 'awaiting', label: `Awaiting review · ${pendingReviewCount}` }; return { state: 'saved', label: 'Saved' }; }
+    function refreshPrismStatus() { const visible = visiblePrismStatus(); document.querySelectorAll('[data-prism-save-status],.ldc-shell [data-save-status]').forEach(node => { node.dataset.prismSaveStatus = visible.state; const label = node.querySelector('[data-prism-save-label]'); if (label)
+        label.textContent = visible.label;
     else
-        node.textContent = saveStatusLabel(value); }); }
+        node.textContent = visible.label; }); }
+    function saveStatusLabel() { return visiblePrismStatus().label; }
+    function setSaveStatus(value) { saveStatus = value; refreshPrismStatus(); }
+    function setHydrationStatus(value) { hydrationStatus = value; refreshPrismStatus(); }
     async function perform(task) { if (busy)
         return; setBusy(true); try {
         await task();
@@ -95,9 +107,22 @@ export function setup(ctx) {
     finally {
         setBusy(false);
     } }
+    function reviewKindLabel(kind) { return ({ 'new-speaker': 'Possible new character', 'unknown-color': 'Unknown colored speaker', 'color-drift': 'Unexpected color for known character', 'speaker-conflict': 'Tag conflicts with explicit prose', 'color-collision': 'Registry color collision', 'alias-suggestion': 'Possible alias' })[kind] || 'Hybrid observation'; }
+    function reviewBinding(speakerUid) { return (state?.characters || []).map(character => character.binding).find(binding => binding?.speakerUid === speakerUid) || null; }
+    function reviewPanel() {
+        const groups = state?.reviewGroups || [], characters = (state?.characters || []).filter(character => character.binding?.speakerUid);
+        if (!groups.length)
+            return `<section class="ldc-settings ldc-review-inbox"><div class="ldc-heading ldc-settings-heading"><div><h3>Hybrid review</h3><div class="ldc-sub">No tentative registry evidence is waiting.</div></div><button class="ldc-btn" data-action="close-review">Back</button></div><div class="ldc-observation-empty"><div><strong>Registry caught up.</strong><br>New model tags will be studied after generation.</div></div></section>`;
+        const cards = groups.map(group => {
+            const matched = reviewBinding(group.matchedSpeakerUid), defaultName = group.inferredName || matched?.name || '', defaultColor = matched ? bindingRegistryColor(matched) : group.observedColor, options = [`<option value="">Create or choose manually</option>`, ...characters.map(character => `<option value="${esc(character.binding.speakerUid)}" ${character.binding.speakerUid === group.matchedSpeakerUid ? 'selected' : ''}>Merge with ${esc(character.name)}</option>`)].join(''), examples = (group.examples || []).map(example => `<span>“${esc(String(example).replace(/^[“”"]|[“”"]$/g, ''))}”</span>`).join('');
+            return `<article class="ldc-observation-card" data-observation-group="${esc(group.groupKey)}"><div class="ldc-observation-head"><div><h4>${esc(reviewKindLabel(group.kind))}</h4><div class="ldc-observation-meta">${group.count} tagged line${group.count === 1 ? '' : 's'} · ${group.messageCount} message${group.messageCount === 1 ? '' : 's'} · ${Math.round(group.confidence * 100)}% confidence</div></div><span class="ldc-observation-color" style="--observed:${esc(group.observedColor)}"><i></i>${esc(group.observedColor)}</span></div><div class="ldc-observation-examples">${examples || '<span>No readable quote preview.</span>'}</div><div class="ldc-observation-form"><input class="ldc-input" data-review-role="name" value="${esc(defaultName)}" placeholder="Character name"><input class="ldc-input" data-review-role="color" value="${esc(defaultColor || group.observedColor)}" maxlength="7" aria-label="Registry color"><select class="ldc-select" data-review-role="merge">${options}</select></div><div class="ldc-observation-actions"><button class="ldc-btn" data-review-action="dismiss">Dismiss</button><button class="ldc-btn ldc-primary" data-review-action="approve">Approve</button></div></article>`;
+        }).join('');
+        return `<section class="ldc-settings ldc-review-inbox"><div class="ldc-heading ldc-settings-heading"><div><h3>Hybrid review</h3><div class="ldc-sub">Model output can propose registry changes, but only approval makes them confirmed.</div></div><button class="ldc-btn" data-action="close-review">Back</button></div><div class="ldc-review-list">${cards}</div></section>`;
+    }
     function sidebar() {
         const rows = (state?.characters || []).map(c => { const canonical = bindingRegistryColor(c.binding) || '#777777', dialogue = safeChannels(c.binding).dialogue.paint, color = dialogue.stops[0] || canonical, swatch = paintBackground(dialogue, canonical); return `<div class="ldc-person" role="button" tabindex="0" data-character-id="${esc(c.id)}" data-active="${c.id === current()?.id}"><span class="ldc-avatar">${esc(initials(c.name))}<label class="ldc-inline-swatch" data-inline-swatch="${esc(c.id)}" style="--swatch:${esc(color)};--swatch-paint:${esc(swatch)}" title="Change ${esc(c.name)} dialogue color"><input class="ldc-inline-picker" data-inline-color="${esc(c.id)}" type="color" value="${esc(color)}" aria-label="Change ${esc(c.name)} dialogue color"></label></span><span class="ldc-person-copy"><span class="ldc-person-name">${esc(c.name)}</span><span class="ldc-person-source">${esc(sourceLabel(c.binding?.source || c.source))}</span></span><span>›</span></div>`; }).join('');
-        return `<div class="ldc-side-label">Scene roster</div>${rows || '<div class="ldc-empty">No characters added yet.</div>'}<div class="ldc-side-actions"><button class="ldc-btn" data-action="add-person">+ Add character</button><button class="ldc-btn" data-action="assign">Assign missing</button><button class="ldc-btn" data-action="regenerate">Regenerate</button></div>`;
+        const tentative = (state?.reviewGroups || []).filter(group => group.kind === 'new-speaker' || group.kind === 'unknown-color').map(group => `<div class="ldc-person ldc-tentative-person" role="button" tabindex="0" data-action="review-hydration"><span class="ldc-avatar">${esc(initials(group.inferredName || '?'))}<i class="ldc-inline-swatch" style="--swatch:${esc(group.observedColor)}"></i></span><span class="ldc-person-copy"><span class="ldc-person-name">${esc(group.inferredName || `Unknown ${group.observedColor}`)}</span><span class="ldc-person-source">Observed · ${group.count} line${group.count === 1 ? '' : 's'}</span></span><span>›</span></div>`).join('');
+        return `<div class="ldc-side-label">Scene roster</div>${rows || '<div class="ldc-empty">No characters added yet.</div>'}${tentative ? `<div class="ldc-side-label ldc-tentative-label">Awaiting approval</div>${tentative}` : ''}<div class="ldc-side-actions"><button class="ldc-btn" data-action="add-person">+ Add character</button><button class="ldc-btn" data-action="assign">Assign missing</button><button class="ldc-btn" data-action="regenerate">Regenerate</button></div>`;
     }
     function charPanel(c) {
         if (!c)
@@ -152,7 +177,7 @@ export function setup(ctx) {
         const missing = missingCount(), engine = normalizeEngine(state.config.engine), needs = missing > 0;
         const setupTitle = `Set up scene colors · ${missing} scene member${missing === 1 ? '' : 's'} still need colors`;
         const unresolved = unresolvedSegments().length;
-        modal.root.innerHTML = `<div class="ldc-shell"><div class="ldc-top"><div class="ldc-tabs"><button class="ldc-tab" data-tab="character" data-active="${activeTab === 'character' && !settingsOpen}">Characters</button><button class="ldc-tab" data-tab="persona" data-active="${activeTab === 'persona' && !settingsOpen}">Persona</button></div><div class="ldc-top-actions"><span class="ldc-engine-copy">${esc(engineDescription(engine))}</span>${unresolved ? `<button class="ldc-review" data-action="review-unresolved">${unresolved} unresolved · Review</button>` : ''}<div class="ldc-engine"><button data-engine="dom" data-active="${engine === 'dom'}" title="Render-only heuristic coloring">Local</button><button data-engine="hybrid" data-active="${engine === 'hybrid'}" title="Persist model font tags, then fill untagged gaps locally">Hybrid</button><button data-engine="llm" data-active="${engine === 'llm'}" title="Use only model-emitted font tags">LLM</button></div><button class="ldc-icon" data-action="settings" data-active="${settingsOpen}" title="Prism settings">${GEAR_ICON}</button></div></div>${needs ? `<div class="ldc-setup"><div class="ldc-setup-copy"><span class="ldc-setup-icon">${SPARK_ICON}</span><div><div class="ldc-setup-title">${esc(setupTitle)}</div><div class="ldc-setup-desc">Found ${state.characters.length} characters${state.persona ? ' and your active persona' : ''}. Existing imported and manual colors stay untouched.</div></div></div><button class="ldc-mini" data-action="setup">Set up scene</button></div>` : ''}<div class="ldc-main-wrap"><div class="ldc-main">${activeTab === 'character' ? `<aside class="ldc-side">${sidebar()}</aside><section class="ldc-panel">${charPanel(current())}</section>` : `<aside class="ldc-side"><div class="ldc-side-label">Active persona</div><div class="ldc-person" data-active="true"><span class="ldc-avatar">${esc(initials(state.persona?.name))}</span><span class="ldc-person-copy"><span class="ldc-person-name">${esc(state.persona?.name || 'No persona')}</span><span class="ldc-person-source">${state.config.personaEnabled === false ? 'disabled' : 'currently applied'}</span></span></div></aside><section class="ldc-panel">${personaPanel()}</section>`}</div>${settingsOpen ? settingsPanel() : ''}</div><div class="ldc-status"><span>${esc(state.chat.name)}</span><span class="ldc-bridge">${engineLabel(engine)} · ${state.characters.length} characters · Cortex ${state.cortexAvailable ? 'linked' : 'unavailable'}</span></div></div>`;
+        modal.root.innerHTML = `<div class="ldc-shell"><div class="ldc-top"><div class="ldc-tabs"><button class="ldc-tab" data-tab="character" data-active="${activeTab === 'character' && !settingsOpen && !reviewOpen}">Characters</button><button class="ldc-tab" data-tab="persona" data-active="${activeTab === 'persona' && !settingsOpen && !reviewOpen}">Persona</button></div><div class="ldc-top-actions"><span class="ldc-engine-copy">${esc(engineDescription(engine))}</span>${pendingReviewCount ? `<button class="ldc-review" data-action="review-hydration">${pendingReviewCount} awaiting review</button>` : ''}${unresolved ? `<button class="ldc-review" data-action="review-unresolved">${unresolved} unresolved · Review</button>` : ''}<div class="ldc-engine"><button data-engine="dom" data-active="${engine === 'dom'}" title="Render-only heuristic coloring">Local</button><button data-engine="hybrid" data-active="${engine === 'hybrid'}" title="Persist model font tags, then fill untagged gaps locally">Hybrid</button><button data-engine="llm" data-active="${engine === 'llm'}" title="Use only model-emitted font tags">LLM</button></div><button class="ldc-icon" data-action="settings" data-active="${settingsOpen}" title="Prism settings">${GEAR_ICON}</button></div></div>${needs ? `<div class="ldc-setup"><div class="ldc-setup-copy"><span class="ldc-setup-icon">${SPARK_ICON}</span><div><div class="ldc-setup-title">${esc(setupTitle)}</div><div class="ldc-setup-desc">Found ${state.characters.length} characters${state.persona ? ' and your active persona' : ''}. Existing imported and manual colors stay untouched.</div></div></div><button class="ldc-mini" data-action="setup">Set up scene</button></div>` : ''}<div class="ldc-main-wrap"><div class="ldc-main">${activeTab === 'character' ? `<aside class="ldc-side">${sidebar()}</aside><section class="ldc-panel">${charPanel(current())}</section>` : `<aside class="ldc-side"><div class="ldc-side-label">Active persona</div><div class="ldc-person" data-active="true"><span class="ldc-avatar">${esc(initials(state.persona?.name))}</span><span class="ldc-person-copy"><span class="ldc-person-name">${esc(state.persona?.name || 'No persona')}</span><span class="ldc-person-source">${state.config.personaEnabled === false ? 'disabled' : 'currently applied'}</span></span></div></aside><section class="ldc-panel">${personaPanel()}</section>`}</div>${reviewOpen ? reviewPanel() : settingsOpen ? settingsPanel() : ''}</div><div class="ldc-status"><span>${esc(state.chat.name)}</span><span class="ldc-bridge">${engineLabel(engine)} · ${state.characters.length} characters · Cortex ${state.cortexAvailable ? 'linked' : 'unavailable'}</span></div></div>`;
         if (settingsOpen) {
             const grid = modal.root.querySelector('.ldc-settings-grid');
             if (grid)
@@ -290,14 +315,28 @@ export function setup(ctx) {
     function wire() {
         if (!modal)
             return;
-        modal.root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => navigateEditor(() => { activeTab = b.dataset.tab; settingsOpen = false; }));
+        const openReview = () => { reviewOpen = true; settingsOpen = false; render(); };
+        modal.root.querySelectorAll('[data-action=review-hydration]').forEach(button => button.addEventListener('click', openReview));
+        modal.root.querySelector('[data-action=close-review]')?.addEventListener('click', () => { reviewOpen = false; render(); });
+        modal.root.querySelectorAll('[data-review-role=merge]').forEach(select => select.addEventListener('change', () => { const binding = reviewBinding(select.value), card = select.closest('[data-observation-group]'); if (!binding || !card)
+            return; const name = card.querySelector('[data-review-role=name]'), color = card.querySelector('[data-review-role=color]'); if (name)
+            name.value = binding.name; if (color)
+            color.value = bindingRegistryColor(binding) || color.value; }));
+        modal.root.querySelectorAll('[data-review-action]').forEach(button => button.addEventListener('click', () => perform(async () => { const card = button.closest('[data-observation-group]'), groupKey = card?.dataset.observationGroup; if (!groupKey)
+            return; const action = button.dataset.reviewAction, payload = { chatId: state.chat.id, groupKey, action }; if (action === 'approve') {
+            payload.name = String(card.querySelector('[data-review-role=name]')?.value || '').trim();
+            payload.color = String(card.querySelector('[data-review-role=color]')?.value || '').trim();
+            payload.mergeSpeakerUid = String(card.querySelector('[data-review-role=merge]')?.value || '') || null;
+        } setHydrationStatus('syncing'); const response = await request('ldc_review_observation', payload, 30000); acceptState(response.state); setHydrationStatus(response.pendingCount > 0 ? 'awaiting' : 'idle'); if (!response.pendingCount)
+            reviewOpen = false; render(); })));
+        modal.root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => navigateEditor(() => { activeTab = b.dataset.tab; settingsOpen = false; reviewOpen = false; }));
         modal.root.querySelectorAll('[data-channel]').forEach(b => b.onclick = () => { if (b.dataset.channel === activeChannel)
             return; clearTimeout(saveTimer); perform(async () => { setSaveStatus('saving'); await saveEditor(activeTab === 'persona' ? 'persona' : 'character'); activeChannel = b.dataset.channel; saveStatus = 'saved'; render(); }); });
         modal.root.querySelectorAll('[data-character-id]').forEach(row => { const activate = e => { if (e.target.closest('input,[data-inline-swatch]'))
             return; const side = modal.root.querySelector('.ldc-side'); if (side)
             sideScroll = side.scrollTop; navigateEditor(() => { selectedId = row.dataset.characterId; }); }; row.onclick = activate; row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ')
             activate(e); }; });
-        modal.root.querySelector('[data-action=settings]')?.addEventListener('click', () => navigateEditor(() => { settingsOpen = !settingsOpen; }));
+        modal.root.querySelector('[data-action=settings]')?.addEventListener('click', () => navigateEditor(() => { reviewOpen = false; settingsOpen = !settingsOpen; }));
         for (const [action, type] of [['cortex-sync', 'ldc_cortex_sync'], ['cortex-repair', 'ldc_cortex_repair']])
             modal.root.querySelector(`[data-action=${action}]`)?.addEventListener('click', () => perform(async () => { setSaveStatus('saving'); const response = await request(type, { chatId: state.chat.id }, 60000); acceptState(response.state); setSaveStatus('saved'); render(); }));
         modal.root.querySelector('[data-action=review-unresolved]')?.addEventListener('click', reviewUnresolved);
@@ -461,11 +500,13 @@ export function setup(ctx) {
     }
     function candidates() {
         const all = state?.characters || [];
-        return all.map(c => { const binding = c.binding || null, color = bindingRegistryColor(binding), names = [c.name, ...(binding?.aliases || c.aliases || [])], parts = String(c.name || '').split(/\s+/).filter(x => x.length >= 2); for (const part of [parts[0], parts.at(-1)].filter(Boolean)) {
+        const confirmed = all.map(c => { const binding = c.binding || null, color = bindingRegistryColor(binding), names = [c.name, ...(binding?.aliases || c.aliases || [])], parts = String(c.name || '').split(/\s+/).filter(x => x.length >= 2); for (const part of [parts[0], parts.at(-1)].filter(Boolean)) {
             const owners = all.filter(x => String(x.name || '').split(/\s+/).some(t => t.toLowerCase() === part.toLowerCase()));
             if (owners.length === 1)
                 names.push(part);
         } const stableId = String(binding?.speakerUid || binding?.targetId || c.entityId || c.characterId || c.id); return { key: `character:${stableId}`, id: String(c.id), characterId: String(c.characterId || ''), name: c.name, names: [...new Set(names.map(x => String(x || '').trim().toLowerCase()).filter(Boolean))], color, binding, channels: color ? safeChannels(binding) : null, paintable: Boolean(color), primary: String(c.characterId || '') === String(state?.chat?.characterId || '') }; });
+        const tentative = (state?.reviewGroups || []).filter(group => (group.kind === 'new-speaker' || group.kind === 'unknown-color') && group.observedColor).map(group => { const name = group.inferredName || `Unknown ${group.observedColor}`, color = normalizeHex(group.observedColor), speakerUid = `tentative-${hashText(group.groupKey)}`, binding = { kind: 'character', targetId: group.groupKey, name, aliases: [], color, channels: safeChannels(null, color), previousColors: [], speakerUid }; return { key: `character:${speakerUid}`, id: group.groupKey, characterId: '', name, names: [name.toLowerCase()], color, binding, channels: binding.channels, paintable: Boolean(color), primary: false, tentative: true }; });
+        return [...confirmed, ...tentative];
     }
     function rgbHex(value) { const direct = normalizeHex(value); if (direct)
         return direct; const match = String(value || '').match(/^rgba?\(\s*(\d+)\D+(\d+)\D+(\d+)/i); return match ? `#${match.slice(1, 4).map(x => Math.max(0, Math.min(255, Number(x))).toString(16).padStart(2, '0')).join('').toUpperCase()}` : null; }
@@ -499,6 +540,18 @@ export function setup(ctx) {
         const text = element.textContent || '', italic = Boolean(element.closest('em,i') || element.querySelector('em,i')), kind = italic && !/[“”"]/.test(text) ? 'thought' : 'dialogue';
         map.set(element, { element, text, color, speaker: candidateForExistingColor(color, list), kind, source, protected: true });
     } return map; }
+    function applyApprovedObservations(existing, mc, list) { const approved = Object.values(state?.config?.observations || {}).filter(observation => observation.status === 'approved' && observation.resolvedSpeakerUid && String(observation.messageId) === String(mc.messageId) && Number(observation.swipeId || 0) === Number(mc.swipeId || 0)), seen = new Map(); for (const segment of existing.values()) {
+        const normalized = String(segment.text || '').replace(/\s+/g, ' ').trim().toLowerCase(), key = `${segment.color}:${normalized}`, occurrenceIndex = seen.get(key) || 0;
+        seen.set(key, occurrenceIndex + 1);
+        const observation = approved.find(item => item.observedColor === segment.color && String(item.quote || '').replace(/\s+/g, ' ').trim().toLowerCase() === normalized && Number(item.occurrenceIndex || 0) === occurrenceIndex);
+        if (!observation)
+            continue;
+        const speaker = list.find(candidate => candidate.binding?.speakerUid === observation.resolvedSpeakerUid);
+        if (speaker) {
+            segment.speaker = speaker;
+            segment.hydrationApproved = true;
+        }
+    } }
     function named(c, text) { const lower = String(text || '').toLowerCase(); return c.names.some(name => new RegExp(`(^|[^\\p{L}\\p{N}_])${reEsc(name)}(?=$|[^\\p{L}\\p{N}_])`, 'u').test(lower)); }
     function logicalBlock(node, root) {
         const parent = node.parentElement, semantic = parent?.closest('p,li,blockquote,dd,dt,figcaption');
@@ -611,7 +664,7 @@ export function setup(ctx) {
         }
     }
     function decorate(span, detail, list) {
-        const a = detail.attribution, colorOwners = detail.existingColor ? list.filter(c => [c.color, bindingRegistryColor(c.binding), c.binding?.channels?.dialogue?.paint?.anchor, ...(c.binding?.previousColors || [])].map(normalizeHex).filter(Boolean).includes(normalizeHex(detail.existingColor))).length : 0, reason = detail.hybridDeferred ? 'hybrid-low-confidence' : a.speaker && !a.speaker.paintable ? 'speaker-known-no-color' : !a.speaker && detail.existingColor ? (colorOwners > 1 ? 'ambiguous-color' : 'speaker-not-found') : !a.speaker ? 'no-dialogue-seed' : null;
+        const assignableList = list.filter(candidate => !candidate.tentative), a = detail.attribution, colorOwners = detail.existingColor ? assignableList.filter(c => [c.color, bindingRegistryColor(c.binding), c.binding?.channels?.dialogue?.paint?.anchor, ...(c.binding?.previousColors || [])].map(normalizeHex).filter(Boolean).includes(normalizeHex(detail.existingColor))).length : 0, reason = detail.hybridDeferred ? 'hybrid-low-confidence' : a.speaker?.tentative ? 'tentative-speaker' : a.speaker && !a.speaker.paintable ? 'speaker-known-no-color' : !a.speaker && detail.existingColor ? (colorOwners > 1 ? 'ambiguous-color' : 'speaker-not-found') : !a.speaker ? 'no-dialogue-seed' : null;
         rememberClass(span);
         if (!span.classList.contains('ldc-prism-segment')) {
             span.dataset.prismOriginalTitle = span.getAttribute('title') ?? '\u0000';
@@ -634,12 +687,12 @@ export function setup(ctx) {
             delete span.dataset.prismHybridDeferred;
         if (state?.preferences?.markUncertain !== false && a.confidence < .7)
             span.dataset.prismConfidenceLevel = 'low';
-        span.title = detail.hybridDeferred ? `Hybrid left this unpainted: ${a.speaker?.name || 'speaker'} was only ${Math.round(a.confidence * 100)}% certain. Right-click to confirm.` : a.speaker ? `${a.speaker.name} · ${a.speaker.paintable ? `assigned from ${evidenceLabel(a.source)} · ${Math.round(a.confidence * 100)}%` : 'identified, but no color is assigned yet'}` : (detail.existingColor ? `Existing ${detail.existingColor} · ${colorOwners > 1 ? 'claimed by multiple speakers' : 'speaker unknown'}` : 'Prism could not identify this speaker');
+        span.title = detail.hybridDeferred ? `Hybrid left this unpainted: ${a.speaker?.name || 'speaker'} was only ${Math.round(a.confidence * 100)}% certain. Right-click to confirm.` : a.speaker?.tentative ? `${a.speaker.name} · observed by Hybrid, awaiting approval` : a.speaker ? `${a.speaker.name} · ${a.speaker.paintable ? `assigned from ${evidenceLabel(a.source)} · ${Math.round(a.confidence * 100)}%` : 'identified, but no color is assigned yet'}` : (detail.existingColor ? `Existing ${detail.existingColor} · ${colorOwners > 1 ? 'claimed by multiple speakers' : 'speaker unknown'}` : 'Prism could not identify this speaker');
         const info = () => ({ ...detail, rect: span.getBoundingClientRect() });
-        span.oncontextmenu = e => teach(e, info(), list);
+        span.oncontextmenu = e => teach(e, info(), assignableList);
         span.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ')
-            teach(e, info(), list); };
-        span.onpointerdown = e => { clearTimeout(longTimer); longTimer = setTimeout(() => teach(e, info(), list), 560); };
+            teach(e, info(), assignableList); };
+        span.onpointerdown = e => { clearTimeout(longTimer); longTimer = setTimeout(() => teach(e, info(), assignableList), 560); };
         span.onpointerup = span.onpointercancel = span.onpointerleave = () => clearTimeout(longTimer);
     }
     function buildDomUnits(root, existingByElement) {
@@ -699,7 +752,9 @@ export function setup(ctx) {
         return span;
     }
     function colorQuotes(root, mc, list, fixed = null, fillMissing = true) {
-        const existing = collectExisting(root, list), units = buildDomUnits(root, existing);
+        const existing = collectExisting(root, list);
+        applyApprovedObservations(existing, mc, list);
+        const units = buildDomUnits(root, existing);
         let text = '', lastBlock = null;
         for (const unit of units) {
             if (text && unit.block !== lastBlock)
@@ -725,7 +780,7 @@ export function setup(ctx) {
                 currentBlockSpeaker = null;
             }
             if (event.type === 'existing') {
-                const unit = event.unit, segment = unit.segment, normalized = unit.text.replace(/\s+/g, ' ').trim().toLowerCase(), segmentKey = hashText(['existing', segment.color, normalized, existingIndex++].join('\u241F')), override = overrideFor(mc.messageId, mc.swipeId, contentHash, segmentKey), kind = override?.kind || segment.kind, attribution = override ? { speaker: override.speakerKey == null ? null : list.find(c => c.key === override.speakerKey) || null, confidence: 1, source: 'manual' } : { speaker: segment.speaker, confidence: segment.speaker ? .98 : 0, source: segment.speaker ? 'existing-color' : 'unresolved' };
+                const unit = event.unit, segment = unit.segment, normalized = unit.text.replace(/\s+/g, ' ').trim().toLowerCase(), segmentKey = hashText(['existing', segment.color, normalized, existingIndex++].join('\u241F')), override = overrideFor(mc.messageId, mc.swipeId, contentHash, segmentKey), kind = override?.kind || segment.kind, attribution = override ? { speaker: override.speakerKey == null ? null : list.find(c => c.key === override.speakerKey) || null, confidence: 1, source: 'manual' } : { speaker: segment.speaker, confidence: segment.speaker ? (segment.hydrationApproved ? 1 : .98) : 0, source: segment.speaker ? (segment.hydrationApproved ? 'manual' : 'existing-color') : 'unresolved' };
                 segment.speaker = attribution.speaker;
                 segment.kind = kind;
                 if (attribution.speaker && kind !== 'ignored') {
@@ -863,6 +918,30 @@ export function setup(ctx) {
     function schedule(immediate = false) { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => processMounted(false), immediate ? 0 : 70); }
     function markLatest() { const id = ctx.messages.getLatestMessageId(); if (id)
         dirty.add(id); schedule(); }
+    async function hydrateLatest() {
+        const messageId = ctx.messages.getLatestMessageId();
+        markLatest();
+        if (!messageId || !state?.ok || normalizeEngine(state.config.engine) !== 'hybrid' || hydratingMessages.has(messageId))
+            return;
+        hydratingMessages.add(messageId);
+        setHydrationStatus('syncing');
+        try {
+            const response = await request('ldc_hydrate_message', { chatId: state.chat.id, messageId }, 30000);
+            acceptState(response.state);
+            dirty.add(messageId);
+            schedule(true);
+            setHydrationStatus(response.pendingCount > 0 ? 'awaiting' : 'idle');
+            if (modal)
+                render();
+        }
+        catch (error) {
+            setHydrationStatus('error');
+            console.warn('[Prism] Hybrid hydration failed:', error);
+        }
+        finally {
+            hydratingMessages.delete(messageId);
+        }
+    }
     function ensureToolbar() {
         const toolbar = document.querySelector('[class*="chatToolbar"]');
         if (!toolbar || toolbar.querySelector('[data-prism-toolbar-button]'))
@@ -870,8 +949,10 @@ export function setup(ctx) {
         if (toolbarInjection?.isConnected)
             ctx.dom.uninject(toolbarInjection);
         toolbarInjection = ctx.dom.inject(toolbar, `<span class="ldc-toolbar-host"><button class="ldc-toolbar-button" data-prism-toolbar-button title="Prism dialogue colors" aria-label="Open Prism dialogue colors">${PRISM_ICON}</button><span class="ldc-toolbar-save-state" data-prism-save-status="${saveStatus}" aria-live="polite"><i></i><span data-prism-save-label>${saveStatusLabel(saveStatus)}</span></span></span>`, 'beforeend');
-        toolbarInjection.querySelector('[data-prism-toolbar-button]')?.addEventListener('click', openPalette);
-        setSaveStatus(saveStatus);
+        toolbarInjection.querySelector('[data-prism-toolbar-button]')?.addEventListener('click', openMainPalette);
+        toolbarInjection.querySelector('[data-prism-save-status]')?.addEventListener('click', () => { if (pendingReviewCount > 0)
+            openReviewInbox(); });
+        refreshPrismStatus();
     }
     const observer = new MutationObserver(() => { ensureToolbar(); schedule(); });
     function observe() { if (document.body) {
@@ -901,6 +982,11 @@ export function setup(ctx) {
             render();
         }
     }
+    function openMainPalette() { reviewOpen = false; settingsOpen = false; return openPalette(); }
+    async function openReviewInbox() { reviewOpen = true; settingsOpen = false; if (!modal)
+        await openPalette();
+    else
+        render(); }
     async function reload(show = false, sync = false) {
         if (show && modal) {
             state = null;
@@ -923,7 +1009,7 @@ export function setup(ctx) {
     ensureToolbar();
     observe();
     const action = ctx.ui.registerInputBarAction({ id: 'open-dialogue-colors', label: 'Prism', iconSvg: PRISM_ICON, enabled: true });
-    const unsubAction = action.onClick(openPalette), unsubChat = ctx.events.on('CHAT_SWITCHED', () => { state = null; signatures.clear(); dirty.clear(); ensureToolbar(); reload(true); }), unsubMessage = ctx.events.on('MESSAGE_SENT', markLatest), unsubGeneration = ctx.events.on('GENERATION_ENDED', markLatest);
+    const unsubAction = action.onClick(openMainPalette), unsubChat = ctx.events.on('CHAT_SWITCHED', () => { state = null; reviewOpen = false; settingsOpen = false; hydratingMessages.clear(); setHydrationStatus('idle'); signatures.clear(); dirty.clear(); ensureToolbar(); reload(true); }), unsubMessage = ctx.events.on('MESSAGE_SENT', markLatest), unsubGeneration = ctx.events.on('GENERATION_ENDED', hydrateLatest);
     reload();
     return () => {
         for (const task of pending.values()) {

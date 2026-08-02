@@ -1,0 +1,69 @@
+[
+  {
+    "id": "known-color-and-speaker-reinforces-registry",
+    "tag": { "color": "#D34C8B", "quote": "\"No.\"" },
+    "inferredName": "Mara",
+    "registry": [{ "speakerUid": "mara", "name": "Mara", "color": "#D34C8B" }],
+    "expected": { "kind": "confirmed-use", "pending": false, "matchedSpeakerUid": "mara" }
+  },
+  {
+    "id": "known-speaker-using-unknown-color-becomes-drift",
+    "tag": { "color": "#49D8A6", "quote": "\"No.\"" },
+    "inferredName": "Mara",
+    "registry": [{ "speakerUid": "mara", "name": "Mara", "color": "#D34C8B" }],
+    "expected": { "kind": "color-drift", "pending": true, "matchedSpeakerUid": "mara" }
+  },
+  {
+    "id": "known-color-conflicting-with-explicit-prose-needs-review",
+    "tag": { "color": "#D34C8B", "quote": "\"No.\"" },
+    "inferredName": "Oliver",
+    "registry": [
+      { "speakerUid": "mara", "name": "Mara", "color": "#D34C8B" },
+      { "speakerUid": "oliver", "name": "Oliver", "color": "#49D8A6" }
+    ],
+    "expected": { "kind": "speaker-conflict", "pending": true, "matchedSpeakerUid": "oliver" }
+  },
+  {
+    "id": "unknown-color-with-new-name-is-tentative-speaker",
+    "tag": { "color": "#C0FFEE", "quote": "\"Put that down.\"" },
+    "inferredName": "Robin",
+    "registry": [],
+    "expected": { "kind": "new-speaker", "pending": true, "promptEligible": false, "globalEligible": false }
+  },
+  {
+    "id": "known-color-with-unknown-name-suggests-an-alias",
+    "tag": { "color": "#D34C8B", "quote": "\"No.\"" },
+    "inferredName": "Ms. E",
+    "registry": [{ "speakerUid": "mara", "name": "Mara", "color": "#D34C8B" }],
+    "expected": { "kind": "alias-suggestion", "pending": true, "matchedSpeakerUid": "mara" }
+  },
+  {
+    "id": "unknown-color-without-name-stays-tentative",
+    "tag": { "color": "#AABBCC", "quote": "\"Fine.\"" },
+    "inferredName": null,
+    "registry": [],
+    "expected": { "kind": "unknown-color", "pending": true, "promptEligible": false, "globalEligible": false }
+  },
+  {
+    "id": "duplicate-registry-color-is-quarantined",
+    "registry": [
+      { "speakerUid": "mara", "name": "Mara", "color": "#B58CFF" },
+      { "speakerUid": "oliver", "name": "Oliver", "color": "#B58CFF" }
+    ],
+    "expected": { "promptEntries": [], "conflicts": 1 }
+  },
+  {
+    "id": "same-message-revision-and-content-is-idempotent",
+    "hydrationKey": "message-42:0:content-hash",
+    "seenHydrationKeys": ["message-42:0:content-hash"],
+    "expected": { "newObservations": 0, "skipped": "already-hydrated" }
+  },
+  {
+    "id": "repeated-evidence-aggregates-before-review",
+    "observations": [
+      { "kind": "new-speaker", "name": "Robin", "color": "#C0FFEE", "messageId": "42" },
+      { "kind": "new-speaker", "name": "Robin", "color": "#C0FFEE", "messageId": "43" }
+    ],
+    "expected": { "groups": 1, "count": 2, "messageCount": 2 }
+  }
+]
