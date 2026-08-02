@@ -107,7 +107,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.14');
+  assert.equal(manifest.version, '1.0.15');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.15'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -167,6 +168,17 @@ test('horizontal layout owns the viewport and removes redundant editor chrome', 
   assert.match(frontendSource, /data-prism-layout=tabs.*ldc-status\{display:none\}/s);
   assert.match(frontendSource, /class="ldc-btn ldc-remove-character"/);
   assert.match(frontendSource, /ldc-remove-character span\{display:none\}/);
+});
+
+test('high-scale fullscreen uses an unscaled body portal with one scroll surface', () => {
+  assert.match(frontendSource, /function createFullscreenModalProxy\(handle\)/);
+  assert.match(frontendSource, /document\.body\.appendChild\(overlay\)/);
+  assert.match(frontendSource, /handle\.root\.classList\.add\('ldc-fullscreen-host-hidden'\)/);
+  assert.match(frontendSource, /bodyOverflowBefore=document\.body\.style\.overflow/);
+  assert.match(frontendSource, /ldc-fullscreen-root \.ldc-main-wrap\{flex:1 1 0!important;height:0!important/);
+  assert.match(frontendSource, /ldc-main>\.ldc-panel\{flex:1 1 0!important;width:100%!important;height:0!important/);
+  assert.match(frontendSource, /overflow-y:auto!important;-webkit-overflow-scrolling:touch!important/);
+  assert.match(frontendSource, /releaseFullscreenOverlay\(\)/);
 });
 
 test('modal body height is budgeted below viewport chrome', () => {

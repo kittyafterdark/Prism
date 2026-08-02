@@ -1,3 +1,11 @@
+## 1.0.15
+
+- Mounts the high-scale accessibility workspace in a body-level fullscreen portal, outside Lumi's transformed UI-scale tree.
+- Fixes 1.30× UI scale expanding Prism beyond the visible viewport in both PWA and browser installs.
+- Makes the editor pane the single vertical scroll surface with mobile momentum scrolling.
+- Clamps every high-scale editor row and control to the visible width to prevent sideways clipping.
+- Restores body scrolling and removes the portal cleanly when Prism closes or switches layouts.
+
 # Changelog
 
 ## 1.0.14 — Fullscreen accessibility workspace
