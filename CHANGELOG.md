@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.12 — Compact high-scale paint controls
+
+- Replaces gradient rails with compact circular stop buttons in the horizontal accessibility layout.
+- Keeps all two- and three-stop hex values visible at high UI scale with tighter, centered inputs.
+- Moves **Reverse direction** onto its own full-width row beneath Direction and Stops so it cannot escape the viewport.
+
 ## 1.0.11 — Reachable mobile settings
 
 - Adds a first-class **Settings** tab whenever the horizontal accessibility layout is active.
