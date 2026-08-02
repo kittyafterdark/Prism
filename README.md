@@ -6,6 +6,8 @@ Existing formatting is authoritative. Prism indexes real or escaped `<font color
 
 ## Local-first workflow
 
+- v0.6.1 opens from a fast cached state, deduplicates concurrent loads, and moves Cortex/transcript rescans behind explicit long-running sync actions so large chats cannot strand the modal.
+
 - **Set up scene** imports Cortex, preset, and transcript colors, then fills only missing character/persona colors.
 - **Local / LLM** is visible in the modal top bar and remembered across chats.
 - **Balanced attribution** uses labels, speech verbs, action beats, continuity, and bubble authors without silently blaming the primary character.

@@ -3,6 +3,18 @@ declare const spindle: import("lumiverse-spindle-types").SpindleAPI;
 
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
+const FAST_OPTIONAL_TIMEOUT_MS = 4500;
+const TRANSCRIPT_TIMEOUT_MS = 12000;
+
+function withTimeout(promise, timeoutMs, label) {
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms.`)), timeoutMs);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
 const DEFAULT_CONFIG = Object.freeze({
   version: 4,
   engine: 'dom',
@@ -590,15 +602,15 @@ function mergeSceneCharacter(characters, candidate) {
   return existing;
 }
 
-async function getSceneCharacters(chat, cardCharacters, userId) {
+async function getSceneCharacters(chat, cardCharacters, userId, options = {}) {
   let entities = [];
   let cortexAvailable = true;
   try {
-    entities = await spindle.memories.entities.list(chat.id, {
+    entities = await withTimeout(spindle.memories.entities.list(chat.id, {
       activeOnly: false,
       limit: 200,
       userId,
-    });
+    }), FAST_OPTIONAL_TIMEOUT_MS, 'Cortex entity list');
   } catch (error) {
     cortexAvailable = false;
     spindle.log.warn(`Cortex entity list unavailable: ${error?.message || error}`);
@@ -658,38 +670,44 @@ async function getSceneCharacters(chat, cardCharacters, userId) {
     }
   }
 
-  try {
-    const messages = await spindle.chat.getMessages(chat.id, userId);
-    for (const message of messages || []) {
-      const isUser = message?.role === 'user' || message?.is_user === true;
-      if (!isUser && message?.name) {
-        const name = cleanSceneName(message.name);
-        if (name) mergeSceneCharacter(characters, {
-          id: `scene-name:${normalizeName(name)}`,
-          key: `character:scene-name:${normalizeName(name)}`,
-          entityId: null,
-          characterId: null,
-          name,
-          aliases: [],
-          status: 'active',
-          source: 'transcript',
-        });
+  if (options.scanTranscript === true) {
+    try {
+      const messages = await withTimeout(
+        spindle.chat.getMessages(chat.id, userId),
+        TRANSCRIPT_TIMEOUT_MS,
+        'Transcript speaker scan',
+      );
+      for (const message of messages || []) {
+        const isUser = message?.role === 'user' || message?.is_user === true;
+        if (!isUser && message?.name) {
+          const name = cleanSceneName(message.name);
+          if (name) mergeSceneCharacter(characters, {
+            id: `scene-name:${normalizeName(name)}`,
+            key: `character:scene-name:${normalizeName(name)}`,
+            entityId: null,
+            characterId: null,
+            name,
+            aliases: [],
+            status: 'active',
+            source: 'transcript',
+          });
+        }
+        for (const name of extractSceneNamesFromText(message?.content)) {
+          mergeSceneCharacter(characters, {
+            id: `scene-name:${normalizeName(name)}`,
+            key: `character:scene-name:${normalizeName(name)}`,
+            entityId: null,
+            characterId: null,
+            name,
+            aliases: [],
+            status: 'active',
+            source: 'transcript',
+          });
+        }
       }
-      for (const name of extractSceneNamesFromText(message?.content)) {
-        mergeSceneCharacter(characters, {
-          id: `scene-name:${normalizeName(name)}`,
-          key: `character:scene-name:${normalizeName(name)}`,
-          entityId: null,
-          characterId: null,
-          name,
-          aliases: [],
-          status: 'active',
-          source: 'transcript',
-        });
-      }
+    } catch (error) {
+      spindle.log.warn(`Transcript speaker scan unavailable: ${error?.message || error}`);
     }
-  } catch (error) {
-    spindle.log.warn(`Transcript speaker scan unavailable: ${error?.message || error}`);
   }
 
   characters.sort((a, b) => {
@@ -781,7 +799,11 @@ function styledColorRanges(value) {
 async function importTranscriptRegistry(chat, characters, config, userId) {
   let messages = [];
   try {
-    messages = await spindle.chat.getMessages(chat.id, userId);
+    messages = await withTimeout(
+      spindle.chat.getMessages(chat.id, userId),
+      TRANSCRIPT_TIMEOUT_MS,
+      'Existing dialogue color scan',
+    );
   } catch (error) {
     spindle.log.warn(`Existing dialogue colors could not be scanned: ${error?.message || error}`);
     return { config, imported: 0, detected: 0 };
@@ -903,12 +925,12 @@ async function importCortexRegistry(chat, primaryCharacter, characters, config, 
     lastSyncAt: Date.now(),
   };
   try {
-    const result = await spindle.macros.resolve('{{characterColors}}', {
+    const result = await withTimeout(spindle.macros.resolve('{{characterColors}}', {
       chatId: chat.id,
       characterId: primaryCharacter?.id || chat.character_id,
       commit: false,
       userId,
-    });
+    }), FAST_OPTIONAL_TIMEOUT_MS, 'Cortex color macro');
     macroText = result?.text || '';
     health.macroResolved = true;
   } catch (error) {
@@ -1009,7 +1031,9 @@ async function buildState(options = {}, userId) {
   ]);
   const primaryCharacter = cardCharacters.find((character) => String(character.id) === String(chat.character_id)) || cardCharacters[0] || null;
 
-  const scene = await getSceneCharacters(chat, cardCharacters, userId);
+  const scene = await getSceneCharacters(chat, cardCharacters, userId, {
+    scanTranscript: options.scanTranscript === true,
+  });
   let config = await loadConfig(chat.id, userId);
   for (const manual of Object.values(config.manualCharacters || {})) {
     mergeSceneCharacter(scene.characters, {
@@ -1047,10 +1071,12 @@ async function buildState(options = {}, userId) {
     cortexImportedCount = imported.imported;
     cortexMacroText = imported.macroText;
     cortexHealth = { ...imported.health, entitiesAvailable: scene.cortexAvailable };
-    const transcriptImported = await importTranscriptRegistry(chat, scene.characters, config, userId);
-    config = transcriptImported.config;
-    transcriptImportedCount = transcriptImported.imported;
-    transcriptColorsDetected = transcriptImported.detected;
+    if (options.scanTranscript === true) {
+      const transcriptImported = await importTranscriptRegistry(chat, scene.characters, config, userId);
+      config = transcriptImported.config;
+      transcriptImportedCount = transcriptImported.imported;
+      transcriptColorsDetected = transcriptImported.detected;
+    }
   }
 
   const librarySeededCount = seedBindingsFromLibrary(config, scene.characters, persona, globalState);
@@ -1318,7 +1344,7 @@ async function updateOptions(payload, userId) {
 }
 
 async function assignSceneColors(payload, userId) {
-  const state = await buildState({ importCortex: true }, userId);
+  const state = await buildState({ importCortex: true, scanTranscript: true }, userId);
   if (!state.ok) throw new Error(state.error || 'Open a chat first.');
   const chatId = state.chat.id;
   const config = await loadConfig(chatId, userId);
@@ -1539,7 +1565,10 @@ spindle.onFrontendMessage(async (payload, userId) => {
   try {
     switch (payload?.type) {
       case 'ldc_load_state': {
-        const state = await buildState({ importCortex: payload.importCortex !== false }, userId);
+        const state = await buildState({
+          importCortex: payload.importCortex === true,
+          scanTranscript: payload.scanTranscript === true,
+        }, userId);
         reply('ldc_state', { state });
         break;
       }
@@ -1566,12 +1595,12 @@ spindle.onFrontendMessage(async (payload, userId) => {
         break;
       }
       case 'ldc_cortex_sync': {
-        const state = await buildState({ importCortex: true, cortexMode: 'missing' }, userId);
+        const state = await buildState({ importCortex: true, cortexMode: 'missing', scanTranscript: true }, userId);
         reply('ldc_state', { state, saved: true });
         break;
       }
       case 'ldc_cortex_repair': {
-        const state = await buildState({ importCortex: true, cortexMode: 'repair' }, userId);
+        const state = await buildState({ importCortex: true, cortexMode: 'repair', scanTranscript: true }, userId);
         reply('ldc_state', { state, saved: true });
         break;
       }

@@ -46,8 +46,10 @@ function sourceLabel(s) { return ({ cortex: 'Cortex · imported', 'cortex-regist
 function evidenceLabel(s) { return ({ manual: 'manual correction', 'existing-color': 'existing color tag', 'speaker-label': 'speaker label', 'reporting-verb': 'reporting verb', 'structural-speech-tag': 'structural speech tag', 'speech-noun': 'speech noun', 'action-beat': 'action beat', 'paragraph-continuity': 'same-paragraph continuity', 'previous-line': 'previous-line action', alternation: 'two-speaker alternation', 'bubble-author': 'bubble author', fallback: 'aggressive fallback', unresolved: 'no reliable evidence' })[s] || s; }
 export function setup(ctx) {
     const removeStyle = ctx.dom.addStyle(CSS), pending = new Map(), signatures = new Map(), dirty = new Set();
-    let modal = null, addModal = null, state = null, activeTab = 'character', activeChannel = 'dialogue', selectedId = null, sideScroll = 0, panelScroll = 0, settingsOpen = false, busy = false, saveStatus = 'saved', reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, applying = false, revision = 0, saveGeneration = 0, saveQueue = Promise.resolve();
-    const request = (type, data = {}) => new Promise((resolve, reject) => { const requestId = uid(), timer = setTimeout(() => { pending.delete(requestId); reject(new Error('The extension backend did not answer.')); }, 12000); pending.set(requestId, { resolve, reject, timer }); ctx.sendToBackend({ type, requestId, ...data }); });
+    let modal = null, addModal = null, state = null, activeTab = 'character', activeChannel = 'dialogue', selectedId = null, sideScroll = 0, panelScroll = 0, settingsOpen = false, busy = false, saveStatus = 'saved', reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, applying = false, revision = 0, saveGeneration = 0, saveQueue = Promise.resolve(), stateLoadPromise = null;
+    const request = (type, data = {}, timeoutMs = 15000) => new Promise((resolve, reject) => { const requestId = uid(), timer = setTimeout(() => { pending.delete(requestId); reject(new Error(`Prism's backend did not answer ${type} within ${Math.round(timeoutMs / 1000)} seconds.`)); }, timeoutMs); pending.set(requestId, { resolve, reject, timer }); ctx.sendToBackend({ type, requestId, ...data }); });
+    const loadState = (sync = false) => { if (stateLoadPromise)
+        return stateLoadPromise; stateLoadPromise = request('ldc_load_state', { importCortex: sync, scanTranscript: sync }, sync ? 60000 : 15000).finally(() => { stateLoadPromise = null; }); return stateLoadPromise; };
     const unsubBackend = ctx.onBackendMessage(payload => { const task = pending.get(payload?.requestId); if (!task)
         return; clearTimeout(task.timer); pending.delete(payload.requestId); payload.type === 'ldc_error' ? task.reject(new Error(payload.error || 'Unknown error')) : task.resolve(payload); });
     function acceptState(next) { state = next; revision++; signatures.clear(); schedule(true); }
@@ -243,7 +245,7 @@ export function setup(ctx) {
             activate(e); }; });
         modal.root.querySelector('[data-action=settings]')?.addEventListener('click', () => navigateEditor(() => { settingsOpen = !settingsOpen; }));
         for (const [action, type] of [['cortex-sync', 'ldc_cortex_sync'], ['cortex-repair', 'ldc_cortex_repair']])
-            modal.root.querySelector(`[data-action=${action}]`)?.addEventListener('click', () => perform(async () => { setSaveStatus('saving'); const response = await request(type, { chatId: state.chat.id }); acceptState(response.state); setSaveStatus('saved'); render(); }));
+            modal.root.querySelector(`[data-action=${action}]`)?.addEventListener('click', () => perform(async () => { setSaveStatus('saving'); const response = await request(type, { chatId: state.chat.id }, 60000); acceptState(response.state); setSaveStatus('saved'); render(); }));
         modal.root.querySelector('[data-action=review-unresolved]')?.addEventListener('click', reviewUnresolved);
         modal.root.querySelector('[data-action=health-review]')?.addEventListener('click', reviewUnresolved);
         modal.root.querySelector('[data-action=add-person]')?.addEventListener('click', openAddPerson);
@@ -251,7 +253,7 @@ export function setup(ctx) {
         modal.root.querySelectorAll('[data-engine]').forEach(b => b.onclick = () => perform(async () => { if (b.dataset.engine === state.config.engine)
             return; const r = await request('ldc_update_options', { engine: b.dataset.engine, autoUserMode: state.config.autoUserMode }); acceptState(r.state); render(); }));
         for (const [action, regenerate] of [['setup', false], ['assign', false], ['regenerate', true]])
-            modal.root.querySelectorAll(`[data-action=${action}]`).forEach(button => button.addEventListener('click', () => perform(async () => { const r = await request(action === 'setup' ? 'ldc_setup_scene' : 'ldc_assign_colors', { chatId: state.chat.id, regenerate }); acceptState(r.state); render(); })));
+            modal.root.querySelectorAll(`[data-action=${action}]`).forEach(button => button.addEventListener('click', () => perform(async () => { const r = await request(action === 'setup' ? 'ldc_setup_scene' : 'ldc_assign_colors', { chatId: state.chat.id, regenerate }, 60000); acceptState(r.state); render(); })));
         modal.root.querySelectorAll('[data-inline-color]').forEach(p => { p.onclick = e => e.stopPropagation(); p.onchange = () => { const c = state.characters.find(x => String(x.id) === String(p.dataset.inlineColor)), color = normalizeHex(p.value); if (c && color)
             perform(async () => { setSaveStatus('saving'); try {
                 await saveBinding('character', c, color, c.binding?.aliases || c.aliases || [], channelsForCanonical(c.binding, color));
@@ -299,7 +301,7 @@ export function setup(ctx) {
         modal.root.querySelector('[data-role=legacy-evidence]')?.addEventListener('change', e => perform(async () => { const r = await request('ldc_update_options', { engine: state.config.engine, useExistingAsEvidence: e.target.checked }); acceptState(r.state); render(); }));
         modal.root.querySelector('[data-role=prompt-thoughts]')?.addEventListener('change', e => perform(async () => { const r = await request('ldc_update_options', { engine: state.config.engine, promptThoughtColors: e.target.checked }); acceptState(r.state); render(); }));
         modal.root.querySelector('[data-action=bake-colors]')?.addEventListener('click', async () => { const { confirmed } = await ctx.ui.showConfirm({ title: 'Bake current colors into transcript?', message: 'This rewrites matching legacy color tags in saved messages and swipe variants. Local Prism gradients remain DOM-only.', confirmLabel: 'Bake colors', cancelLabel: 'Cancel', variant: 'danger' }); if (!confirmed)
-            return; await perform(async () => { const r = await request('ldc_recolor_existing', { chatId: state.chat.id }); await ctx.ui.showConfirm({ title: 'Bake complete', message: `Updated ${r.changed} saved message${r.changed === 1 ? '' : 's'}.`, confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'success' }); }); });
+            return; await perform(async () => { const r = await request('ldc_recolor_existing', { chatId: state.chat.id }, 60000); await ctx.ui.showConfirm({ title: 'Bake complete', message: `Updated ${r.changed} saved message${r.changed === 1 ? '' : 's'}.`, confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'success' }); }); });
     }
     function rememberClass(element) { if (element.dataset.prismOriginalClass == null)
         element.dataset.prismOriginalClass = element.hasAttribute('class') ? element.getAttribute('class') : '\u0000'; }
@@ -799,13 +801,14 @@ export function setup(ctx) {
             modal.dismiss();
             modal = null;
         }
-        state = null;
         sideScroll = 0;
         modal = ctx.ui.showModal({ title: 'Prism', width: 780, maxHeight: 680 });
         modal.onDismiss(() => { modal = null; });
         render();
+        if (state?.ok)
+            return;
         try {
-            const r = await request('ldc_load_state', { importCortex: true });
+            const r = await loadState(false);
             acceptState(r.state);
             if (!selectedId)
                 selectedId = state?.characters?.[0]?.id || null;
@@ -816,13 +819,13 @@ export function setup(ctx) {
             render();
         }
     }
-    async function reload(show = false) {
+    async function reload(show = false, sync = false) {
         if (show && modal) {
             state = null;
             render();
         }
         try {
-            const r = await request('ldc_load_state', { importCortex: true });
+            const r = await loadState(sync);
             acceptState(r.state);
             if (!selectedId || !state?.characters?.some(x => String(x.id) === String(selectedId)))
                 selectedId = state?.characters?.[0]?.id || null;
@@ -838,7 +841,7 @@ export function setup(ctx) {
     ensureToolbar();
     observe();
     const action = ctx.ui.registerInputBarAction({ id: 'open-dialogue-colors', label: 'Prism', iconSvg: PRISM_ICON, enabled: true });
-    const unsubAction = action.onClick(openPalette), unsubChat = ctx.events.on('CHAT_SWITCHED', () => { signatures.clear(); dirty.clear(); ensureToolbar(); reload(true); }), unsubMessage = ctx.events.on('MESSAGE_SENT', markLatest), unsubGeneration = ctx.events.on('GENERATION_ENDED', markLatest);
+    const unsubAction = action.onClick(openPalette), unsubChat = ctx.events.on('CHAT_SWITCHED', () => { state = null; signatures.clear(); dirty.clear(); ensureToolbar(); reload(true); }), unsubMessage = ctx.events.on('MESSAGE_SENT', markLatest), unsubGeneration = ctx.events.on('GENERATION_ENDED', markLatest);
     reload();
     return () => {
         for (const task of pending.values()) {
