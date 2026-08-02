@@ -102,3 +102,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 ### High-scale editor cards
 
 At narrow widths or elevated Lumi UI scale, Prism uses horizontally swipeable Paint and Identity cards instead of relying on vertical modal scrolling.
+
+### Dense split layout on narrow screens
+
+When Split roster is used below 980 CSS pixels, Auto size now keeps Prism in a shorter landscape/square card and applies a layout-aware desktop density. This mirrors the cleaner zoomed-out presentation without requiring users to change Lumi's global browser zoom. Explicit Large/Expanded sizing and the horizontal accessibility workspace are unaffected.

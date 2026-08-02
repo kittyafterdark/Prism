@@ -107,8 +107,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.23');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.23'/);
+  assert.equal(manifest.version, '1.0.24');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.24'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -138,6 +138,16 @@ test('responsive modal preferences are normalized and exposed to the frontend', 
   assert.match(frontendSource, /height:`\$\{dimensions\.contentHeight\}px`/);
   assert.match(frontendSource, /ldc-shell\{--prism-ui-scale:1;width:100%;height:100%;min-height:0;max-height:100%/);
   assert.doesNotMatch(frontendSource, /height:94dvh/);
+});
+
+
+test('narrow split layout uses a dense landscape card instead of a portrait modal', () => {
+  assert.match(frontendSource, /function useLandscapeSplitAspect\(\).*vw<=980/);
+  assert.match(frontendSource, /function useLandscapeSplitDensity\(\).*modalSize==='auto'/);
+  assert.match(frontendSource, /if\(landscapeSplit\)\{width=Math\.min\(Math\.floor\(vw\*\.96\),1040\);contentHeight=clampHeight\(width\*\.68,430,vh-118\)\}/);
+  assert.match(frontendSource, /data-prism-density="\$\{landscapeDensity\?'landscape':'standard'\}"/);
+  assert.match(frontendSource, /data-prism-layout=split\]\[data-prism-density=landscape\].*zoom:\.82/s);
+  assert.match(frontendSource, /width:121\.95122%!important;height:121\.95122%!important/);
 });
 
 test('high-scale channel tabs retain intrinsic height on narrow layouts', () => {
