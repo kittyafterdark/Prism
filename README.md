@@ -97,3 +97,8 @@ CI rebuilds the distribution and fails if `dist/` differs from source.
 - Thought detection is opt-in because roleplay italics are gloriously ambiguous.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
+
+
+### High-scale editor cards
+
+At narrow widths or elevated Lumi UI scale, Prism uses horizontally swipeable Paint and Identity cards instead of relying on vertical modal scrolling.

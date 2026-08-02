@@ -107,8 +107,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.21');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.21'/);
+  assert.equal(manifest.version, '1.0.22');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.22'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -624,17 +624,37 @@ test('accessibility layout and save-indicator preferences are persisted', () => 
   assert.match(frontendSource, /position:sticky;top:0;z-index:20/);
 });
 
-test('fullscreen accessibility uses one native vertical scroll surface', () => {
-  assert.match(frontendSource, /ldc-fullscreen-root \.ldc-main-wrap\{[^}]*overflow-y:auto!important/);
-  assert.match(frontendSource, /ldc-main>\.ldc-panel\{[^}]*overflow:visible!important/);
-  assert.doesNotMatch(frontendSource, /function installPanelTouchScroll/);
-  assert.match(frontendSource, /oldLayout==='tabs'\?'\.ldc-main-wrap':'\.ldc-panel'/);
+test('high-scale editor uses horizontal Paint and Identity cards', () => {
+  assert.match(frontendSource, /ldc-editor-page-track/);
+  assert.match(frontendSource, /data-editor-page=\"paint\"/);
+  assert.match(frontendSource, /data-editor-page=\"identity\"/);
+  assert.match(frontendSource, /scroll-snap-type:x mandatory/);
+  assert.match(frontendSource, /touch-action:pan-x pinch-zoom/);
+  assert.match(frontendSource, /ldc-fullscreen-root \.ldc-main-wrap\{overflow:hidden!important/);
+});
+
+test('fullscreen child dialogs are portal-owned above the workspace', () => {
+  assert.match(frontendSource, /function createPortalDialog\(title\)/);
+  assert.match(frontendSource, /ldc-portal-dialog-backdrop/);
+  assert.match(frontendSource, /2147483647/);
+  assert.match(frontendSource, /resolvedModalLayout\(\)===\'tabs\'\?createPortalDialog/);
 });
 
 test('toolbar status can be completely omitted', () => {
   assert.match(frontendSource, /uiPreferences\(\)\.showSaveIndicator\?`<button type="button" class="ldc-toolbar-save-state"/);
   assert.match(frontendSource, /data-role="save-indicator"/);
   assert.match(frontendSource, /function rebuildToolbar\(\)/);
+});
+
+
+
+
+
+test('editor page state is preserved and wired to native horizontal scroll', () => {
+  assert.match(frontendSource, /activeEditorPage='paint'/);
+  assert.match(frontendSource, /data-editor-track/);
+  assert.match(frontendSource, /editorTrack\.scrollLeft>editorTrack\.clientWidth\*\.5/);
+  assert.match(frontendSource, /activeEditorPage==='identity'\?editorTrack\.clientWidth:0/);
 });
 
 let passed = 0;
@@ -652,11 +672,3 @@ for (const item of tests) {
 }
 console.log(`\n${passed}/${tests.length} Prism checks passed.`);
 if (failed) throw new Error(`${failed} Prism regression check${failed === 1 ? '' : 's'} failed.`);
-
-
-test('fullscreen scroll content outranks the clipped tab main rule', () => {
-  assert.match(frontendSource, /ldc-fullscreen-root \.ldc-shell\[data-prism-layout=tabs\] \.ldc-main\{[^}]*flex:0 0 auto!important[^}]*height:auto!important[^}]*min-height:100%!important[^}]*overflow:visible!important/);
-  const clipped = frontendSource.indexOf('.ldc-shell[data-prism-layout=tabs] .ldc-main{');
-  const flowing = frontendSource.indexOf('.ldc-fullscreen-root .ldc-shell[data-prism-layout=tabs] .ldc-main{');
-  assert.ok(clipped >= 0 && flowing > clipped, 'flowing fullscreen override must come after the clipped tab-layout rule');
-});
