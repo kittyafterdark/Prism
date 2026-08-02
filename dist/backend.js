@@ -1259,7 +1259,7 @@ async function addSceneCharacter(payload, userId) {
     }
     const name = cleanSceneName(payload.name);
     if (!name)
-        throw new Error('Enter a short person name without markup.');
+        throw new Error('Enter a short character name without markup.');
     const aliases = uniqueStrings(payload.aliases)
         .filter((alias) => normalizeName(alias) !== normalizeName(name));
     const config = await loadConfig(chat.id, userId);

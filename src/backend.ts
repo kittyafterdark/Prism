@@ -1308,7 +1308,7 @@ async function addSceneCharacter(payload, userId) {
     throw new Error('The active chat changed. Reopen Prism and try again.');
   }
   const name = cleanSceneName(payload.name);
-  if (!name) throw new Error('Enter a short person name without markup.');
+  if (!name) throw new Error('Enter a short character name without markup.');
   const aliases = uniqueStrings(payload.aliases)
     .filter((alias) => normalizeName(alias) !== normalizeName(name));
   const config = await loadConfig(chat.id, userId);

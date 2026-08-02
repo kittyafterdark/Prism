@@ -2,11 +2,11 @@
 
 Prism gives Lumiverse scenes deterministic dialogue colors without requiring roleplayers to type formatting tags. Local mode is the default: it changes rendered dialogue only, leaving saved messages and model context untouched.
 
-Existing formatting is authoritative. Prism indexes real or escaped `<font color>`, inline color styles, and `[color]` regions as protected segments, uses uniquely matched colors as speaker evidence, and fills only unstyled gaps. Local solid/gradient overlays are reversible; only the explicit bake action rewrites saved markup.
+Existing formatting is authoritative. Prism indexes real or escaped `<font color>`, inline color styles, and `[color]` regions as protected segments, uses uniquely matched colors as speaker evidence, and fills only unstyled gaps. Local solid/gradient overlays are reversible. The saved-tag normalization action only updates matching portable font colors; it does not persist heuristic or gradient overlays.
 
 ## Local-first workflow
 
-- v0.7.0 adds a **Hybrid** engine: the model emits portable canonical `<font color>` identity tags first, then Prism preserves those tags as authoritative anchors and applies a conservative DOM overpass only to untagged gaps.
+- v0.7.1 refines the modal language and settings layout. v0.7.0 added a **Hybrid** engine: the model emits portable canonical `<font color>` identity tags first, then Prism preserves those tags as authoritative anchors and applies a conservative DOM overpass only to untagged gaps.
 
 - **Set up scene** imports Cortex, preset, and transcript colors, then fills only missing character/persona colors.
 - **Local / Hybrid / LLM** is visible in the modal top bar and remembered across chats.
@@ -24,12 +24,12 @@ Existing formatting is authoritative. Prism indexes real or escaped `<font color
 - Routine bindings and quote corrections use a persistent mint/gold `Saved` / `Saving…` indicator beside the Prism toolbar button and in the sticky editor footer instead of stacking success toasts.
 - Gradients support two or three stops from the compact selector beside Direction. Newly enabled gradients default to a mirrored `edge → harmonic accent → edge` treatment, while existing two-stop paints remain unchanged.
 - Speaker recognition is independent from paint availability: uncolored scene members remain candidates for names, speech tags, continuity, bubble ownership, and manual corrections.
-- Cortex now reports registry health and exposes separate **Sync missing** and **Repair links** operations. Repair replaces generated/library/transcript colors, preserves manual decisions as visible conflicts, records previous colors, and brings registry-only people into the roster.
+- Cortex now reports registry health and exposes separate **Sync missing** and **Repair links** operations. Repair replaces generated/library/transcript colors, preserves manual decisions as visible conflicts, records previous colors, and brings registry-only characters into the roster.
 - Bindings carry stable Prism speaker IDs and legacy references, so Cortex/card relinking migrates quote corrections instead of orphaning them.
 - Structural speech tags and speech-noun constructions supplement the reporting-verb dictionary in both rendered attribution and backend scene discovery.
 - Temporary generated or transcript-only `scene-name:` guesses remain chat-local until they gain a stable card/Cortex identity or are manually pinned.
 - Dialogue and thought previews render their actual independent channel paint, and the top-bar unresolved review action jumps directly to teachable gaps.
-- Add missing people or remove noisy discovered entries directly from the scene roster; manual aliases can map generic bubble labels such as `narrator` to the right person.
+- Add missing characters or remove noisy discovered entries directly from the scene roster; manual aliases can map generic bubble labels such as `narrator` to the right character.
 - Manual corrections remain chat-local and expire when the source message content changes.
 - Character/persona colors are reused globally; generated colors remain regenerable.
 
@@ -49,7 +49,7 @@ A small Spindle extension for binding per-speaker dialogue colors in Lumiverse.
 - Imports attributable colors from existing `<font color>`, inline `style="color:…"`, and `[color=…]` dialogue, including preset-produced transcripts.
 - Renders escaped legacy color tags with allowlisted inline emphasis in both engines without mutating the saved message.
 - Offers Preserve, Enhance, and Replace-visually policies for existing tags; all remain non-destructive.
-- The confirmation-heavy **Bake current colors** action can rewrite matching legacy colors and persona dialogue in saved messages, including swipe variants.
+- The confirmation-heavy **Normalize saved font colors** updates matching legacy `<font color>` tags and persona markup in saved messages, including swipe variants. Reversible DOM gradients and heuristic-only paint are intentionally not persisted.
 
 ## Engines
 
