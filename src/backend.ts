@@ -4,7 +4,7 @@ declare const spindle: import("lumiverse-spindle-types").SpindleAPI;
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const RECOVERY_VAR = 'prism_transcript_recovery_v1';
-const PRISM_VERSION = '1.0.5';
+const PRISM_VERSION = '1.0.6';
 const FAST_OPTIONAL_TIMEOUT_MS = 4500;
 const TRANSCRIPT_TIMEOUT_MS = 12000;
 const HYDRATION_FETCH_TIMEOUT_MS = 5000;
@@ -92,6 +92,8 @@ const DEFAULT_PREFERENCES = Object.freeze({
   thoughtDetection: 'off',
   existingStylePolicy: 'enhance',
   useExistingAsEvidence: true,
+  modalSize: 'auto',
+  modalExpanded: false,
 });
 
 function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
@@ -136,6 +138,10 @@ function safePreferences(raw) {
       ? source.existingStylePolicy
       : DEFAULT_PREFERENCES.existingStylePolicy,
     useExistingAsEvidence: source.useExistingAsEvidence !== false,
+    modalSize: ['auto', 'compact', 'large'].includes(source.modalSize)
+      ? source.modalSize
+      : DEFAULT_PREFERENCES.modalSize,
+    modalExpanded: source.modalExpanded === true,
   };
 }
 
@@ -220,7 +226,7 @@ function safeGlobalState(raw) {
       };
     }
   }
-  return { version: 4, preferences: safePreferences(source.preferences), library };
+  return { version: 5, preferences: safePreferences(source.preferences), library };
 }
 
 function normalizeHex(value) {
@@ -1871,6 +1877,12 @@ async function updateOptions(payload, userId) {
   }
   if (['off', 'quoted', 'whole'].includes(payload.autoUserMode)) {
     globalState.preferences.personaMode = payload.autoUserMode;
+  }
+  if (['auto', 'compact', 'large'].includes(payload.modalSize)) {
+    globalState.preferences.modalSize = payload.modalSize;
+  }
+  if (typeof payload.modalExpanded === 'boolean') {
+    globalState.preferences.modalExpanded = payload.modalExpanded;
   }
   await saveGlobalState(globalState, userId);
   await saveConfig(chat.id, config);

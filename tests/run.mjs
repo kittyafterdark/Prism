@@ -26,7 +26,7 @@ function compile(name, source) {
 
 compile('frontend.ts', frontendSource);
 const backendCompiled = compile('backend.ts', `${backendSource}\n;globalThis.__prismTest = {
-  safeConfig, safeChannels, bindingRegistryColor, compileRegistry, registryInstruction,
+  safeConfig, safePreferences, safeChannels, bindingRegistryColor, compileRegistry, registryInstruction,
   promptField, snapshotScopeKey, rememberRegistrySnapshot, selectRegistrySnapshot,
   messagesForHydration, reconcileConfigWithMessages, pendingReviewGroups,
   provisionalRegistryHints, inferTagSpeakerEvidence, classifyTagObservation,
@@ -107,7 +107,7 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.5');
+  assert.equal(manifest.version, '1.0.6');
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -115,6 +115,18 @@ test('manifest and frontend generation lifecycle are release-ready', () => {
   assert.match(frontendSource, /function observationRoot\(\).*chatColumnInner/);
 });
 
+
+
+test('responsive modal preferences are normalized and exposed to the frontend', () => {
+  assert.deepEqual(api.safePreferences({ modalSize: 'large', modalExpanded: true }).modalSize, 'large');
+  assert.equal(api.safePreferences({ modalSize: 'large', modalExpanded: true }).modalExpanded, true);
+  assert.equal(api.safePreferences({ modalSize: 'huge' }).modalSize, 'auto');
+  assert.match(frontendSource, /function modalDimensions\(\)/);
+  assert.match(frontendSource, /data-action="toggle-expanded"/);
+  assert.match(frontendSource, /data-role="modal-size"/);
+  assert.match(frontendSource, /data-prism-ultrawide/);
+  assert.doesNotMatch(frontendSource, /showModal\(\{title:'Prism',width:780,maxHeight:680\}\)/);
+});
 
 test('persona DOM candidates use the stable speaker identity and remain paintable', () => {
   assert.match(frontendSource, /personaBinding\.speakerUid\|\|personaBinding\.targetId/);
