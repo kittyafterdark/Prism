@@ -1,7 +1,7 @@
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const RECOVERY_VAR = 'prism_transcript_recovery_v1';
-const PRISM_VERSION = '1.0.3';
+const PRISM_VERSION = '1.0.4';
 const FAST_OPTIONAL_TIMEOUT_MS = 4500;
 const TRANSCRIPT_TIMEOUT_MS = 12000;
 const HYDRATION_FETCH_TIMEOUT_MS = 5000;
@@ -1554,6 +1554,71 @@ function applyPersonaColor(content, color, mode) {
     }
     return wrapQuotedDialogue(source, normalized);
 }
+function applyPersonaColorToLlmContent(content, color, mode) {
+    if (typeof content === 'string')
+        return applyPersonaColor(content, color, mode);
+    if (!Array.isArray(content))
+        return content;
+    let changed = false;
+    const next = content.map((part) => {
+        if (!part || part.type !== 'text' || typeof part.text !== 'string')
+            return part;
+        const text = applyPersonaColor(part.text, color, mode);
+        if (text === part.text)
+            return part;
+        changed = true;
+        return { ...part, text };
+    });
+    return changed ? next : content;
+}
+async function personaColorContext(chatId, userId, suppliedConfig = null) {
+    const config = suppliedConfig || await loadConfig(chatId, userId);
+    if (!usesModelTags(config.engine) || config.personaEnabled === false || config.autoUserMode === 'off')
+        return null;
+    const persona = await spindle.personas.getActive(userId).catch(() => null);
+    if (!persona)
+        return null;
+    let binding = findBinding(config, 'persona', persona.id, persona.name, []);
+    if (!binding) {
+        const globalState = await loadGlobalState(userId);
+        const seeded = seedBindingsFromLibrary(config, [], persona, globalState);
+        if (seeded > 0) {
+            await saveConfig(chatId, config, userId);
+            binding = findBinding(config, 'persona', persona.id, persona.name, []);
+        }
+    }
+    if (!binding)
+        return null;
+    const registry = compileRegistry(config);
+    const color = registry.bySpeakerUid?.[binding.speakerUid]?.color || bindingRegistryColor(binding);
+    if (!color)
+        return null;
+    return { config, persona, binding, color, mode: config.autoUserMode };
+}
+async function persistPersonaColorForMessage(chatId, message, userId) {
+    if (!chatId || !message)
+        return false;
+    const role = message.role || (message.is_user === true ? 'user' : null);
+    if (role !== 'user' || message.metadata?.lumi_dialogue_colors_applied)
+        return false;
+    const context = await personaColorContext(chatId, userId);
+    if (!context)
+        return false;
+    const source = String(message.content || '');
+    const nextContent = applyPersonaColor(source, context.color, context.mode);
+    if (nextContent === source)
+        return false;
+    await spindle.chat.updateMessage(chatId, message.id, {
+        content: nextContent,
+        metadata: {
+            ...(message.metadata || {}),
+            lumi_dialogue_colors_applied: true,
+            lumi_dialogue_color: context.color,
+        },
+        skipChunkRebuild: true,
+    }, userId);
+    return true;
+}
 async function saveBinding(payload, userId) {
     const chat = await spindle.chats.getActive(userId);
     if (!chat || (payload.chatId && payload.chatId !== chat.id)) {
@@ -2789,8 +2854,19 @@ spindle.registerInterceptor(async (messages, context) => {
     if (!instruction)
         return messages;
     rememberRegistrySnapshot(userId, chatId, registry, { ...context, provisional });
+    const next = messages.map((message) => ({ ...message }));
+    const personaContext = await personaColorContext(chatId, userId, config);
+    if (personaContext) {
+        for (let index = next.length - 1; index >= 0; index -= 1) {
+            if (next[index]?.role !== 'user')
+                continue;
+            const colored = applyPersonaColorToLlmContent(next[index].content, personaContext.color, personaContext.mode);
+            if (colored !== next[index].content)
+                next[index] = { ...next[index], content: colored };
+            break;
+        }
+    }
     const injected = { role: 'system', content: instruction };
-    const next = [...messages];
     const last = next[next.length - 1];
     const insertAt = last?.role === 'assistant' ? next.length - 1 : next.length;
     next.splice(insertAt, 0, injected);
@@ -2802,39 +2878,9 @@ spindle.registerInterceptor(async (messages, context) => {
 spindle.on('MESSAGE_SENT', async (payload, userId) => {
     try {
         const chatId = String(payload?.chatId || '');
-        const message = payload?.message;
-        if (!chatId || !message || message.role !== 'user')
+        if (!chatId || !payload?.message)
             return;
-        if (message.metadata?.lumi_dialogue_colors_applied)
-            return;
-        const config = await loadConfig(chatId, userId);
-        if (!usesModelTags(config.engine))
-            return;
-        if (config.personaEnabled === false)
-            return;
-        if (config.autoUserMode === 'off')
-            return;
-        const persona = await spindle.personas.getActive(userId).catch(() => null);
-        if (!persona)
-            return;
-        const binding = findBinding(config, 'persona', persona.id, persona.name, []);
-        if (!binding)
-            return;
-        const registry = compileRegistry(config);
-        const registryColor = registry.bySpeakerUid?.[binding.speakerUid]?.color || null;
-        if (!registryColor)
-            return;
-        const nextContent = applyPersonaColor(message.content, registryColor, config.autoUserMode);
-        if (nextContent === message.content)
-            return;
-        await spindle.chat.updateMessage(chatId, message.id, {
-            content: nextContent,
-            metadata: {
-                ...(message.metadata || {}),
-                lumi_dialogue_colors_applied: true,
-                lumi_dialogue_color: registryColor,
-            },
-        }, userId);
+        await persistPersonaColorForMessage(chatId, payload.message, userId);
     }
     catch (error) {
         spindle.log.error(`Automatic user dialogue coloring failed: ${error?.message || error}`);

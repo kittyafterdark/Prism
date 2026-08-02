@@ -75,7 +75,7 @@ function engineLabel(value){return({dom:'Local',hybrid:'Hybrid',llm:'LLM sidecar
 function engineDescription(value){return({dom:'Visual only · heuristic paint',hybrid:'Model tags first · local repair',llm:'Model tags only · no local fill'})[normalizeEngine(value)]}
 
 export function setup(ctx: SpindleFrontendContext){
-  const removeStyle=ctx.dom.addStyle(CSS),pending=new Map(),signatures=new Map(),dirty=new Set(),hydratingMessages=new Set(),activeGenerationIds=new Set(),streamingMessageIds=new Set();
+  const removeStyle=ctx.dom.addStyle(CSS),pending=new Map(),signatures=new Map(),dirty=new Set(),hydratingMessages=new Set(),activeGenerationIds=new Set(),streamingMessageIds=new Set(),messageRoles=new Map();
   let modal=null,addModal=null,importModal=null,state=null,activeTab='character',activeChannel='dialogue',selectedId=null,sideScroll=0,panelScroll=0,settingsOpen=false,reviewOpen=false,busy=false,saveStatus='saved',hydrationStatus='idle',pendingReviewCount=0,reviewIndex=0,toolbarInjection=null,refreshTimer=0,saveTimer=0,longTimer=0,applying=false,revision=0,saveGeneration=0,saveQueue=Promise.resolve(),stateLoadPromise=null,lastRoundtripMs=0,lastBackendError='',themeColorCache=null,themeColorSignature='';
   const request=(type,data={},timeoutMs=15000)=>new Promise((resolve,reject)=>{const requestId=uid(),startedAt=performance.now(),timer=setTimeout(()=>{pending.delete(requestId);lastBackendError=`${type} timed out`;reject(new Error(`Prism's backend did not answer ${type} within ${Math.round(timeoutMs/1000)} seconds.`))},timeoutMs);pending.set(requestId,{resolve,reject,timer,startedAt,type});ctx.sendToBackend({type,requestId,...data})});
   const loadState=(sync=false)=>{if(stateLoadPromise)return stateLoadPromise;stateLoadPromise=request('ldc_load_state',{importCortex:sync,scanTranscript:sync},sync?60000:15000).finally(()=>{stateLoadPromise=null});return stateLoadPromise};
@@ -317,14 +317,15 @@ export function setup(ctx: SpindleFrontendContext){
   function processMounted(force=false){
     if(applying)return;applying=true;observer.disconnect();
     try{
-      const list=candidates(),personaBinding=state?.config?.personaEnabled!==false?state?.persona?.binding:null,personaColor=normalizeHex(personaBinding?.color);
+      const list=candidates(),personaBinding=state?.config?.personaEnabled!==false?state?.persona?.binding:null,personaColor=bindingRegistryColor(personaBinding);
       for(const{messageId,element}of ctx.dom.listMessageElements()){
         const content=element.querySelector('[data-component=MessageContent]');if(!content)continue;
         const sig=`${revision}:${hashText(content.textContent||'')}`,cached=signatures.get(messageId);if(!force&&!dirty.has(messageId)&&cached?.sig===sig&&cached?.element===content)continue;
         clearRoot(content);renderInline(content);
         if(state?.ok){
           const swipeId=Math.max(0,Number(element.dataset.swipeId)||0),engine=normalizeEngine(state.config.engine),overpass=engine==='dom'||engine==='hybrid';
-          if(element.dataset.part==='user'){
+          const rememberedRole=messageRoles.get(String(messageId)),isUser=rememberedRole==='user'||element.dataset.part==='user'||element.getAttribute('data-role')==='user'||Boolean(element.querySelector('[data-part="user"],[data-message-role="user"]'));
+          if(isUser){
             const p=personaColor?{key:`persona:${personaBinding.targetId}`,name:state.persona.name,names:[state.persona.name.toLowerCase()],color:personaColor,binding:personaBinding,channels:safeChannels(personaBinding)}:null,mc={messageId,swipeId,bubble:p},fill=Boolean(overpass&&p&&state.config.autoUserMode==='quoted');colorQuotes(content,mc,p?[p]:[],fill?{speaker:p,confidence:.99,source:'bubble-author'}:null,fill);if(overpass&&p){if(state.config.autoUserMode==='whole'&&p.channels.dialogue.enabled){content.classList.add('ldc-dom-whole');applyPaint(content,p.channels.dialogue.paint)}colorThoughts(content,mc,[p])}
           }else{const mc={messageId,swipeId,bubble:bubbleAuthor(element,list)};colorQuotes(content,mc,list,null,overpass);if(overpass)colorThoughts(content,mc,list)}
         }
@@ -334,6 +335,8 @@ export function setup(ctx: SpindleFrontendContext){
   }
   function schedule(immediate=false){clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>processMounted(false),immediate?0:70)}
   function markLatest(){const id=ctx.messages.getLatestMessageId();if(id)dirty.add(id);schedule()}
+  function markMessageEvent(payload={}){const message=payload?.message||null,id=String(message?.id||payload?.messageId||ctx.messages.getLatestMessageId()||''),role=String(message?.role||'');if(id&&role)messageRoles.set(id,role);if(id)dirty.add(id);schedule(true)}
+  function markUserRendered(payload={}){const id=String(payload?.messageId||'');if(id){messageRoles.set(id,'user');dirty.add(id)}schedule(true)}
   function eventGenerationId(payload){return String(payload?.generationId||payload?.generation_id||payload?.requestId||payload?.request_id||'')}
   function setMessageStreaming(messageId,value){if(!messageId)return;for(const item of ctx.dom.listMessageElements()){if(String(item.messageId)!==String(messageId))continue;if(value)item.element.dataset.prismStreaming='true';else delete item.element.dataset.prismStreaming}}
   function markStreaming(payload={}){if(payload.chatId&&state?.chat?.id&&String(payload.chatId)!==String(state.chat.id))return;const generationId=eventGenerationId(payload);if(generationId)activeGenerationIds.add(generationId);const messageId=String(payload.messageId||ctx.messages.getLatestMessageId()||'');if(messageId){streamingMessageIds.add(messageId);setMessageStreaming(messageId,true);dirty.add(messageId)}schedule()}
@@ -371,11 +374,11 @@ export function setup(ctx: SpindleFrontendContext){
   ensureToolbar();observe();
   const action=ctx.ui.registerInputBarAction({id:'open-dialogue-colors',label:'Prism',iconSvg:PRISM_ICON,enabled:true});
   const clearAllStreaming=()=>{activeGenerationIds.clear();streamingMessageIds.clear();document.querySelectorAll('[data-prism-streaming]').forEach(element=>delete element.dataset.prismStreaming)};
-  const unsubAction=action.onClick(openMainPalette),unsubChat=ctx.events.on('CHAT_SWITCHED',()=>{state=null;reviewOpen=false;settingsOpen=false;hydratingMessages.clear();clearAllStreaming();themeColorCache=null;themeColorSignature='';setHydrationStatus('idle');signatures.clear();dirty.clear();ensureToolbar();observe();reload(true)}),unsubMessage=ctx.events.on('MESSAGE_SENT',markLatest),unsubGenerationStart=ctx.events.on('GENERATION_STARTED',markStreaming),unsubStream=ctx.events.on('STREAM_TOKEN_RECEIVED',markStreaming),unsubGeneration=ctx.events.on('GENERATION_ENDED',hydrateLatest),unsubGenerationStop=ctx.events.on('GENERATION_STOPPED',payload=>{clearStreaming(payload);markLatest()});
+  const unsubAction=action.onClick(openMainPalette),unsubChat=ctx.events.on('CHAT_SWITCHED',()=>{state=null;reviewOpen=false;settingsOpen=false;hydratingMessages.clear();messageRoles.clear();clearAllStreaming();themeColorCache=null;themeColorSignature='';setHydrationStatus('idle');signatures.clear();dirty.clear();ensureToolbar();observe();reload(true)}),unsubMessage=ctx.events.on('MESSAGE_SENT',markMessageEvent),unsubMessageEdited=ctx.events.on('MESSAGE_EDITED',markMessageEvent),unsubUserRendered=ctx.events.on('USER_MESSAGE_RENDERED',markUserRendered),unsubGenerationStart=ctx.events.on('GENERATION_STARTED',markStreaming),unsubStream=ctx.events.on('STREAM_TOKEN_RECEIVED',markStreaming),unsubGeneration=ctx.events.on('GENERATION_ENDED',hydrateLatest),unsubGenerationStop=ctx.events.on('GENERATION_STOPPED',payload=>{clearStreaming(payload);markLatest()});
   reload();
   return()=>{
     for(const task of pending.values()){clearTimeout(task.timer);task.reject(new Error('Extension unloaded.'))}pending.clear();clearTimeout(refreshTimer);clearTimeout(saveTimer);clearTimeout(longTimer);observer.disconnect();
     for(const{element}of ctx.dom.listMessageElements()){const content=element.querySelector('[data-component=MessageContent]');if(content)clearRoot(content)}
-    clearAllStreaming();addModal?.dismiss();importModal?.dismiss();modal?.dismiss();unsubChat();unsubMessage();unsubGenerationStart();unsubStream();unsubGeneration();unsubGenerationStop();unsubAction();action.destroy();if(toolbarInjection)ctx.dom.uninject(toolbarInjection);unsubBackend();removeStyle();ctx.dom.cleanup()
+    clearAllStreaming();addModal?.dismiss();importModal?.dismiss();modal?.dismiss();unsubChat();unsubMessage();unsubMessageEdited();unsubUserRendered();unsubGenerationStart();unsubStream();unsubGeneration();unsubGenerationStop();unsubAction();action.destroy();if(toolbarInjection)ctx.dom.uninject(toolbarInjection);unsubBackend();removeStyle();ctx.dom.cleanup()
   }
 }

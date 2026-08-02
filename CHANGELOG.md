@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.4
+
+- Fixed persona dialogue not appearing in user bubbles or generation context.
+- Hybrid/LLM now color the final user prompt inside the pre-generation interceptor, so the model receives the same canonical persona tags that Prism persists.
+- Post-send persona tagging now seeds the active persona binding from the global library when needed and marks formatting-only rewrites without rebuilding chat chunks.
+- Frontend refreshes exact user messages on `MESSAGE_SENT`, `MESSAGE_EDITED`, and `USER_MESSAGE_RENDERED`, rather than relying only on a private bubble attribute.
+
 ## 1.0.3
 
 - Simplified Hybrid review to genuinely new tagged characters only; alias proposals, merge guesses, color drift, known-speaker conflicts, and anonymous colors no longer appear in the user-facing inbox.

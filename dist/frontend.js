@@ -73,7 +73,7 @@ function normalizeEngine(value) { return ['dom', 'hybrid', 'llm'].includes(value
 function engineLabel(value) { return ({ dom: 'Local', hybrid: 'Hybrid', llm: 'LLM sidecar' })[normalizeEngine(value)]; }
 function engineDescription(value) { return ({ dom: 'Visual only · heuristic paint', hybrid: 'Model tags first · local repair', llm: 'Model tags only · no local fill' })[normalizeEngine(value)]; }
 export function setup(ctx) {
-    const removeStyle = ctx.dom.addStyle(CSS), pending = new Map(), signatures = new Map(), dirty = new Set(), hydratingMessages = new Set(), activeGenerationIds = new Set(), streamingMessageIds = new Set();
+    const removeStyle = ctx.dom.addStyle(CSS), pending = new Map(), signatures = new Map(), dirty = new Set(), hydratingMessages = new Set(), activeGenerationIds = new Set(), streamingMessageIds = new Set(), messageRoles = new Map();
     let modal = null, addModal = null, importModal = null, state = null, activeTab = 'character', activeChannel = 'dialogue', selectedId = null, sideScroll = 0, panelScroll = 0, settingsOpen = false, reviewOpen = false, busy = false, saveStatus = 'saved', hydrationStatus = 'idle', pendingReviewCount = 0, reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, applying = false, revision = 0, saveGeneration = 0, saveQueue = Promise.resolve(), stateLoadPromise = null, lastRoundtripMs = 0, lastBackendError = '', themeColorCache = null, themeColorSignature = '';
     const request = (type, data = {}, timeoutMs = 15000) => new Promise((resolve, reject) => { const requestId = uid(), startedAt = performance.now(), timer = setTimeout(() => { pending.delete(requestId); lastBackendError = `${type} timed out`; reject(new Error(`Prism's backend did not answer ${type} within ${Math.round(timeoutMs / 1000)} seconds.`)); }, timeoutMs); pending.set(requestId, { resolve, reject, timer, startedAt, type }); ctx.sendToBackend({ type, requestId, ...data }); });
     const loadState = (sync = false) => { if (stateLoadPromise)
@@ -940,7 +940,7 @@ export function setup(ctx) {
         applying = true;
         observer.disconnect();
         try {
-            const list = candidates(), personaBinding = state?.config?.personaEnabled !== false ? state?.persona?.binding : null, personaColor = normalizeHex(personaBinding?.color);
+            const list = candidates(), personaBinding = state?.config?.personaEnabled !== false ? state?.persona?.binding : null, personaColor = bindingRegistryColor(personaBinding);
             for (const { messageId, element } of ctx.dom.listMessageElements()) {
                 const content = element.querySelector('[data-component=MessageContent]');
                 if (!content)
@@ -952,7 +952,8 @@ export function setup(ctx) {
                 renderInline(content);
                 if (state?.ok) {
                     const swipeId = Math.max(0, Number(element.dataset.swipeId) || 0), engine = normalizeEngine(state.config.engine), overpass = engine === 'dom' || engine === 'hybrid';
-                    if (element.dataset.part === 'user') {
+                    const rememberedRole = messageRoles.get(String(messageId)), isUser = rememberedRole === 'user' || element.dataset.part === 'user' || element.getAttribute('data-role') === 'user' || Boolean(element.querySelector('[data-part="user"],[data-message-role="user"]'));
+                    if (isUser) {
                         const p = personaColor ? { key: `persona:${personaBinding.targetId}`, name: state.persona.name, names: [state.persona.name.toLowerCase()], color: personaColor, binding: personaBinding, channels: safeChannels(personaBinding) } : null, mc = { messageId, swipeId, bubble: p }, fill = Boolean(overpass && p && state.config.autoUserMode === 'quoted');
                         colorQuotes(content, mc, p ? [p] : [], fill ? { speaker: p, confidence: .99, source: 'bubble-author' } : null, fill);
                         if (overpass && p) {
@@ -982,6 +983,13 @@ export function setup(ctx) {
     function schedule(immediate = false) { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => processMounted(false), immediate ? 0 : 70); }
     function markLatest() { const id = ctx.messages.getLatestMessageId(); if (id)
         dirty.add(id); schedule(); }
+    function markMessageEvent(payload = {}) { const message = payload?.message || null, id = String(message?.id || payload?.messageId || ctx.messages.getLatestMessageId() || ''), role = String(message?.role || ''); if (id && role)
+        messageRoles.set(id, role); if (id)
+        dirty.add(id); schedule(true); }
+    function markUserRendered(payload = {}) { const id = String(payload?.messageId || ''); if (id) {
+        messageRoles.set(id, 'user');
+        dirty.add(id);
+    } schedule(true); }
     function eventGenerationId(payload) { return String(payload?.generationId || payload?.generation_id || payload?.requestId || payload?.request_id || ''); }
     function setMessageStreaming(messageId, value) { if (!messageId)
         return; for (const item of ctx.dom.listMessageElements()) {
@@ -1111,7 +1119,7 @@ export function setup(ctx) {
     observe();
     const action = ctx.ui.registerInputBarAction({ id: 'open-dialogue-colors', label: 'Prism', iconSvg: PRISM_ICON, enabled: true });
     const clearAllStreaming = () => { activeGenerationIds.clear(); streamingMessageIds.clear(); document.querySelectorAll('[data-prism-streaming]').forEach(element => delete element.dataset.prismStreaming); };
-    const unsubAction = action.onClick(openMainPalette), unsubChat = ctx.events.on('CHAT_SWITCHED', () => { state = null; reviewOpen = false; settingsOpen = false; hydratingMessages.clear(); clearAllStreaming(); themeColorCache = null; themeColorSignature = ''; setHydrationStatus('idle'); signatures.clear(); dirty.clear(); ensureToolbar(); observe(); reload(true); }), unsubMessage = ctx.events.on('MESSAGE_SENT', markLatest), unsubGenerationStart = ctx.events.on('GENERATION_STARTED', markStreaming), unsubStream = ctx.events.on('STREAM_TOKEN_RECEIVED', markStreaming), unsubGeneration = ctx.events.on('GENERATION_ENDED', hydrateLatest), unsubGenerationStop = ctx.events.on('GENERATION_STOPPED', payload => { clearStreaming(payload); markLatest(); });
+    const unsubAction = action.onClick(openMainPalette), unsubChat = ctx.events.on('CHAT_SWITCHED', () => { state = null; reviewOpen = false; settingsOpen = false; hydratingMessages.clear(); messageRoles.clear(); clearAllStreaming(); themeColorCache = null; themeColorSignature = ''; setHydrationStatus('idle'); signatures.clear(); dirty.clear(); ensureToolbar(); observe(); reload(true); }), unsubMessage = ctx.events.on('MESSAGE_SENT', markMessageEvent), unsubMessageEdited = ctx.events.on('MESSAGE_EDITED', markMessageEvent), unsubUserRendered = ctx.events.on('USER_MESSAGE_RENDERED', markUserRendered), unsubGenerationStart = ctx.events.on('GENERATION_STARTED', markStreaming), unsubStream = ctx.events.on('STREAM_TOKEN_RECEIVED', markStreaming), unsubGeneration = ctx.events.on('GENERATION_ENDED', hydrateLatest), unsubGenerationStop = ctx.events.on('GENERATION_STOPPED', payload => { clearStreaming(payload); markLatest(); });
     reload();
     return () => {
         for (const task of pending.values()) {
@@ -1134,6 +1142,8 @@ export function setup(ctx) {
         modal?.dismiss();
         unsubChat();
         unsubMessage();
+        unsubMessageEdited();
+        unsubUserRendered();
         unsubGenerationStart();
         unsubStream();
         unsubGeneration();

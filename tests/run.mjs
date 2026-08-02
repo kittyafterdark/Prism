@@ -35,7 +35,7 @@ const backendCompiled = compile('backend.ts', `${backendSource}\n;globalThis.__p
   addSceneCharacter, resolveObservationGroup, mergeSceneCharacter, loadConfig, saveConfig,
   enqueueConfigOperation, configOperationQueues,
   previewTranscriptMutation, applyTranscriptMutation, restoreTranscriptRecovery, importRegistry,
-  recentRegistrySnapshots
+  recentRegistrySnapshots, applyPersonaColor, applyPersonaColorToLlmContent, personaColorContext, persistPersonaColorForMessage
 };`);
 
 const host = {
@@ -45,6 +45,7 @@ const host = {
   updates: [],
   failUpdateAt: 0,
   updateCalls: 0,
+  interceptor: null,
   activeChat: { id: 'chat-a', characterId: 'primary', personaId: 'persona-a' },
 };
 const spindle = {
@@ -74,7 +75,7 @@ const spindle = {
   personas: { getActive: async () => ({ id: 'persona-a', name: 'You' }) },
   memories: { entities: { list: async () => [], upsert: async () => ({}) }, cortex: { invalidateCache: async () => {} } },
   macros: { resolve: async () => '' },
-  registerInterceptor: () => () => {},
+  registerInterceptor: (handler) => { host.interceptor = handler; return () => {}; },
   onFrontendMessage: () => () => {},
   on: () => () => {},
   sendToFrontend: () => {},
@@ -106,9 +107,9 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.3');
+  assert.equal(manifest.version, '1.0.4');
   assert.ok(manifest.permissions.includes('generation'));
-  for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED']) assert.ok(frontendSource.includes(`'${event}'`));
+  for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
   assert.match(frontendSource, /<button type="button" class="ldc-toolbar-save-state"/);
   assert.match(frontendSource, /function observationRoot\(\).*chatColumnInner/);
@@ -465,6 +466,35 @@ test('Hybrid review hides one-off weak alias and junk-name observations', () => 
     },
   });
   assert.equal(api.pendingReviewGroups(config).length, 0);
+});
+
+
+test('persona dialogue is colored in generation context and persisted user messages', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.messages = [{ id: 'u1', role: 'user', content: 'Narration. "Hello there."', metadata: {}, swipes: ['Narration. "Hello there."'], swipe_id: 0, swipe_dates: [1] }];
+  host.updates = [];
+  host.updateCalls = 0;
+  host.activeChat = { id: 'chat-a', name: 'Persona test', character_id: 'primary', metadata: {} };
+  const personaBinding = binding('You', '#57D6C7', { kind: 'persona', targetId: 'persona-a', speakerUid: 'speaker-you' });
+  const config = api.safeConfig({ engine: 'hybrid', autoUserMode: 'quoted', personaEnabled: true, bindings: { 'persona:persona-a': personaBinding } });
+  host.chatVars.set('chat-a|lumi_dialogue_colors_v1', JSON.stringify(config));
+
+  const stringResult = api.applyPersonaColorToLlmContent('Narration. "Hello there."', '#57D6C7', 'quoted');
+  assert.equal(stringResult, 'Narration. <font color="#57D6C7">"Hello there."</font>');
+  const intercepted = await host.interceptor([{ role: 'user', content: 'Narration. "Hello there."' }], { chatId: 'chat-a', userId: 'user-a', generationId: 'g1' });
+  const interceptedUser = intercepted.messages.find((message) => message.role === 'user');
+  assert.equal(interceptedUser.content, 'Narration. <font color="#57D6C7">"Hello there."</font>');
+  const parts = [{ type: 'text', text: '"Hello."' }, { type: 'image', data: 'x', mime_type: 'image/png' }];
+  const partResult = api.applyPersonaColorToLlmContent(parts, '#57D6C7', 'quoted');
+  assert.equal(partResult[0].text, '<font color="#57D6C7">"Hello."</font>');
+  assert.deepEqual(partResult[1], parts[1]);
+
+  const changed = await api.persistPersonaColorForMessage('chat-a', host.messages[0], 'user-a');
+  assert.equal(changed, true);
+  assert.equal(host.messages[0].content, 'Narration. <font color="#57D6C7">"Hello there."</font>');
+  assert.equal(host.messages[0].metadata.lumi_dialogue_color, '#57D6C7');
+  assert.equal(host.updates[0].patch.skipChunkRebuild, true);
 });
 
 let passed = 0;
