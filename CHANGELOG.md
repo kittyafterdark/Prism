@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.6 — Responsive desktop modal
+
+- Prism now grows automatically on large and ultrawide displays instead of remaining fixed at 780px.
+- Added remembered **Auto**, **Compact**, and **Large** interface sizes plus an in-modal expand/restore button.
+- Expanded mode uses up to 96% of the viewport with a sensible 1800px cap; mobile remains near full-screen regardless of the desktop preference.
+- Large layouts widen the scene roster and scale key controls, avatars, typography, and spacing without using transform scaling.
+- Modal dimensions are recalculated when the preference changes, and diagnostics now report the active interface mode.
+
 ## 1.0.5 — Persona DOM identity fix
 
 - Persona dialogue candidates now use the binding's stable `speakerUid`, matching the override keys persisted by the backend.
