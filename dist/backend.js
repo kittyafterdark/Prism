@@ -1,7 +1,7 @@
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const RECOVERY_VAR = 'prism_transcript_recovery_v1';
-const PRISM_VERSION = '1.0.2';
+const PRISM_VERSION = '1.0.3';
 const FAST_OPTIONAL_TIMEOUT_MS = 4500;
 const TRANSCRIPT_TIMEOUT_MS = 12000;
 const HYDRATION_FETCH_TIMEOUT_MS = 5000;
@@ -29,7 +29,7 @@ function withTimeout(promise, timeoutMs, label) {
     ]).finally(() => clearTimeout(timer));
 }
 const DEFAULT_CONFIG = Object.freeze({
-    version: 11,
+    version: 12,
     engine: 'hybrid',
     autoUserMode: 'quoted',
     personaEnabled: true,
@@ -39,6 +39,7 @@ const DEFAULT_CONFIG = Object.freeze({
     bindings: {},
     overrides: {},
     manualCharacters: {},
+    temporarySpeakers: {},
     hiddenCharacters: {},
     observations: {},
     hydratedMessages: {},
@@ -94,6 +95,7 @@ function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
         bindings: {},
         overrides: {},
         manualCharacters: {},
+        temporarySpeakers: {},
         hiddenCharacters: {},
         observations: {},
         hydratedMessages: {},
@@ -316,6 +318,30 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
             manualCharacters[id] = { id, name, aliases: uniqueStrings(value?.aliases), source: value?.source === 'cortex-registry' ? 'cortex-registry' : 'manual-roster' };
         }
     }
+    const temporarySpeakers = {};
+    if (raw.temporarySpeakers && typeof raw.temporarySpeakers === 'object') {
+        for (const [key, value] of Object.entries(raw.temporarySpeakers)) {
+            const name = cleanSceneName(value?.name);
+            const color = normalizeHex(value?.color);
+            if (!name || !color)
+                continue;
+            const id = String(value?.id || key || `${normalizeName(name)}:${color}`);
+            temporarySpeakers[id] = {
+                id,
+                name,
+                color,
+                count: Math.max(1, Number(value?.count) || 1),
+                createdAt: Math.max(0, Number(value?.createdAt) || Date.now()),
+                lastSeenAt: Math.max(0, Number(value?.lastSeenAt) || Number(value?.createdAt) || Date.now()),
+                lastAssistantIndex: Math.max(0, Number(value?.lastAssistantIndex) || 0),
+            };
+        }
+    }
+    const temporaryCutoff = Date.now() - PROVISIONAL_MAX_AGE_MS;
+    for (const [key, value] of Object.entries(temporarySpeakers)) {
+        if (value.lastSeenAt < temporaryCutoff)
+            delete temporarySpeakers[key];
+    }
     const hiddenCharacters = {};
     if (raw.hiddenCharacters && typeof raw.hiddenCharacters === 'object') {
         for (const [key, value] of Object.entries(raw.hiddenCharacters).slice(-500)) {
@@ -351,7 +377,7 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
                 registryRevision: String(value.registryRevision || ''),
                 kind,
                 confidence: Math.max(0, Math.min(1, Number(value.confidence) || 0)),
-                status: ['pending', 'approved', 'dismissed'].includes(value.status) ? value.status : 'pending',
+                status: ['pending', 'approved', 'temporary', 'dismissed'].includes(value.status) ? value.status : 'pending',
                 resolvedSpeakerUid: value.resolvedSpeakerUid ? String(value.resolvedSpeakerUid) : null,
                 source: ['font', 'inline-style', 'bbcode', 'escaped-tag'].includes(value.source) ? value.source : 'font',
                 occurrenceIndex: Math.max(0, Number(value.occurrenceIndex) || 0),
@@ -443,7 +469,7 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
             override.speakerKey = speakerKeyMap.get(override.speakerKey);
     }
     return {
-        version: 11,
+        version: 12,
         engine: normalizeEngine(raw.engine, preferredEngine),
         autoUserMode: mode,
         personaEnabled: raw.personaEnabled !== false,
@@ -453,6 +479,7 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
         bindings,
         overrides,
         manualCharacters,
+        temporarySpeakers,
         hiddenCharacters,
         observations,
         hydratedMessages,
@@ -1759,8 +1786,9 @@ async function resetTemporaryEvidence(payload, userId) {
     if (!chat || (payload?.chatId && String(payload.chatId) !== String(chat.id)))
         throw new Error('The active chat changed.');
     const config = await loadConfig(chat.id, userId);
-    const before = Object.keys(config.observations || {}).length;
+    const before = Object.keys(config.observations || {}).length + Object.keys(config.temporarySpeakers || {}).length;
     config.observations = Object.fromEntries(Object.entries(config.observations || {}).filter(([, observation]) => observation.status === 'approved'));
+    config.temporarySpeakers = {};
     config.hydratedMessages = {};
     config.dismissedObservationKeys = {};
     config.lastHydration = null;
@@ -2133,19 +2161,28 @@ function classifyTagObservation(tag, inferredName, registry, context = {}) {
         return { kind: 'new-speaker', confidence: context.strong === true ? 0.9 : 0.72, matchedSpeakerUid: null, matchedTargetId: null, confirmed: false };
     return { kind: 'unknown-color', confidence: 0.55, matchedSpeakerUid: null, matchedTargetId: null, confirmed: false };
 }
+function temporarySpeakerKey(name, color) {
+    const normalizedName = normalizeName(name);
+    const normalizedColor = normalizeHex(color);
+    return normalizedName && normalizedColor ? `${normalizedName}:${normalizedColor}` : '';
+}
+function temporarySpeakerFor(config, name, color) {
+    const key = temporarySpeakerKey(name, color);
+    if (!key)
+        return null;
+    return Object.values(config.temporarySpeakers || {}).find((speaker) => temporarySpeakerKey(speaker.name, speaker.color) === key) || null;
+}
 function pendingReviewGroups(config) {
     const groups = new Map();
     for (const observation of Object.values(config.observations || {})) {
-        if (observation.status !== 'pending')
+        if (observation.status !== 'pending' || observation.kind !== 'new-speaker')
             continue;
         if (!groups.has(observation.groupKey))
             groups.set(observation.groupKey, {
                 groupKey: observation.groupKey,
-                kind: observation.kind,
+                kind: 'new-speaker',
                 inferredName: observation.inferredName,
                 observedColor: observation.observedColor,
-                matchedSpeakerUid: observation.matchedSpeakerUid,
-                matchedTargetId: observation.matchedTargetId || null,
                 confidence: 0,
                 count: 0,
                 independentCount: 0,
@@ -2179,16 +2216,21 @@ function pendingReviewGroups(config) {
         if (observation.quote && !group.examples.includes(observation.quote) && group.examples.length < 4)
             group.examples.push(observation.quote);
     }
+    const registeredColors = new Set(visibleRegistryBindings(config).map((binding) => bindingRegistryColor(binding)).filter(Boolean));
     return [...groups.values()]
         .map((group) => ({ ...group, messageCount: group.messageIds.size, messageIds: undefined, evidenceOrigins: [...group.evidenceOrigins], evidenceSources: [...group.evidenceSources] }))
         .filter((group) => {
-        const known = knownSceneIdentityByName(config, group.inferredName);
-        if (group.inferredName && !plausibleInferredSceneName(group.inferredName, { known: Boolean(known), strong: group.strongEvidence }))
+        if (!group.inferredName || !group.observedColor)
             return false;
-        const weakSingle = !group.strongEvidence && group.independentCount < 2;
-        if (weakSingle && ['alias-suggestion', 'speaker-conflict', 'new-speaker', 'known-speaker-color', 'unknown-color'].includes(group.kind))
+        if (knownSceneIdentityByName(config, group.inferredName))
             return false;
-        return true;
+        if (temporarySpeakerFor(config, group.inferredName, group.observedColor))
+            return false;
+        if (registeredColors.has(group.observedColor))
+            return false;
+        if (!plausibleInferredSceneName(group.inferredName, { known: false, strong: group.strongEvidence }))
+            return false;
+        return group.strongEvidence || group.independentCount >= 2;
     })
         .sort((a, b) => b.confidence - a.confidence || b.lastSeenAt - a.lastSeenAt);
 }
@@ -2285,6 +2327,13 @@ async function hydrateGeneratedMessage(payload, userId) {
         const inference = inferTagSpeakerEvidence(content, tag);
         const knownIdentity = knownSceneIdentityByName(config, inference.name);
         const inferredName = knownIdentity?.name || plausibleInferredSceneName(inference.name, { known: Boolean(knownIdentity), strong: inference.strong === true }) || null;
+        const temporarySpeaker = temporarySpeakerFor(config, inferredName, tag.color);
+        if (temporarySpeaker) {
+            temporarySpeaker.count = Math.max(1, Number(temporarySpeaker.count) || 1) + 1;
+            temporarySpeaker.lastSeenAt = Date.now();
+            temporarySpeaker.lastAssistantIndex = assistantIndex;
+            continue;
+        }
         const classification = classifyTagObservation(tag, inferredName, registry, {
             identity: knownIdentity,
             evidenceSource: inference.source,
@@ -2297,6 +2346,11 @@ async function hydrateGeneratedMessage(payload, userId) {
             config.registryUsage[classification.matchedSpeakerUid] = usage;
             continue;
         }
+        // Hybrid review is intentionally narrow: only clearly named, genuinely new
+        // tagged speakers reach the user. Conflicts, aliases, drift, and unknown tags
+        // remain non-destructive diagnostics instead of becoming review chores.
+        if (classification.kind !== 'new-speaker' || !inferredName)
+            continue;
         const provisionalEcho = (registry.provisional || []).some((entry) => normalizeName(entry.name) === normalizeName(inferredName) && entry.color === tag.color);
         const groupKey = [classification.kind, normalizeName(inferredName), tag.color, classification.matchedSpeakerUid || ''].join(':');
         if (config.dismissedObservationKeys?.[groupKey])
@@ -2376,82 +2430,86 @@ async function resolveObservationGroup(payload, userId) {
     const observations = Object.values(config.observations || {}).filter((observation) => observation.groupKey === groupKey && observation.status === 'pending');
     if (!groupKey || observations.length === 0)
         return { state: await buildState({ importCortex: false }, userId), pendingCount: pendingReviewGroups(config).length };
-    if (payload.action === 'dismiss') {
+    const first = observations[0];
+    const action = ['register', 'temporary', 'ignore', 'dismiss'].includes(payload.action) ? payload.action : '';
+    if (!action)
+        throw new Error('Choose whether to register, keep temporary, or ignore this character.');
+    if (action === 'ignore' || action === 'dismiss') {
         for (const observation of observations)
             observation.status = 'dismissed';
         config.dismissedObservationKeys[groupKey] = { at: Date.now() };
         await saveConfig(chat.id, config);
         const state = await buildState({ importCortex: false }, userId);
-        return { state, pendingCount: state.pendingReviewCount, dismissed: observations.length };
+        return { state, pendingCount: state.pendingReviewCount, ignored: observations.length };
     }
-    const first = observations[0];
-    let binding = payload.mergeSpeakerUid ? bindingBySpeakerUid(config, payload.mergeSpeakerUid) : null;
-    const mergeTargetId = String(payload.mergeTargetId || '').trim();
-    const mergeTargetName = cleanSceneName(payload.mergeTargetName);
-    const mergeTargetAliases = uniqueStrings(payload.mergeTargetAliases);
-    const matchingManual = !binding
-        ? Object.values(config.manualCharacters || {}).find((item) => {
-            const names = [item.name, ...(item.aliases || [])].map(normalizeName);
-            const requestedNames = [payload.name, first.inferredName, mergeTargetName].map(normalizeName).filter(Boolean);
-            return requestedNames.some((candidate) => names.includes(candidate));
-        })
-        : null;
-    const name = cleanSceneName(mergeTargetName
-        || payload.name
-        || first.inferredName
-        || binding?.name
-        || matchingManual?.name);
-    if (!binding && !name)
-        throw new Error('Name this tentative character or merge it with an existing character.');
-    const color = normalizeHex(payload.color) || bindingRegistryColor(binding) || first.observedColor;
+    const name = cleanSceneName(payload.name || first.inferredName);
+    const color = normalizeHex(payload.color) || first.observedColor;
+    if (!name)
+        throw new Error('Give this character a valid name.');
     if (!color)
         throw new Error('Choose a valid six-digit registry color.');
-    const collision = visibleRegistryBindings(config).find((candidate) => candidate !== binding && bindingRegistryColor(candidate) === color);
+    const collision = visibleRegistryBindings(config).find((candidate) => bindingRegistryColor(candidate) === color);
     if (collision)
-        throw new Error(`${color} already belongs to ${collision.name}. Choose another color before approving.`);
-    if (!binding) {
-        const aliases = uniqueStrings([
-            ...(matchingManual?.aliases || []),
-            ...mergeTargetAliases,
-            ...(payload.aliases || []),
-        ]).filter((alias) => normalizeName(alias) !== normalizeName(name));
-        const manualId = matchingManual?.id || (mergeTargetId.startsWith('manual:') ? mergeTargetId : `manual:${hashString(normalizeName(name)).toString(36)}`);
-        let targetId = mergeTargetId || matchingManual?.id || manualId;
-        // New tentative speakers may be promoted to Cortex. Existing scene targets
-        // keep their stable roster/card identity so approval binds what the user chose.
-        if (!mergeTargetId && !matchingManual) {
-            try {
-                const entity = await spindle.memories.entities.upsert(chat.id, { name, type: 'character', aliases, confidence: 1 }, { userId });
-                if (entity?.id)
-                    targetId = String(entity.id);
-            }
-            catch (error) {
-                spindle.log.warn(`Tentative character Cortex upsert skipped: ${error?.message || error}`);
-            }
-        }
-        if (matchingManual || mergeTargetId.startsWith('manual:') || !mergeTargetId) {
-            config.manualCharacters[manualId] = { id: manualId, name, aliases, source: 'manual-roster' };
-        }
-        delete config.hiddenCharacters[normalizeName(name)];
-        binding = {
-            kind: 'character', targetId, name, aliases, color,
-            channels: safeChannels(null, color), previousColors: [], source: 'manual', pinned: true,
-            speakerUid: `prism-speaker-${hashString(`character:${normalizeName(name)}`).toString(36)}`,
-            legacyRefs: uniqueStrings([manualId, targetId, mergeTargetId]),
+        throw new Error(`${color} already belongs to ${collision.name}. Choose another color.`);
+    if (action === 'temporary') {
+        const key = temporarySpeakerKey(name, color);
+        const existing = temporarySpeakerFor(config, name, color);
+        config.temporarySpeakers[key] = {
+            id: existing?.id || key,
+            name,
+            color,
+            count: Math.max(existing?.count || 0, observations.length),
+            createdAt: existing?.createdAt || Date.now(),
+            lastSeenAt: Date.now(),
+            lastAssistantIndex: Math.max(existing?.lastAssistantIndex || 0, ...observations.map((observation) => observation.assistantIndex || 0)),
         };
-        config.bindings[`character:${targetId}`] = binding;
+        for (const observation of observations) {
+            observation.status = 'temporary';
+            observation.lastSeenAt = Date.now();
+        }
+        delete config.dismissedObservationKeys[groupKey];
+        await saveConfig(chat.id, config);
+        const state = await buildState({ importCortex: false }, userId);
+        return { state, pendingCount: state.pendingReviewCount, temporary: observations.length };
     }
-    else {
-        const inferredAlias = first.inferredName && normalizeName(first.inferredName) !== normalizeName(binding.name) ? first.inferredName : null;
-        binding.aliases = uniqueStrings([...(binding.aliases || []), ...(payload.aliases || []), inferredAlias]);
-        binding.source = 'manual';
-        binding.pinned = true;
-        setBindingRegistryColor(binding, color);
+    // Register only genuinely new speakers. If the same primary name was added
+    // manually while this card was open, reuse that stable roster target silently.
+    const existingBinding = visibleRegistryBindings(config).find((candidate) => normalizeName(candidate.name) === normalizeName(name));
+    if (existingBinding) {
+        for (const observation of observations) {
+            observation.status = 'approved';
+            observation.resolvedSpeakerUid = existingBinding.speakerUid;
+            observation.lastSeenAt = Date.now();
+        }
+        await saveConfig(chat.id, config);
+        const state = await buildState({ importCortex: false }, userId);
+        return { state, pendingCount: state.pendingReviewCount, approved: observations.length, speakerUid: existingBinding.speakerUid };
     }
-    const observedColorOwnedElsewhere = visibleRegistryBindings(config).some((candidate) => candidate !== binding && bindingRegistryColor(candidate) === first.observedColor);
-    if (!observedColorOwnedElsewhere && first.observedColor !== bindingRegistryColor(binding)) {
-        binding.previousColors = uniqueStrings([...(binding.previousColors || []), first.observedColor])
-            .map(normalizeHex).filter(Boolean).filter((value) => value !== bindingRegistryColor(binding));
+    const matchingManual = Object.values(config.manualCharacters || {}).find((item) => normalizeName(item.name) === normalizeName(name)) || null;
+    const manualId = matchingManual?.id || `manual:${hashString(normalizeName(name)).toString(36)}`;
+    let targetId = matchingManual?.id || manualId;
+    if (!matchingManual) {
+        try {
+            const entity = await spindle.memories.entities.upsert(chat.id, { name, type: 'character', aliases: [], confidence: 1 }, { userId });
+            if (entity?.id)
+                targetId = String(entity.id);
+        }
+        catch (error) {
+            spindle.log.warn(`New character Cortex upsert skipped: ${error?.message || error}`);
+        }
+    }
+    config.manualCharacters[manualId] = { id: manualId, name, aliases: [], source: 'manual-roster' };
+    delete config.hiddenCharacters[normalizeName(name)];
+    const binding = {
+        kind: 'character', targetId, name, aliases: [], color,
+        channels: safeChannels(null, color), previousColors: [], source: 'manual', pinned: true,
+        speakerUid: `prism-speaker-${hashString(`character:${normalizeName(name)}`).toString(36)}`,
+        legacyRefs: uniqueStrings([manualId, targetId]),
+    };
+    config.bindings[`character:${targetId}`] = binding;
+    for (const [key, speaker] of Object.entries(config.temporarySpeakers || {})) {
+        if (normalizeName(speaker.name) === normalizeName(name))
+            delete config.temporarySpeakers[key];
     }
     for (const observation of observations) {
         observation.status = 'approved';
@@ -2533,35 +2591,11 @@ const HYBRID_DISCOVERY_PALETTE = Object.freeze([
 ]);
 function provisionalRegistryHints(config, registry) {
     const confirmedColors = new Set((registry.entries || []).map((entry) => entry.color));
-    const candidates = pendingReviewGroups(config)
-        .filter((group) => group.kind === 'new-speaker')
+    const currentAssistantIndex = config.lastHydration?.assistantIndex || 0;
+    const pending = pendingReviewGroups(config)
         .filter((group) => group.inferredName && group.observedColor)
         .filter((group) => group.confidence >= 0.75)
         .filter((group) => group.strongEvidence || group.independentCount >= 2)
-        .filter((group) => !group.lastAssistantIndex || !config.lastHydration?.assistantIndex || config.lastHydration.assistantIndex - group.lastAssistantIndex <= PROVISIONAL_MAX_ASSISTANT_MESSAGES)
-        .filter((group) => Date.now() - (group.lastIndependentSeenAt || group.lastSeenAt) <= PROVISIONAL_MAX_AGE_MS)
-        .filter((group) => !confirmedColors.has(group.observedColor));
-    const bestByName = new Map();
-    for (const group of candidates) {
-        const key = normalizeName(group.inferredName);
-        if (!key)
-            continue;
-        const current = bestByName.get(key);
-        const currentScore = current
-            ? (current.independentCount * 100) + (current.confidence * 10) + (current.lastIndependentSeenAt / 1e13)
-            : -1;
-        const score = (group.independentCount * 100) + (group.confidence * 10) + (group.lastIndependentSeenAt / 1e13);
-        if (!current || score > currentScore)
-            bestByName.set(key, group);
-    }
-    const ownersByColor = new Map();
-    for (const group of bestByName.values()) {
-        if (!ownersByColor.has(group.observedColor))
-            ownersByColor.set(group.observedColor, []);
-        ownersByColor.get(group.observedColor).push(group);
-    }
-    return [...bestByName.values()]
-        .filter((group) => ownersByColor.get(group.observedColor)?.length === 1)
         .map((group) => ({
         name: group.inferredName,
         color: group.observedColor,
@@ -2569,8 +2603,48 @@ function provisionalRegistryHints(config, registry) {
         confidence: group.confidence,
         independentCount: group.independentCount,
         strongEvidence: group.strongEvidence,
-    }))
-        .sort((a, b) => b.independentCount - a.independentCount || a.name.localeCompare(b.name))
+        lastAssistantIndex: group.lastAssistantIndex,
+        lastSeenAt: group.lastIndependentSeenAt || group.lastSeenAt,
+        temporary: false,
+    }));
+    const temporary = Object.values(config.temporarySpeakers || {}).map((speaker) => ({
+        name: speaker.name,
+        color: speaker.color,
+        count: speaker.count || 1,
+        confidence: 1,
+        independentCount: speaker.count || 1,
+        strongEvidence: true,
+        lastAssistantIndex: speaker.lastAssistantIndex || 0,
+        lastSeenAt: speaker.lastSeenAt || 0,
+        temporary: true,
+    }));
+    const candidates = [...temporary, ...pending]
+        .filter((entry) => !confirmedColors.has(entry.color))
+        .filter((entry) => !entry.lastAssistantIndex || !currentAssistantIndex || currentAssistantIndex - entry.lastAssistantIndex <= PROVISIONAL_MAX_ASSISTANT_MESSAGES)
+        .filter((entry) => Date.now() - entry.lastSeenAt <= PROVISIONAL_MAX_AGE_MS);
+    const bestByName = new Map();
+    for (const entry of candidates) {
+        const key = normalizeName(entry.name);
+        if (!key)
+            continue;
+        const current = bestByName.get(key);
+        const score = (entry.temporary ? 1e9 : 0) + (entry.independentCount * 100) + (entry.confidence * 10) + (entry.lastSeenAt / 1e13);
+        const currentScore = current
+            ? (current.temporary ? 1e9 : 0) + (current.independentCount * 100) + (current.confidence * 10) + (current.lastSeenAt / 1e13)
+            : -1;
+        if (!current || score > currentScore)
+            bestByName.set(key, entry);
+    }
+    const ownersByColor = new Map();
+    for (const entry of bestByName.values()) {
+        if (!ownersByColor.has(entry.color))
+            ownersByColor.set(entry.color, []);
+        ownersByColor.get(entry.color).push(entry);
+    }
+    return [...bestByName.values()]
+        .filter((entry) => ownersByColor.get(entry.color)?.length === 1)
+        .map(({ lastAssistantIndex, lastSeenAt, temporary, ...entry }) => ({ ...entry, temporary }))
+        .sort((a, b) => Number(b.temporary) - Number(a.temporary) || b.independentCount - a.independentCount || a.name.localeCompare(b.name))
         .slice(0, MAX_PROVISIONAL_HINTS);
 }
 function hybridDiscoveryPalette(config, registry, provisional) {
@@ -2578,6 +2652,7 @@ function hybridDiscoveryPalette(config, registry, provisional) {
         ...(registry.entries || []).map((entry) => entry.color),
         ...(registry.conflicts || []).map((conflict) => conflict.color),
         ...(provisional || []).map((entry) => entry.color),
+        ...Object.values(config.temporarySpeakers || {}).map((entry) => entry.color),
         ...pendingReviewGroups(config).map((group) => group.observedColor),
         ...Object.values(config.bindings || {}).flatMap((binding) => binding.previousColors || []),
     ]);
@@ -2676,7 +2751,7 @@ function registryInstruction(config, registry = compileRegistry(config), supplie
         else
             lines.push('No speakers are confirmed in Prism yet.');
         if (discoveryEnabled) {
-            lines.push('[Prism Hybrid Discovery]', 'Color a clearly identified unbound speaker. Reuse a visible prior color for that same speaker, then a provisional hint, then one unused discovery color. Never reuse a confirmed color or share a provisional color between speakers. Leave only genuinely ambiguous speakers uncolored.', 'A provisional hint is continuity awaiting human approval, not confirmed identity. Following it does not increase its confidence.');
+            lines.push('[Prism Hybrid Discovery]', 'Color a clearly identified unbound speaker. Reuse a visible prior color for that same speaker, then a provisional hint, then one unused discovery color. Never reuse a confirmed color or share a provisional color between speakers. Leave only genuinely ambiguous speakers uncolored.', 'A provisional hint is continuity outside the confirmed registry. Entries with temporary=true were explicitly kept chat-local by the user; reuse their exact color without promoting them. Other hints await review. Following any hint does not increase its confidence.');
             if (provisional.length)
                 lines.push('Provisional hints JSON:', JSON.stringify(provisional));
             if (palette.length)

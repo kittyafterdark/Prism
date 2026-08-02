@@ -106,7 +106,7 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.2');
+  assert.equal(manifest.version, '1.0.3');
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -151,48 +151,91 @@ test('manual roster names are not swallowed by unrelated discovered aliases', ()
   assert.deepEqual(characters.map((character) => character.name), ['Fast', 'Denise']);
 });
 
-test('Hybrid review can bind a tentative speaker to an unbound manual character', async () => {
+test('Hybrid review keeps cameos temporary without adding them to the roster', async () => {
   host.chatVars.clear();
   host.globalVars.clear();
   host.activeChat = { id: 'chat-a', name: 'Review test', character_id: null, metadata: {} };
   const config = api.safeConfig({
-    version: 11,
+    version: 12,
     engine: 'hybrid',
-    manualCharacters: {
-      'manual:denise': { id: 'manual:denise', name: 'Denise', aliases: [], source: 'manual-roster' },
-    },
     observations: {
-      denise: {
-        id: 'denise',
-        groupKey: 'new-speaker:denise:#9F72E4:',
-        messageId: 'm1',
-        swipeId: 0,
-        contentHash: 'hash',
-        quote: '"Hello."',
-        surroundingText: '"Hello," Denise said.',
-        observedColor: '#9F72E4',
-        inferredName: 'Denise',
-        kind: 'new-speaker',
-        confidence: 0.95,
-        status: 'pending',
+      selby: {
+        id: 'selby',
+        groupKey: 'new-speaker:mr selby:#C9832E:',
+        messageId: 'm1', swipeId: 0, contentHash: 'hash', quote: '"Good evening."',
+        surroundingText: '"Good evening," Mr. Selby said.', observedColor: '#C9832E',
+        inferredName: 'Mr. Selby', kind: 'new-speaker', confidence: 0.95, status: 'pending',
+        evidenceOrigin: 'model-first-seen', evidenceSource: 'reporting-verb', strongEvidence: true,
+        assistantIndex: 1, createdAt: Date.now(), lastSeenAt: Date.now(),
       },
     },
   });
   host.chatVars.set('chat-a|lumi_dialogue_colors_v1', JSON.stringify(config));
   const result = await api.resolveObservationGroup({
-    chatId: 'chat-a',
-    groupKey: 'new-speaker:denise:#9F72E4:',
-    action: 'approve',
-    name: 'Denise',
-    color: '#9F72E4',
-    mergeTargetId: 'manual:denise',
-    mergeTargetName: 'Denise',
-    mergeTargetAliases: [],
+    chatId: 'chat-a', groupKey: 'new-speaker:mr selby:#C9832E:', action: 'temporary',
+    name: 'Mr. Selby', color: '#C9832E',
+  }, 'user-a');
+  assert.equal(result.pendingCount, 0);
+  assert.equal(result.state.characters.some((character) => character.name === 'Mr. Selby'), false);
+  const stored = JSON.parse(host.chatVars.get('chat-a|lumi_dialogue_colors_v1'));
+  assert.equal(Object.values(stored.temporarySpeakers).some((speaker) => speaker.name === 'Mr. Selby' && speaker.color === '#C9832E'), true);
+  const hints = api.provisionalRegistryHints(api.safeConfig(stored), api.compileRegistry(api.safeConfig(stored)));
+  assert.equal(hints.some((entry) => entry.name === 'Mr. Selby' && entry.color === '#C9832E' && entry.temporary === true), true);
+});
+
+test('Hybrid review registers new characters without merge or alias side effects', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.activeChat = { id: 'chat-a', name: 'Review test', character_id: null, metadata: {} };
+  const config = api.safeConfig({
+    version: 12,
+    engine: 'hybrid',
+    observations: {
+      denise: {
+        id: 'denise', groupKey: 'new-speaker:denise:#9F72E4:', messageId: 'm1', swipeId: 0,
+        contentHash: 'hash', quote: '"Hello."', surroundingText: '"Hello," Denise said.',
+        observedColor: '#9F72E4', inferredName: 'Denise', kind: 'new-speaker', confidence: 0.95,
+        status: 'pending', evidenceOrigin: 'model-first-seen', evidenceSource: 'reporting-verb',
+        strongEvidence: true, assistantIndex: 1, createdAt: Date.now(), lastSeenAt: Date.now(),
+      },
+    },
+  });
+  host.chatVars.set('chat-a|lumi_dialogue_colors_v1', JSON.stringify(config));
+  const result = await api.resolveObservationGroup({
+    chatId: 'chat-a', groupKey: 'new-speaker:denise:#9F72E4:', action: 'register',
+    name: 'Denise', color: '#9F72E4',
   }, 'user-a');
   const denise = result.state.characters.find((character) => character.name === 'Denise');
   assert.ok(denise?.binding);
-  assert.equal(denise.binding.targetId, 'manual:denise');
   assert.equal(api.bindingRegistryColor(denise.binding), '#9F72E4');
+  assert.deepEqual([...denise.binding.aliases], []);
+});
+
+test('temporary speakers rehydrate silently without reopening review', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.activeChat = { id: 'chat-a', name: 'Temporary test', character_id: null, metadata: {} };
+  const config = api.safeConfig({
+    version: 12,
+    engine: 'hybrid',
+    temporarySpeakers: {
+      'mr selby:#C9832E': {
+        id: 'mr selby:#C9832E', name: 'Mr. Selby', color: '#C9832E', count: 1,
+        createdAt: Date.now(), lastSeenAt: Date.now(), lastAssistantIndex: 1,
+      },
+    },
+  });
+  host.chatVars.set('chat-a|lumi_dialogue_colors_v1', JSON.stringify(config));
+  host.messages = [{
+    id: 'm-temp', role: 'assistant', is_user: false, swipe_id: 0,
+    content: '<font color="#C9832E">"Good evening."</font> Mr. Selby said.', metadata: {},
+  }];
+  const result = await api.hydrateGeneratedMessage({ chatId: 'chat-a', messageId: 'm-temp', force: true }, 'user-a');
+  assert.equal(result.pendingCount, 0);
+  assert.equal(result.state.reviewGroups.length, 0);
+  const stored = JSON.parse(host.chatVars.get('chat-a|lumi_dialogue_colors_v1'));
+  assert.equal(Object.keys(stored.observations).length, 0);
+  assert.ok(Object.values(stored.temporarySpeakers)[0].count >= 2);
 });
 
 test('chat mutation queue preserves operation order and cleans itself up', async () => {

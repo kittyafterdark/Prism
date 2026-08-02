@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.3
+
+- Simplified Hybrid review to genuinely new tagged characters only; alias proposals, merge guesses, color drift, known-speaker conflicts, and anonymous colors no longer appear in the user-facing inbox.
+- Replaced merge/alias adjudication with three explicit outcomes: **Add to registry**, **Keep temporary**, and **Ignore**.
+- **Keep temporary** now resolves the yellow warning while preserving the speaker's name/color as a chat-local provisional continuity hint outside the permanent roster.
+- Known characters and temporary cameos are resolved silently during hydration, preventing repeat review cards.
+- Temporary speakers expire with provisional evidence and are cleared by **Clear temporary speakers & evidence**.
+
 ## 1.0.2
 
 - Resolve inferred Hybrid names against the existing scene roster before creating alias suggestions.

@@ -1,11 +1,11 @@
 # Prism
 
-Prism gives Lumiverse scenes deterministic, reversible dialogue and thought colors without making roleplayers type formatting tags. Hybrid is the default for new installs: it emits portable `<font color>` identity tags, rehydrates the finished response, and asks before new or conflicting evidence enters the confirmed registry.
+Prism gives Lumiverse scenes deterministic, reversible dialogue and thought colors without making roleplayers type formatting tags. Hybrid is the default for new installs: it emits portable `<font color>` identity tags, rehydrates the finished response, and asks only whether genuinely new tagged speakers should enter the confirmed registry.
 
 ## Engines
 
 - **Local** — colors the rendered DOM only. Saved messages and model context are unchanged.
-- **Hybrid** — asks the model for portable canonical font tags, enhances those tags locally, fills confident untagged gaps, and sends discoveries to a review inbox.
+- **Hybrid** — asks the model for portable canonical font tags, enhances those tags locally, fills confident untagged gaps, and asks only whether genuinely new tagged speakers should be registered, kept temporary, or ignored.
 - **LLM** — asks the model for canonical font tags and enhances those tags locally, without heuristic gap filling.
 
 Existing engine choices survive migration. Hybrid is the default only for a fresh configuration.
@@ -16,7 +16,7 @@ Existing engine choices survive migration. Hybrid is the default only for a fres
 2. Use **Set up scene** to import Cortex/transcript colors and generate collision-safe colors for anything missing.
 3. Edit solid or two/three-stop gradient paint directly in the roster editor. The first dialogue stop is always the character’s canonical registry color.
 4. In Local or Hybrid, right-click, long-press, or keyboard-open any detected segment to correct its speaker or content type.
-5. In Hybrid, click the yellow **Awaiting review** status when Prism finds tentative speakers, unexpected colors, or prose/tag conflicts.
+5. In Hybrid, click the yellow **Awaiting review** status only when Prism finds a clearly named, genuinely new tagged speaker. Register recurring characters, keep cameos temporary, or ignore them.
 
 During generation, gradient text temporarily renders as its first canonical stop. Prism restores the full gradient only when the response completes or is cancelled, preventing streaming repaint flicker.
 
@@ -41,7 +41,7 @@ The rendering trust order is:
 
 Hybrid compiles one registry snapshot for prompt injection, persona tags, DOM matching, collision detection, and hydration. Snapshots are scoped by operator and chat, correlated to a generation, capped, and expired.
 
-After generation, Prism inspects only the requested assistant message. Delayed storage is retried; Prism never substitutes the previous assistant message. Known tags reinforce existing speakers. New speakers, color drift, collisions, and explicit prose conflicts remain tentative until reviewed.
+After generation, Prism inspects only the requested assistant message. Delayed storage is retried; Prism never substitutes the previous assistant message. Known characters and conflicts resolve silently. Only clearly named new speakers with unused tag colors enter review; temporary speakers preserve chat continuity without joining the permanent roster.
 
 Provisional model echoes do not count as independent evidence. Weak discoveries require two independent sightings, and provisional hints expire after inactivity.
 
