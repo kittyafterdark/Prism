@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.18 — Accessibility scroll repair
+## 1.0.9 still mf — Accessibility scroll repair
 
 - Adds a guarded single-touch vertical drag and momentum fallback for Android/PWA WebViews that refuse the editor's native nested scroll gesture. Horizontal roster swipes and two-finger pinch zoom remain native.
 - Sizes the fullscreen accessibility portal from the live visual viewport and updates it as browser chrome, orientation, or the on-screen keyboard changes.
