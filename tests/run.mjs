@@ -31,6 +31,8 @@ const backendCompiled = compile('backend.ts', `${backendSource}\n;globalThis.__p
   messagesForHydration, reconcileConfigWithMessages, pendingReviewGroups,
   provisionalRegistryHints, inferTagSpeakerEvidence, classifyTagObservation,
   extractSceneNamesFromText, hydrateGeneratedMessage, resetTemporaryEvidence,
+  addSceneCharacter, resolveObservationGroup, mergeSceneCharacter, loadConfig, saveConfig,
+  enqueueConfigOperation, configOperationQueues,
   previewTranscriptMutation, applyTranscriptMutation, restoreTranscriptRecovery, importRegistry,
   recentRegistrySnapshots
 };`);
@@ -103,12 +105,110 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.0');
+  assert.equal(manifest.version, '1.0.1');
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
   assert.match(frontendSource, /<button type="button" class="ldc-toolbar-save-state"/);
   assert.match(frontendSource, /function observationRoot\(\).*chatColumnInner/);
+});
+
+
+test('manual roster additions materialize immediately and remain bound atomically', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.activeChat = { id: 'chat-a', name: 'Roster test', character_id: null, metadata: {} };
+  const result = await api.addSceneCharacter({
+    chatId: 'chat-a',
+    name: 'Denise',
+    aliases: ['Deni'],
+    color: '#9F72E4',
+  }, 'user-a');
+  const denise = result.state.characters.find((character) => character.name === 'Denise');
+  assert.ok(denise);
+  assert.equal(String(denise.id), result.addedCharacterId);
+  assert.equal(api.bindingRegistryColor(denise.binding), '#9F72E4');
+  const stored = JSON.parse(host.chatVars.get('chat-a|lumi_dialogue_colors_v1'));
+  assert.equal(stored.manualCharacters[result.addedCharacterId].name, 'Denise');
+});
+
+test('manual roster names are not swallowed by unrelated discovered aliases', () => {
+  const characters = [{
+    id: 'fast',
+    key: 'character:fast',
+    name: 'Fast',
+    aliases: ['Denise'],
+    source: 'transcript',
+  }];
+  api.mergeSceneCharacter(characters, {
+    id: 'manual:denise',
+    key: 'character:manual:denise',
+    name: 'Denise',
+    aliases: [],
+    source: 'manual-roster',
+  });
+  assert.deepEqual(characters.map((character) => character.name), ['Fast', 'Denise']);
+});
+
+test('Hybrid review can bind a tentative speaker to an unbound manual character', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.activeChat = { id: 'chat-a', name: 'Review test', character_id: null, metadata: {} };
+  const config = api.safeConfig({
+    version: 11,
+    engine: 'hybrid',
+    manualCharacters: {
+      'manual:denise': { id: 'manual:denise', name: 'Denise', aliases: [], source: 'manual-roster' },
+    },
+    observations: {
+      denise: {
+        id: 'denise',
+        groupKey: 'new-speaker:denise:#9F72E4:',
+        messageId: 'm1',
+        swipeId: 0,
+        contentHash: 'hash',
+        quote: '"Hello."',
+        surroundingText: '"Hello," Denise said.',
+        observedColor: '#9F72E4',
+        inferredName: 'Denise',
+        kind: 'new-speaker',
+        confidence: 0.95,
+        status: 'pending',
+      },
+    },
+  });
+  host.chatVars.set('chat-a|lumi_dialogue_colors_v1', JSON.stringify(config));
+  const result = await api.resolveObservationGroup({
+    chatId: 'chat-a',
+    groupKey: 'new-speaker:denise:#9F72E4:',
+    action: 'approve',
+    name: 'Denise',
+    color: '#9F72E4',
+    mergeTargetId: 'manual:denise',
+    mergeTargetName: 'Denise',
+    mergeTargetAliases: [],
+  }, 'user-a');
+  const denise = result.state.characters.find((character) => character.name === 'Denise');
+  assert.ok(denise?.binding);
+  assert.equal(denise.binding.targetId, 'manual:denise');
+  assert.equal(api.bindingRegistryColor(denise.binding), '#9F72E4');
+});
+
+test('chat mutation queue preserves operation order and cleans itself up', async () => {
+  api.configOperationQueues.clear();
+  const order = [];
+  await Promise.all([
+    api.enqueueConfigOperation('user-a', 'chat-a', async () => {
+      order.push('first-start');
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      order.push('first-end');
+    }),
+    api.enqueueConfigOperation('user-a', 'chat-a', async () => {
+      order.push('second');
+    }),
+  ]);
+  assert.deepEqual(order, ['first-start', 'first-end', 'second']);
+  assert.equal(api.configOperationQueues.size, 0);
 });
 
 test('canonical dialogue stop migrates and remains registry identity', async () => {

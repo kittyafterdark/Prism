@@ -1,8 +1,7 @@
-"use strict";
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const RECOVERY_VAR = 'prism_transcript_recovery_v1';
-const PRISM_VERSION = '1.0.0';
+const PRISM_VERSION = '1.0.1';
 const FAST_OPTIONAL_TIMEOUT_MS = 4500;
 const TRANSCRIPT_TIMEOUT_MS = 12000;
 const HYDRATION_FETCH_TIMEOUT_MS = 5000;
@@ -50,6 +49,20 @@ const DEFAULT_CONFIG = Object.freeze({
 });
 const ENGINE_VALUES = Object.freeze(['dom', 'hybrid', 'llm']);
 const recentRegistrySnapshots = new Map();
+const configOperationQueues = new Map();
+function configOperationScopeKey(userId, chatId) {
+    return `${String(userId || 'default')}\u241F${String(chatId || 'no-chat')}`;
+}
+function enqueueConfigOperation(userId, chatId, operation) {
+    const key = configOperationScopeKey(userId, chatId);
+    const previous = configOperationQueues.get(key) || Promise.resolve();
+    const current = previous.catch(() => { }).then(operation);
+    configOperationQueues.set(key, current);
+    return current.finally(() => {
+        if (configOperationQueues.get(key) === current)
+            configOperationQueues.delete(key);
+    });
+}
 function normalizeEngine(value, fallback = 'hybrid') {
     return ENGINE_VALUES.includes(value) ? value : (ENGINE_VALUES.includes(fallback) ? fallback : 'hybrid');
 }
@@ -824,11 +837,28 @@ function extractSceneNamesFromCard(card) {
     return uniqueStrings(names.filter(Boolean));
 }
 function mergeSceneCharacter(characters, candidate) {
+    const candidateName = normalizeName(candidate.name);
     const candidateNames = new Set([candidate.name, ...(candidate.aliases || [])].map(normalizeName).filter(Boolean));
-    const existing = characters.find((entry) => {
-        const entryNames = [entry.name, ...(entry.aliases || [])].map(normalizeName);
-        return entryNames.some((name) => candidateNames.has(name));
-    });
+    const candidateIds = new Set([
+        candidate.id,
+        candidate.entityId,
+        candidate.characterId,
+    ].map((value) => String(value || '')).filter(Boolean));
+    const identityMatch = characters.find((entry) => [
+        entry.id,
+        entry.entityId,
+        entry.characterId,
+    ].map((value) => String(value || '')).some((value) => value && candidateIds.has(value)));
+    const canonicalMatch = characters.find((entry) => normalizeName(entry.name) === candidateName);
+    // A manually added roster entry is an explicit user decision. Do not let an
+    // incidental alias on an automatically discovered speaker swallow it.
+    const aliasMatch = candidate.source === 'manual-roster'
+        ? null
+        : characters.find((entry) => {
+            const entryNames = [entry.name, ...(entry.aliases || [])].map(normalizeName);
+            return entryNames.some((name) => candidateNames.has(name));
+        });
+    const existing = identityMatch || canonicalMatch || aliasMatch;
     if (!existing) {
         characters.push(candidate);
         return candidate;
@@ -1541,14 +1571,54 @@ async function addSceneCharacter(payload, userId) {
         throw new Error('Enter a short character name without markup.');
     const aliases = uniqueStrings(payload.aliases)
         .filter((alias) => normalizeName(alias) !== normalizeName(name));
+    const color = normalizeHex(payload.color);
     const config = await loadConfig(chat.id, userId);
     const existing = Object.values(config.manualCharacters || {})
         .find((item) => normalizeName(item.name) === normalizeName(name));
     const id = existing?.id || `manual:${hashString(normalizeName(name)).toString(36)}`;
-    config.manualCharacters[id] = { id, name, aliases, source: 'manual-roster' };
+    config.manualCharacters[id] = {
+        id,
+        name,
+        aliases: uniqueStrings([...(existing?.aliases || []), ...aliases]),
+        source: 'manual-roster',
+    };
     delete config.hiddenCharacters[normalizeName(name)];
+    if (color) {
+        const old = findBinding(config, 'character', id, name, aliases);
+        const oldEntry = old
+            ? Object.entries(config.bindings).find(([, binding]) => binding === old)
+            : null;
+        const previousColors = uniqueStrings([
+            ...(old?.previousColors || []),
+            ...(bindingRegistryColor(old) && bindingRegistryColor(old) !== color ? [bindingRegistryColor(old)] : []),
+        ]).map(normalizeHex).filter(Boolean).filter((value) => value !== color);
+        if (oldEntry)
+            delete config.bindings[oldEntry[0]];
+        config.bindings[`character:${id}`] = {
+            kind: 'character',
+            targetId: id,
+            name,
+            aliases: config.manualCharacters[id].aliases,
+            color,
+            channels: safeChannels(payload.channels || old?.channels, color),
+            previousColors,
+            source: 'manual',
+            pinned: true,
+            speakerUid: old?.speakerUid || `prism-speaker-${hashString(`character:${normalizeName(name)}`).toString(36)}`,
+            legacyRefs: uniqueStrings([...(old?.legacyRefs || []), old?.targetId, id]),
+        };
+        if (oldEntry)
+            migrateOverrideSpeakerKey(config, oldEntry[0], `character:${id}`);
+        ensureBindingIdentities(config);
+    }
     await saveConfig(chat.id, config);
-    return buildState({ importCortex: false }, userId);
+    const state = await buildState({ importCortex: false }, userId);
+    const added = state.characters.find((character) => (String(character.id) === String(id)
+        || normalizeName(character.name) === normalizeName(name)));
+    if (!added) {
+        throw new Error(`${name} was saved, but Prism could not materialize the roster entry. Retry after restarting the extension.`);
+    }
+    return { state, addedCharacterId: String(added.id), addedCharacterName: added.name };
 }
 async function removeSceneCharacter(payload, userId) {
     const chat = await spindle.chats.getActive(userId);
@@ -2222,7 +2292,21 @@ async function resolveObservationGroup(payload, userId) {
     }
     const first = observations[0];
     let binding = payload.mergeSpeakerUid ? bindingBySpeakerUid(config, payload.mergeSpeakerUid) : null;
-    const name = cleanSceneName(payload.name || first.inferredName || binding?.name);
+    const mergeTargetId = String(payload.mergeTargetId || '').trim();
+    const mergeTargetName = cleanSceneName(payload.mergeTargetName);
+    const mergeTargetAliases = uniqueStrings(payload.mergeTargetAliases);
+    const matchingManual = !binding
+        ? Object.values(config.manualCharacters || {}).find((item) => {
+            const names = [item.name, ...(item.aliases || [])].map(normalizeName);
+            const requestedNames = [payload.name, first.inferredName, mergeTargetName].map(normalizeName).filter(Boolean);
+            return requestedNames.some((candidate) => names.includes(candidate));
+        })
+        : null;
+    const name = cleanSceneName(mergeTargetName
+        || payload.name
+        || first.inferredName
+        || binding?.name
+        || matchingManual?.name);
     if (!binding && !name)
         throw new Error('Name this tentative character or merge it with an existing character.');
     const color = normalizeHex(payload.color) || bindingRegistryColor(binding) || first.observedColor;
@@ -2232,24 +2316,34 @@ async function resolveObservationGroup(payload, userId) {
     if (collision)
         throw new Error(`${color} already belongs to ${collision.name}. Choose another color before approving.`);
     if (!binding) {
-        let targetId = `manual:${hashString(normalizeName(name)).toString(36)}`;
-        try {
-            const entity = await spindle.memories.entities.upsert(chat.id, { name, type: 'character', aliases: uniqueStrings(payload.aliases), confidence: 1 }, { userId });
-            if (entity?.id)
-                targetId = String(entity.id);
+        const aliases = uniqueStrings([
+            ...(matchingManual?.aliases || []),
+            ...mergeTargetAliases,
+            ...(payload.aliases || []),
+        ]).filter((alias) => normalizeName(alias) !== normalizeName(name));
+        const manualId = matchingManual?.id || (mergeTargetId.startsWith('manual:') ? mergeTargetId : `manual:${hashString(normalizeName(name)).toString(36)}`);
+        let targetId = mergeTargetId || matchingManual?.id || manualId;
+        // New tentative speakers may be promoted to Cortex. Existing scene targets
+        // keep their stable roster/card identity so approval binds what the user chose.
+        if (!mergeTargetId && !matchingManual) {
+            try {
+                const entity = await spindle.memories.entities.upsert(chat.id, { name, type: 'character', aliases, confidence: 1 }, { userId });
+                if (entity?.id)
+                    targetId = String(entity.id);
+            }
+            catch (error) {
+                spindle.log.warn(`Tentative character Cortex upsert skipped: ${error?.message || error}`);
+            }
         }
-        catch (error) {
-            spindle.log.warn(`Tentative character Cortex upsert skipped: ${error?.message || error}`);
+        if (matchingManual || mergeTargetId.startsWith('manual:') || !mergeTargetId) {
+            config.manualCharacters[manualId] = { id: manualId, name, aliases, source: 'manual-roster' };
         }
-        const aliases = uniqueStrings(payload.aliases).filter((alias) => normalizeName(alias) !== normalizeName(name));
-        const manualId = `manual:${hashString(normalizeName(name)).toString(36)}`;
-        config.manualCharacters[manualId] = { id: manualId, name, aliases, source: 'manual-roster' };
         delete config.hiddenCharacters[normalizeName(name)];
         binding = {
             kind: 'character', targetId, name, aliases, color,
             channels: safeChannels(null, color), previousColors: [], source: 'manual', pinned: true,
             speakerUid: `prism-speaker-${hashString(`character:${normalizeName(name)}`).toString(36)}`,
-            legacyRefs: uniqueStrings([manualId, targetId]),
+            legacyRefs: uniqueStrings([manualId, targetId, mergeTargetId]),
         };
         config.bindings[`character:${targetId}`] = binding;
     }
@@ -2581,103 +2675,112 @@ spindle.onFrontendMessage(async (payload, userId) => {
     const requestId = payload?.requestId;
     const reply = (type, data = {}) => spindle.sendToFrontend({ type, requestId, ...data }, userId);
     try {
-        switch (payload?.type) {
-            case 'ldc_load_state': {
-                const state = await buildState({
-                    importCortex: payload.importCortex === true,
-                    scanTranscript: payload.scanTranscript === true,
-                }, userId);
-                reply('ldc_state', { state });
-                break;
-            }
-            case 'ldc_hydrate_message': {
-                const result = await hydrateGeneratedMessage(payload, userId);
-                reply('ldc_hydrate_result', result);
-                break;
-            }
-            case 'ldc_review_observation': {
-                const result = await resolveObservationGroup(payload, userId);
-                reply('ldc_review_result', result);
-                break;
-            }
-            case 'ldc_reset_temporary': {
-                const result = await resetTemporaryEvidence(payload, userId);
-                reply('ldc_reset_temporary_result', result);
-                break;
-            }
-            case 'ldc_import_registry': {
-                const result = await importRegistry(payload, userId);
-                reply('ldc_import_registry_result', result);
-                break;
-            }
-            case 'ldc_save_binding': {
-                const state = await saveBinding(payload, userId);
-                reply('ldc_state', { state, saved: true });
-                break;
-            }
-            case 'ldc_add_character': {
-                const state = await addSceneCharacter(payload, userId);
-                reply('ldc_state', { state, saved: true });
-                spindle.toast.success(`${cleanSceneName(payload.name)} added to this scene.`, { userId });
-                break;
-            }
-            case 'ldc_remove_character': {
-                const state = await removeSceneCharacter(payload, userId);
-                reply('ldc_state', { state, saved: true });
-                spindle.toast.success(`${cleanSceneName(payload.name)} removed from this scene.`, { userId });
-                break;
-            }
-            case 'ldc_update_options': {
-                const state = await updateOptions(payload, userId);
-                reply('ldc_state', { state, saved: true });
-                break;
-            }
-            case 'ldc_cortex_sync': {
-                const state = await buildState({ importCortex: true, cortexMode: 'missing', scanTranscript: true }, userId);
-                reply('ldc_state', { state, saved: true });
-                break;
-            }
-            case 'ldc_cortex_repair': {
-                const state = await buildState({ importCortex: true, cortexMode: 'repair', scanTranscript: true }, userId);
-                reply('ldc_state', { state, saved: true });
-                break;
-            }
-            case 'ldc_setup_scene':
-            case 'ldc_assign_colors': {
-                const result = await assignSceneColors(payload, userId);
-                reply('ldc_state', { state: result.state, assigned: result.assigned, saved: true });
-                spindle.toast.success(result.assigned
-                    ? `Assigned ${result.assigned} scene color${result.assigned === 1 ? '' : 's'}.`
-                    : 'Scene colors are ready.', { userId });
-                break;
-            }
-            case 'ldc_save_override': {
-                const state = await saveQuoteOverride(payload, userId);
-                reply('ldc_state', { state, saved: true });
-                break;
-            }
-            case 'ldc_normalize_preview':
-            case 'ldc_persona_history_preview': {
-                const mode = payload.type === 'ldc_persona_history_preview' ? 'persona-history' : 'normalize';
-                const result = await previewTranscriptMutation(String(payload.chatId || ''), userId, mode);
-                reply('ldc_mutation_preview_result', result);
-                break;
-            }
-            case 'ldc_normalize_apply':
-            case 'ldc_persona_history_apply': {
-                const mode = payload.type === 'ldc_persona_history_apply' ? 'persona-history' : 'normalize';
-                const result = await applyTranscriptMutation(String(payload.chatId || ''), userId, mode);
-                reply('ldc_mutation_apply_result', result);
-                break;
-            }
-            case 'ldc_restore_transcript': {
-                const result = await restoreTranscriptRecovery(String(payload.chatId || ''), userId);
-                reply('ldc_restore_transcript_result', result);
-                break;
-            }
-            default:
-                break;
+        const activeChat = await spindle.chats.getActive(userId);
+        if (!activeChat)
+            throw new Error('Open a chat first.');
+        const requestedChatId = String(payload?.chatId || activeChat.id || '');
+        if (payload?.chatId && requestedChatId !== String(activeChat.id)) {
+            throw new Error('The active chat changed before Prism could finish the request.');
         }
+        await enqueueConfigOperation(userId, requestedChatId, async () => {
+            switch (payload?.type) {
+                case 'ldc_load_state': {
+                    const state = await buildState({
+                        importCortex: payload.importCortex === true,
+                        scanTranscript: payload.scanTranscript === true,
+                    }, userId);
+                    reply('ldc_state', { state });
+                    break;
+                }
+                case 'ldc_hydrate_message': {
+                    const result = await hydrateGeneratedMessage(payload, userId);
+                    reply('ldc_hydrate_result', result);
+                    break;
+                }
+                case 'ldc_review_observation': {
+                    const result = await resolveObservationGroup(payload, userId);
+                    reply('ldc_review_result', result);
+                    break;
+                }
+                case 'ldc_reset_temporary': {
+                    const result = await resetTemporaryEvidence(payload, userId);
+                    reply('ldc_reset_temporary_result', result);
+                    break;
+                }
+                case 'ldc_import_registry': {
+                    const result = await importRegistry(payload, userId);
+                    reply('ldc_import_registry_result', result);
+                    break;
+                }
+                case 'ldc_save_binding': {
+                    const state = await saveBinding(payload, userId);
+                    reply('ldc_state', { state, saved: true });
+                    break;
+                }
+                case 'ldc_add_character': {
+                    const result = await addSceneCharacter(payload, userId);
+                    reply('ldc_state', { ...result, saved: true });
+                    spindle.toast.success(`${result.addedCharacterName} added to this scene.`, { userId });
+                    break;
+                }
+                case 'ldc_remove_character': {
+                    const state = await removeSceneCharacter(payload, userId);
+                    reply('ldc_state', { state, saved: true });
+                    spindle.toast.success(`${cleanSceneName(payload.name)} removed from this scene.`, { userId });
+                    break;
+                }
+                case 'ldc_update_options': {
+                    const state = await updateOptions(payload, userId);
+                    reply('ldc_state', { state, saved: true });
+                    break;
+                }
+                case 'ldc_cortex_sync': {
+                    const state = await buildState({ importCortex: true, cortexMode: 'missing', scanTranscript: true }, userId);
+                    reply('ldc_state', { state, saved: true });
+                    break;
+                }
+                case 'ldc_cortex_repair': {
+                    const state = await buildState({ importCortex: true, cortexMode: 'repair', scanTranscript: true }, userId);
+                    reply('ldc_state', { state, saved: true });
+                    break;
+                }
+                case 'ldc_setup_scene':
+                case 'ldc_assign_colors': {
+                    const result = await assignSceneColors(payload, userId);
+                    reply('ldc_state', { state: result.state, assigned: result.assigned, saved: true });
+                    spindle.toast.success(result.assigned
+                        ? `Assigned ${result.assigned} scene color${result.assigned === 1 ? '' : 's'}.`
+                        : 'Scene colors are ready.', { userId });
+                    break;
+                }
+                case 'ldc_save_override': {
+                    const state = await saveQuoteOverride(payload, userId);
+                    reply('ldc_state', { state, saved: true });
+                    break;
+                }
+                case 'ldc_normalize_preview':
+                case 'ldc_persona_history_preview': {
+                    const mode = payload.type === 'ldc_persona_history_preview' ? 'persona-history' : 'normalize';
+                    const result = await previewTranscriptMutation(String(payload.chatId || ''), userId, mode);
+                    reply('ldc_mutation_preview_result', result);
+                    break;
+                }
+                case 'ldc_normalize_apply':
+                case 'ldc_persona_history_apply': {
+                    const mode = payload.type === 'ldc_persona_history_apply' ? 'persona-history' : 'normalize';
+                    const result = await applyTranscriptMutation(String(payload.chatId || ''), userId, mode);
+                    reply('ldc_mutation_apply_result', result);
+                    break;
+                }
+                case 'ldc_restore_transcript': {
+                    const result = await restoreTranscriptRecovery(String(payload.chatId || ''), userId);
+                    reply('ldc_restore_transcript_result', result);
+                    break;
+                }
+                default:
+                    break;
+            }
+        });
     }
     catch (error) {
         if (payload?.type === 'ldc_hydrate_message')
