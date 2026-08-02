@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.13 — Sticky high-scale utility rail
+
+- Adds a sticky accessibility utility rail containing Local/Hybrid/LLM, expand, Settings, and Close controls so hostile zoom cannot strand the modal.
+- Removes the redundant Settings button from the horizontal roster action grid.
+- Makes the saved/sync preference authoritative in the editor footer and updates it optimistically before persistence.
+
 ## 1.0.12 — Compact high-scale paint controls
 
 - Replaces gradient rails with compact circular stop buttons in the horizontal accessibility layout.

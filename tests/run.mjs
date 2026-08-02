@@ -107,7 +107,7 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.12');
+  assert.equal(manifest.version, '1.0.13');
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -145,6 +145,17 @@ test('high-scale gradient controls stay compact and inside the viewport', () => 
   assert.match(frontendSource, /ldc-stop span\{width:42px;height:42px;border-radius:50%/);
   assert.match(frontendSource, /ldc-direction \[data-action=swap-colors\]\{grid-column:1\/-1;width:100%/);
   assert.match(frontendSource, /ldc-hex-row \.ldc-input\{min-width:0;padding:0 4px;text-align:center/);
+});
+
+
+test('high-scale utility controls remain reachable and saved indicators hide everywhere', () => {
+  assert.match(frontendSource, /class=\"ldc-utility-rail\"/);
+  assert.match(frontendSource, /data-action=\"close-modal\"/);
+  assert.match(frontendSource, /data-action=\"toggle-expanded\"[\s\S]*data-action=\"settings\"[\s\S]*data-action=\"close-modal\"/);
+  assert.match(frontendSource, /data-prism-show-save=\"\$\{ui\.showSaveIndicator\}\"/);
+  assert.match(frontendSource, /showSaveIndicator\?`<span data-save-status/);
+  assert.match(frontendSource, /querySelectorAll\('\[data-action=toggle-expanded\]'\)/);
+  assert.doesNotMatch(frontendSource, /ldc-roster-settings\" data-action=\"settings-tab\">Settings/);
 });
 
 test('modal body height is budgeted below viewport chrome', () => {
