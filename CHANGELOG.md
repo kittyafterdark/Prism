@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.14 — Fullscreen accessibility workspace
+
+- Makes the horizontal/high-scale layout a true viewport-filling Prism workspace so PWA and browser installs no longer disagree about Lumi's outer modal shell.
+- Removes the redundant character profile header and bottom chat-status footer in horizontal mode; the selected roster chip remains the active-character indicator.
+- Replaces the oversized **Remove from scene** action with an accessible trash icon in horizontal mode while retaining its confirmation step.
+
 ## 1.0.13 — Sticky high-scale utility rail
 
 - Adds a sticky accessibility utility rail containing Local/Hybrid/LLM, expand, Settings, and Close controls so hostile zoom cannot strand the modal.

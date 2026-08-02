@@ -107,7 +107,7 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.13');
+  assert.equal(manifest.version, '1.0.14');
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -158,10 +158,22 @@ test('high-scale utility controls remain reachable and saved indicators hide eve
   assert.doesNotMatch(frontendSource, /ldc-roster-settings\" data-action=\"settings-tab\">Settings/);
 });
 
+
+
+test('horizontal layout owns the viewport and removes redundant editor chrome', () => {
+  assert.match(frontendSource, /classList\.toggle\('ldc-fullscreen-root',fullscreen\)/);
+  assert.match(frontendSource, /position:fixed!important;inset:0!important;z-index:2147483646!important/);
+  assert.match(frontendSource, /data-prism-layout=tabs.*ldc-editor-head\{display:none\}/s);
+  assert.match(frontendSource, /data-prism-layout=tabs.*ldc-status\{display:none\}/s);
+  assert.match(frontendSource, /class="ldc-btn ldc-remove-character"/);
+  assert.match(frontendSource, /ldc-remove-character span\{display:none\}/);
+});
+
 test('modal body height is budgeted below viewport chrome', () => {
   assert.match(frontendSource, /contentHeight=clampHeight\(vh\*\.66,500,vh-170\)/);
   assert.match(frontendSource, /contentHeight=clampHeight\(vh\*\.74,540,vh-150\)/);
-  assert.match(frontendSource, /Object\.assign\(handle\.root\.style,\{display:'flex',flexDirection:'column',height:`\$\{dimensions\.contentHeight\}px`/);
+  assert.match(frontendSource, /function applyModalPresentation\(layout=resolvedModalLayout\(\),dimensions=modalDimensions\(\)\)/);
+  assert.match(frontendSource, /height:`\$\{dimensions\.contentHeight\}px`/);
   assert.match(frontendSource, /ldc-main-wrap\{min-height:0;overflow:hidden\}/);
 });
 
