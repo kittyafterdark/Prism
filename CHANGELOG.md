@@ -1,5 +1,12 @@
 # Prism changelog
 
+## 1.0.9f
+
+- High-scale/tabbed Prism no longer opens or hides a Lumiverse native modal behind its body-level workspace.
+- Removes the host modal's global vertical touch/scroll lock from the accessibility layout while preserving the normal native modal on desktop split layout.
+- Removes the body overflow mutation; the fixed Prism overlay and its own overscroll containment now own the fullscreen interaction.
+- Adds Escape-key dismissal directly to the standalone workspace.
+
 ## 1.0.9e
 
 - High-scale/tabbed Prism no longer opens or hides a Lumiverse native modal behind its body-level workspace.
