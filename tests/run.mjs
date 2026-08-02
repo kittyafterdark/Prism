@@ -107,8 +107,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.26');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.26'/);
+  assert.equal(manifest.version, '1.0.27');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.27'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -160,6 +160,16 @@ test('horizontal layout uses a contained cast carousel instead of floating initi
   assert.match(frontendSource, /mask-image:linear-gradient\(90deg,transparent 0,#000 18px/);
   assert.match(frontendSource, /data-prism-layout=horizontal\] \.ldc-avatar\{width:18px;height:18px;border-radius:50%;background:transparent;font-size:0\}/);
   assert.match(frontendSource, /roster\.scrollBy\(\{left:direction\*Math\.max\(180,Math\.floor\(roster\.clientWidth\*\.72\)\),behavior:'smooth'\}\)/);
+});
+
+test('horizontal layout uses tall modal proportions and a compact scene action menu', () => {
+  assert.match(frontendSource, /if\(horizontal&&!modalExpanded\).*contentHeight=clampHeight\(vh\*\(mobile\?\.88:\.84\)/s);
+  assert.match(frontendSource, /class="ldc-scene-menu"/);
+  assert.match(frontendSource, /class="ldc-scene-menu-popover"/);
+  assert.match(frontendSource, /Assign missing colors/);
+  assert.match(frontendSource, /Regenerate generated colors/);
+  assert.match(frontendSource, /horizontalLayout\?'':`<div class="ldc-status"/);
+  assert.match(frontendSource, /class="ldc-horizontal-status"/);
 });
 
 test('high-scale channel tabs retain intrinsic height on narrow layouts', () => {
