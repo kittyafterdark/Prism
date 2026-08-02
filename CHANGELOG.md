@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.18 — Accessibility scroll repair
+
+- Adds a guarded single-touch vertical drag and momentum fallback for Android/PWA WebViews that refuse the editor's native nested scroll gesture. Horizontal roster swipes and two-finger pinch zoom remain native.
+- Sizes the fullscreen accessibility portal from the live visual viewport and updates it as browser chrome, orientation, or the on-screen keyboard changes.
+- Keeps the editor pane as the only vertical scroll surface and preserves its position across ordinary rerenders.
+- Aligns manifest, package, diagnostics, and distribution version metadata after the accessibility branch drifted between 1.0.9 and 1.0.17.
+
 ## 1.0.9 — The blind fucks update
 
 - Removes the fullscreen portal's ancestor-level `touch-action: none`, which blocked every descendant scroll gesture even though the editor displayed a scrollbar.

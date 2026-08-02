@@ -107,8 +107,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.17');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.17'/);
+  assert.equal(manifest.version, '1.0.18');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.18'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -189,6 +189,20 @@ test('high-scale fullscreen uses an unscaled body portal with one scroll surface
   assert.match(frontendSource, /ldc-fullscreen-root \.ldc-panel\{[^}]*touch-action:pan-y pinch-zoom!important/);
   assert.match(frontendSource, /ldc-fullscreen-root \.ldc-roster-scroll\{touch-action:pan-x pinch-zoom!important/);
   assert.match(frontendSource, /releaseFullscreenOverlay\(\)/);
+});
+
+test('high-scale editor has a runtime mobile scroll fallback and live viewport sizing', () => {
+  assert.match(frontendSource, /function visibleViewportHeight\(\)/);
+  assert.match(frontendSource, /window\.visualViewport\?\.height/);
+  assert.match(frontendSource, /--prism-viewport-height/);
+  assert.match(frontendSource, /function installPanelTouchScroll\(panel\)/);
+  assert.match(frontendSource, /panel\.addEventListener\('touchmove'.*passive:false/s);
+  assert.match(frontendSource, /event\.touches\.length!==1/);
+  assert.match(frontendSource, /if\(event\.cancelable\)event\.preventDefault\(\)/);
+  assert.match(frontendSource, /requestAnimationFrame\(step\)/);
+  assert.match(frontendSource, /modalLayout==='tabs'\)installPanelTouchScroll\(nextPanel\)/);
+  assert.match(frontendSource, /visualViewport\?\.addEventListener\('resize',onViewportChange/);
+  assert.match(frontendSource, /visualViewport\?\.removeEventListener\('resize',onViewportChange/);
 });
 
 test('modal body height is budgeted below viewport chrome', () => {
