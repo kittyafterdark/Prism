@@ -1,0 +1,26 @@
+[
+  {
+    "id": "removed-character-does-not-enter-prompt",
+    "hiddenCharacters": { "narrator": true },
+    "bindings": [
+      { "kind": "character", "name": "Narrator", "color": "#E472B7" },
+      { "kind": "character", "name": "Denise", "color": "#B58CFF" }
+    ],
+    "expectedNames": ["Denise"]
+  },
+  {
+    "id": "duplicate-stale-name-is-emitted-once",
+    "hiddenCharacters": {},
+    "bindings": [
+      { "kind": "character", "name": "Narrator", "color": "#8572E4", "source": "generated", "pinned": false },
+      { "kind": "character", "name": "Narrator", "color": "#E472B7", "source": "manual", "pinned": true }
+    ],
+    "expected": [{ "name": "Narrator", "color": "#E472B7" }]
+  },
+  {
+    "id": "disabled-persona-does-not-enter-prompt",
+    "personaEnabled": false,
+    "bindings": [{ "kind": "persona", "name": "Max", "color": "#7DB7FF" }],
+    "expectedNames": []
+  }
+]

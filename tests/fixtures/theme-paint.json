@@ -1,0 +1,26 @@
+[
+  {
+    "id": "theme-primary-inline-is-presentation-only",
+    "themeColors": ["#B58CFF"],
+    "element": { "tag": "span", "styleColor": "#B58CFF" },
+    "expected": { "existingEvidence": false, "heuristicEligible": true }
+  },
+  {
+    "id": "portable-font-remains-authoritative-at-theme-color",
+    "themeColors": ["#B58CFF"],
+    "element": { "tag": "font", "color": "#B58CFF" },
+    "expected": { "existingEvidence": true, "heuristicEligible": false }
+  },
+  {
+    "id": "escaped-legacy-tag-remains-authoritative-at-theme-color",
+    "themeColors": ["#B58CFF"],
+    "element": { "tag": "span", "class": "ldc-inline-color", "originalColor": "#B58CFF" },
+    "expected": { "existingEvidence": true, "heuristicEligible": false }
+  },
+  {
+    "id": "custom-inline-color-remains-protected",
+    "themeColors": ["#B58CFF"],
+    "element": { "tag": "span", "styleColor": "#53C7FF" },
+    "expected": { "existingEvidence": true, "heuristicEligible": false }
+  }
+]

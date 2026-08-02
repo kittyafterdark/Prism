@@ -6,7 +6,7 @@ Existing formatting is authoritative. Prism indexes real or escaped `<font color
 
 ## Local-first workflow
 
-- v0.7.3 fixes live solid-color previews in the editor and gives solid paint the same full-width visual preview treatment as gradients. v0.7.2 keeps thought paint linked to dialogue paint until it is deliberately customized, and makes roster swatches render the actual dialogue solid/gradient paint. v0.7.1 refined the modal language and settings layout. v0.7.0 added a **Hybrid** engine: the model emits portable canonical `<font color>` identity tags first, then Prism preserves those tags as authoritative anchors and applies a conservative DOM overpass only to untagged gaps.
+- v0.7.4 excludes Lumi theme paint from legacy speaker evidence, removes hidden characters from the model registry, and adds a persisted persona master switch. v0.7.3 fixes live solid-color previews in the editor and gives solid paint the same full-width visual preview treatment as gradients. v0.7.2 keeps thought paint linked to dialogue paint until it is deliberately customized, and makes roster swatches render the actual dialogue solid/gradient paint. v0.7.1 refined the modal language and settings layout. v0.7.0 added a **Hybrid** engine: the model emits portable canonical `<font color>` identity tags first, then Prism preserves those tags as authoritative anchors and applies a conservative DOM overpass only to untagged gaps.
 
 - **Set up scene** imports Cortex, preset, and transcript colors, then fills only missing character/persona colors.
 - **Local / Hybrid / LLM** is visible in the modal top bar and remembered across chats.

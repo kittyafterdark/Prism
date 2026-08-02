@@ -16,9 +16,10 @@ function withTimeout(promise, timeoutMs, label) {
   ]).finally(() => clearTimeout(timer));
 }
 const DEFAULT_CONFIG = Object.freeze({
-  version: 6,
+  version: 7,
   engine: 'dom',
   autoUserMode: 'quoted',
+  personaEnabled: true,
   promptCharacterColors: true,
   promptThoughtColors: false,
   bindings: {},
@@ -58,6 +59,7 @@ function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
     version: DEFAULT_CONFIG.version,
     engine: normalizeEngine(preferredEngine),
     autoUserMode: DEFAULT_CONFIG.autoUserMode,
+    personaEnabled: DEFAULT_CONFIG.personaEnabled,
     promptCharacterColors: DEFAULT_CONFIG.promptCharacterColors,
     promptThoughtColors: DEFAULT_CONFIG.promptThoughtColors,
     bindings: {},
@@ -266,9 +268,10 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
   }
 
   return {
-    version: 6,
+    version: 7,
     engine: normalizeEngine(raw.engine, preferredEngine),
     autoUserMode: mode,
+    personaEnabled: raw.personaEnabled !== false,
     promptCharacterColors: raw.promptCharacterColors !== false,
     promptThoughtColors: raw.promptThoughtColors === true,
     bindings,
@@ -1255,6 +1258,9 @@ async function saveBinding(payload, userId) {
   if (['off', 'quoted', 'whole'].includes(payload.autoUserMode)) {
     config.autoUserMode = payload.autoUserMode;
   }
+  if (typeof payload.personaEnabled === 'boolean') {
+    config.personaEnabled = payload.personaEnabled;
+  }
   if (typeof payload.promptCharacterColors === 'boolean') {
     config.promptCharacterColors = payload.promptCharacterColors;
   }
@@ -1365,6 +1371,9 @@ async function updateOptions(payload, userId) {
   if (['off', 'quoted', 'whole'].includes(payload.autoUserMode)) {
     config.autoUserMode = payload.autoUserMode;
   }
+  if (typeof payload.personaEnabled === 'boolean') {
+    config.personaEnabled = payload.personaEnabled;
+  }
   if (typeof payload.promptCharacterColors === 'boolean') {
     config.promptCharacterColors = payload.promptCharacterColors;
   }
@@ -1443,7 +1452,7 @@ async function assignSceneColors(payload, userId) {
   }
 
   const persona = state.persona;
-  if (persona) {
+  if (persona && config.personaEnabled !== false) {
     const existing = findBinding(config, 'persona', persona.id, persona.name, []);
     if (!existing || (regenerate && existing.pinned === false && existing.source === 'generated')) {
       if (existing) {
@@ -1510,7 +1519,7 @@ async function recolorExisting(chatId, userId) {
   if (!chat || chat.id !== chatId) throw new Error('The active chat changed.');
   const config = await loadConfig(chat.id, userId);
   const persona = await spindle.personas.getActive(userId).catch(() => null);
-  const personaBinding = persona
+  const personaBinding = config.personaEnabled !== false && persona
     ? findBinding(config, 'persona', persona.id, persona.name, [])
     : null;
   const messages = await spindle.chat.getMessages(chat.id, userId);
@@ -1544,10 +1553,26 @@ async function recolorExisting(chatId, userId) {
   return { changed };
 }
 
+function registryBindingPriority(binding) {
+  const sourcePriority = { manual: 60, cortex: 50, transcript: 40, preset: 30, library: 20, generated: 10 };
+  return (binding.pinned === true ? 100 : 0) + (sourcePriority[binding.source] || 0);
+}
+
+function visibleRegistryBindings(config) {
+  const selected = new Map();
+  for (const binding of Object.values(config.bindings || {})) {
+    if (!normalizeHex(binding.color)) continue;
+    if (binding.kind === 'persona' && config.personaEnabled === false) continue;
+    if (binding.kind !== 'persona' && config.hiddenCharacters?.[normalizeName(binding.name)]) continue;
+    const key = `${binding.kind}:${normalizeName(binding.name)}`;
+    const current = selected.get(key);
+    if (!current || registryBindingPriority(binding) > registryBindingPriority(current)) selected.set(key, binding);
+  }
+  return [...selected.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function registryInstruction(config) {
-  const bindings = Object.values(config.bindings)
-    .filter((binding) => normalizeHex(binding.color))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const bindings = visibleRegistryBindings(config);
   if (!usesModelTags(config.engine) || !config.promptCharacterColors || bindings.length === 0) return '';
 
   const rows = bindings.map((binding) => {
@@ -1597,6 +1622,7 @@ spindle.on('MESSAGE_SENT', async (payload, userId) => {
 
     const config = await loadConfig(chatId, userId);
     if (!usesModelTags(config.engine)) return;
+    if (config.personaEnabled === false) return;
     if (config.autoUserMode === 'off') return;
     const persona = await spindle.personas.getActive(userId).catch(() => null);
     if (!persona) return;

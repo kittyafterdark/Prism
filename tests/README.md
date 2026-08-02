@@ -6,4 +6,8 @@
 
 `fixtures/scene-discovery.json` keeps ordinary card prose out of the roster while preserving explicit labels, declared cast lists, and known reporting-verb discovery.
 
+`fixtures/theme-paint.json` separates Lumi theme presentation from portable legacy evidence while keeping real font and escaped tags authoritative.
+
+`fixtures/registry-visibility.json` covers hidden-character prompt removal, stale binding deduplication, and disabled persona exclusion.
+
 The release verification harness loads the compiled frontend in a DOM fixture and exposes the backend reconciliation helpers under an isolated test build. It must confirm these fixtures before `dist/` is regenerated.
