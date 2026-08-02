@@ -105,4 +105,4 @@ At narrow widths or elevated Lumi UI scale, Prism uses horizontally swipeable Pa
 
 ### Dense split layout on narrow screens
 
-When Split roster is used below 980 CSS pixels, Auto size now keeps Prism in a shorter landscape/square card and applies a layout-aware desktop density. This mirrors the cleaner zoomed-out presentation without requiring users to change Lumi's global browser zoom. Explicit Large/Expanded sizing and the horizontal accessibility workspace are unaffected.
+When Split roster is used below 980 CSS pixels, Auto size now keeps Prism in a shorter landscape/square card and applies a layout-aware desktop density. This mirrors the cleaner zoomed-out presentation without requiring users to change Lumi's global browser zoom. Explicit Large/Expanded sizing and the horizontal accessibility workspace are unaffected. In that narrow landscape card, the cast moves into a contained horizontal carousel with color-orb chips, edge fades, scroll snapping, visible navigation controls, and a slim themed scrollbar; wide Split mode keeps the traditional side roster.

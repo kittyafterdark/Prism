@@ -107,8 +107,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.24');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.24'/);
+  assert.equal(manifest.version, '1.0.25');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.25'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -148,6 +148,17 @@ test('narrow split layout uses a dense landscape card instead of a portrait moda
   assert.match(frontendSource, /data-prism-density="\$\{landscapeDensity\?'landscape':'standard'\}"/);
   assert.match(frontendSource, /data-prism-layout=split\]\[data-prism-density=landscape\].*zoom:\.82/s);
   assert.match(frontendSource, /width:121\.95122%!important;height:121\.95122%!important/);
+});
+
+test('narrow split layout uses a contained cast carousel instead of floating initial tiles', () => {
+  assert.match(frontendSource, /class="ldc-roster-rail"/);
+  assert.match(frontendSource, /data-action="roster-prev"/);
+  assert.match(frontendSource, /data-action="roster-next"/);
+  assert.match(frontendSource, /data-prism-layout=split\]\[data-prism-density=landscape\] \.ldc-main\{display:flex;flex-direction:column/);
+  assert.match(frontendSource, /scroll-snap-type:x proximity/);
+  assert.match(frontendSource, /mask-image:linear-gradient\(90deg,transparent 0,#000 18px/);
+  assert.match(frontendSource, /data-prism-density=landscape\] \.ldc-avatar\{width:18px;height:18px;border-radius:50%;background:transparent;font-size:0\}/);
+  assert.match(frontendSource, /roster\.scrollBy\(\{left:direction\*Math\.max\(180,Math\.floor\(roster\.clientWidth\*\.72\)\),behavior:'smooth'\}\)/);
 });
 
 test('high-scale channel tabs retain intrinsic height on narrow layouts', () => {
