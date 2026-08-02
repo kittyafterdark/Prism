@@ -12,7 +12,7 @@ function withTimeout(promise, timeoutMs, label) {
     ]).finally(() => clearTimeout(timer));
 }
 const DEFAULT_CONFIG = Object.freeze({
-    version: 4,
+    version: 5,
     engine: 'dom',
     autoUserMode: 'quoted',
     promptCharacterColors: true,
@@ -23,6 +23,16 @@ const DEFAULT_CONFIG = Object.freeze({
     hiddenCharacters: {},
     cortexStatus: null,
 });
+const ENGINE_VALUES = Object.freeze(['dom', 'hybrid', 'llm']);
+function normalizeEngine(value, fallback = 'dom') {
+    return ENGINE_VALUES.includes(value) ? value : (ENGINE_VALUES.includes(fallback) ? fallback : 'dom');
+}
+function usesModelTags(engine) {
+    return engine === 'hybrid' || engine === 'llm';
+}
+function usesDomOverpass(engine) {
+    return engine === 'dom' || engine === 'hybrid';
+}
 const DEFAULT_PREFERENCES = Object.freeze({
     preferredEngine: 'dom',
     domAttributionMode: 'balanced',
@@ -36,7 +46,7 @@ const DEFAULT_PREFERENCES = Object.freeze({
 function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
     return {
         version: DEFAULT_CONFIG.version,
-        engine: preferredEngine === 'llm' ? 'llm' : 'dom',
+        engine: normalizeEngine(preferredEngine),
         autoUserMode: DEFAULT_CONFIG.autoUserMode,
         promptCharacterColors: DEFAULT_CONFIG.promptCharacterColors,
         promptThoughtColors: DEFAULT_CONFIG.promptThoughtColors,
@@ -50,7 +60,7 @@ function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
 function safePreferences(raw) {
     const source = raw && typeof raw === 'object' ? raw : {};
     return {
-        preferredEngine: source.preferredEngine === 'llm' ? 'llm' : 'dom',
+        preferredEngine: normalizeEngine(source.preferredEngine),
         domAttributionMode: ['strict', 'balanced', 'aggressive'].includes(source.domAttributionMode)
             ? source.domAttributionMode
             : DEFAULT_PREFERENCES.domAttributionMode,
@@ -227,8 +237,8 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
             override.speakerKey = speakerKeyMap.get(override.speakerKey);
     }
     return {
-        version: 4,
-        engine: raw.engine === 'llm' ? 'llm' : 'dom',
+        version: 5,
+        engine: normalizeEngine(raw.engine, preferredEngine),
         autoUserMode: mode,
         promptCharacterColors: raw.promptCharacterColors !== false,
         promptThoughtColors: raw.promptThoughtColors === true,
@@ -1175,9 +1185,9 @@ async function saveBinding(payload, userId) {
     if (!targetId || !name || !color)
         throw new Error('A target, name, and valid hex color are required.');
     const config = await loadConfig(chat.id, userId);
-    if (['dom', 'llm'].includes(payload.engine)) {
+    if (ENGINE_VALUES.includes(payload.engine)) {
         config.engine = payload.engine;
-        config.promptCharacterColors = payload.engine === 'llm';
+        config.promptCharacterColors = usesModelTags(payload.engine);
     }
     if (['off', 'quoted', 'whole'].includes(payload.autoUserMode)) {
         config.autoUserMode = payload.autoUserMode;
@@ -1284,9 +1294,9 @@ async function updateOptions(payload, userId) {
     if (!chat)
         throw new Error('Open a chat first.');
     const config = await loadConfig(chat.id, userId);
-    if (['dom', 'llm'].includes(payload.engine)) {
+    if (ENGINE_VALUES.includes(payload.engine)) {
         config.engine = payload.engine;
-        config.promptCharacterColors = payload.engine === 'llm';
+        config.promptCharacterColors = usesModelTags(payload.engine);
     }
     if (['off', 'quoted', 'whole'].includes(payload.autoUserMode)) {
         config.autoUserMode = payload.autoUserMode;
@@ -1298,7 +1308,7 @@ async function updateOptions(payload, userId) {
         config.promptThoughtColors = payload.promptThoughtColors;
     }
     let globalState = await loadGlobalState(userId);
-    if (['dom', 'llm'].includes(payload.engine)) {
+    if (ENGINE_VALUES.includes(payload.engine)) {
         globalState.preferences.preferredEngine = payload.engine;
     }
     if (['strict', 'balanced', 'aggressive'].includes(payload.domAttributionMode)) {
@@ -1339,10 +1349,10 @@ async function assignSceneColors(payload, userId) {
         .filter((binding) => !regenerate || binding.pinned !== false || binding.source !== 'generated')
         .map((binding) => normalizeHex(binding.color))
         .filter(Boolean);
-    config.engine = 'dom';
-    config.promptCharacterColors = false;
+    config.engine = normalizeEngine(config.engine, globalState.preferences.preferredEngine);
+    config.promptCharacterColors = usesModelTags(config.engine);
     config.autoUserMode = 'quoted';
-    globalState.preferences.preferredEngine = 'dom';
+    globalState.preferences.preferredEngine = config.engine;
     globalState.preferences.personaMode = 'quoted';
     const sortedCharacters = [...(state.characters || [])].sort((a, b) => (libraryKeysForCharacter(a)[0].localeCompare(libraryKeysForCharacter(b)[0])));
     for (const character of sortedCharacters) {
@@ -1466,7 +1476,7 @@ function registryInstruction(config) {
     const bindings = Object.values(config.bindings)
         .filter((binding) => normalizeHex(binding.color))
         .sort((a, b) => a.name.localeCompare(b.name));
-    if (config.engine !== 'llm' || !config.promptCharacterColors || bindings.length === 0)
+    if (!usesModelTags(config.engine) || !config.promptCharacterColors || bindings.length === 0)
         return '';
     const rows = bindings.map((binding) => {
         const aliases = uniqueStrings(binding.aliases);
@@ -1477,10 +1487,11 @@ function registryInstruction(config) {
         ? 'For direct internal thought only, use <i><font color="#RRGGBB">thought</font></i> with the same speaker anchor. Do not mark actions, narration, description, or ordinary emphasis as thought.'
         : 'Do not color internal thoughts.';
     return [
-        '[Dialogue Color Registry]',
-        'For every bound speaker below, wrap only their spoken dialogue in the exact HTML form <font color="#RRGGBB">dialogue</font>.',
-        `Do not color narration, actions, or scene description. ${thoughtInstruction} Preserve punctuation and do not invent colors for unbound speakers.`,
-        'When several listed characters speak in one response, use each speaker\'s own bound color.',
+        '[Prism Dialogue Markup Registry]',
+        'Mark speaker identity in the response with portable HTML font tags. For every bound speaker below, wrap each complete spoken segment, including its quotation marks, in exactly <font color="#RRGGBB">"dialogue"</font>.',
+        `Use only the listed canonical hex for that speaker. Do not add style attributes, CSS, gradients, data attributes, or invented colors. Do not color narration, actions, scene description, or reporting clauses. ${thoughtInstruction}`,
+        'If a speaker is uncertain or unbound, leave that segment uncolored instead of guessing. Preserve all wording and punctuation. When several listed characters speak, tag each segment with its own speaker color.',
+        'Prism will preserve these tags as authoritative identity anchors and may locally repair any untagged gaps after rendering.',
         rows,
     ].join('\n');
 }
@@ -1512,7 +1523,7 @@ spindle.on('MESSAGE_SENT', async (payload, userId) => {
         if (message.metadata?.lumi_dialogue_colors_applied)
             return;
         const config = await loadConfig(chatId, userId);
-        if (config.engine !== 'llm')
+        if (!usesModelTags(config.engine))
             return;
         if (config.autoUserMode === 'off')
             return;
@@ -1588,8 +1599,8 @@ spindle.onFrontendMessage(async (payload, userId) => {
                 const result = await assignSceneColors(payload, userId);
                 reply('ldc_state', { state: result.state, assigned: result.assigned, saved: true });
                 spindle.toast.success(result.assigned
-                    ? `Assigned ${result.assigned} local color${result.assigned === 1 ? '' : 's'}.`
-                    : 'Local colors are ready.', { userId });
+                    ? `Assigned ${result.assigned} scene color${result.assigned === 1 ? '' : 's'}.`
+                    : 'Scene colors are ready.', { userId });
                 break;
             }
             case 'ldc_save_override': {

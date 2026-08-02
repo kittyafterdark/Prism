@@ -6,10 +6,10 @@ Existing formatting is authoritative. Prism indexes real or escaped `<font color
 
 ## Local-first workflow
 
-- v0.6.2 opens from a fast cached state, deduplicates concurrent loads, keeps Cortex/transcript rescans behind explicit long-running sync actions, and prevents ordinary card prose from becoming fake cast members.
+- v0.7.0 adds a **Hybrid** engine: the model emits portable canonical `<font color>` identity tags first, then Prism preserves those tags as authoritative anchors and applies a conservative DOM overpass only to untagged gaps.
 
 - **Set up scene** imports Cortex, preset, and transcript colors, then fills only missing character/persona colors.
-- **Local / LLM** is visible in the modal top bar and remembered across chats.
+- **Local / Hybrid / LLM** is visible in the modal top bar and remembered across chats.
 - **Balanced attribution** uses labels, speech verbs, action beats, continuity, and bubble authors without silently blaming the primary character.
 - Paragraph-aware dialogue turns recognize expanded reporting verbs, preserve prose continuations, and alternate quote-only replies only after two speakers are established.
 - Existing legacy colors can establish dialogue turns, teach Prism their owner, and receive the owner’s current local paint without changing the underlying tag.
@@ -43,13 +43,21 @@ A small Spindle extension for binding per-speaker dialogue colors in Lumiverse.
 - Builds the scene roster from every group-card member, camel-cased Cortex character entities, explicit card cast lists, and speaker labels already present in the transcript.
 - Lets you bind a hex color and aliases to each character, and manually curate the per-chat roster.
 - Shows the currently active persona and can automatically color its sent dialogue.
-- Keeps the **Local / LLM** engine switch visible in the modal header; the cog contains attribution behavior only.
+- Keeps the **Local / Hybrid / LLM** engine switch visible in the modal header; the cog contains attribution behavior only.
 - In DOM-only mode, colors rendered dialogue reversibly without changing saved messages or model context.
-- In LLM-sidecar mode, injects the active registry so models emit the correct `<font color="#RRGGBB">...</font>` tags.
+- In Hybrid and LLM-sidecar modes, injects the active registry so models emit the correct canonical `<font color="#RRGGBB">...</font>` tags. Hybrid then fills only missing untagged dialogue locally; pure LLM mode does not.
 - Imports attributable colors from existing `<font color>`, inline `style="color:…"`, and `[color=…]` dialogue, including preset-produced transcripts.
 - Renders escaped legacy color tags with allowlisted inline emphasis in both engines without mutating the saved message.
 - Offers Preserve, Enhance, and Replace-visually policies for existing tags; all remain non-destructive.
 - The confirmation-heavy **Bake current colors** action can rewrite matching legacy colors and persona dialogue in saved messages, including swipe variants.
+
+## Engines
+
+- **Local** — no prompt injection and no saved assistant markup. Prism heuristically paints the rendered DOM only.
+- **Hybrid** — injects the registry so the model writes canonical font tags, treats those tags as authoritative speaker anchors, enhances them with local solid/gradient paint, and conservatively fills untagged dialogue gaps.
+- **LLM** — injects the same portable registry but performs no heuristic gap filling; only existing/model-emitted tags receive Prism overlays.
+
+Hybrid also applies persona font tags to newly sent user dialogue using the selected Off / Quoted / Whole-message policy.
 
 ## Cortex integration
 
@@ -75,8 +83,9 @@ Grant the requested permissions when prompted. The toolbar button and input-bar 
 
 ## Notes
 
-- Character output is guided at prompt time rather than post-processed. That avoids guessing who spoke when one assistant message contains several speakers.
-- Existing untagged assistant prose is not heuristically recolored because speaker attribution would be unsafe. Existing known color tags are migrated when a binding changes.
+- In **Hybrid**, character output is guided at prompt time and then locally repaired. Model-emitted tags outrank every heuristic; Prism never recolors or nests over a tagged segment.
+- Hybrid defers low-confidence local guesses instead of painting them automatically. Deferred segments remain underlined, teachable, and available from the unresolved review control.
+- In pure **LLM** mode, existing untagged assistant prose is left alone. In **Local**, all coloring remains render-only.
 - Existing-tag migration is role-scoped: character color history can only rewrite assistant messages, while persona color history can only rewrite user messages.
 - Scenario, setting, and multi-character container cards are treated as cast sources instead of automatically being mistaken for speakers when a real cast can be identified.
 - JSON objects, JSON-property lines, fenced code, and identifier-like structured keys are excluded from speaker discovery.
