@@ -1,7 +1,7 @@
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const RECOVERY_VAR = 'prism_transcript_recovery_v1';
-const PRISM_VERSION = '1.0.1';
+const PRISM_VERSION = '1.0.2';
 const FAST_OPTIONAL_TIMEOUT_MS = 4500;
 const TRANSCRIPT_TIMEOUT_MS = 12000;
 const HYDRATION_FETCH_TIMEOUT_MS = 5000;
@@ -790,6 +790,69 @@ function cleanDiscoveredSceneName(value) {
     }))
         return '';
     return name;
+}
+const DISCOVERY_FRAGMENT_WORDS = new Set([
+    'about', 'after', 'against', 'along', 'amid', 'among', 'and', 'around', 'as', 'at',
+    'because', 'before', 'behind', 'below', 'beneath', 'beside', 'between', 'but', 'by',
+    'despite', 'during', 'except', 'for', 'from', 'if', 'in', 'inside', 'into', 'near',
+    'nor', 'of', 'off', 'on', 'onto', 'or', 'out', 'outside', 'over', 'past', 'since',
+    'than', 'that', 'the', 'then', 'through', 'throughout', 'to', 'toward', 'under',
+    'until', 'up', 'upon', 'when', 'where', 'while', 'with', 'within', 'without',
+]);
+function plausibleInferredSceneName(value, options = {}) {
+    const name = cleanDiscoveredSceneName(value);
+    if (!name)
+        return '';
+    if (options.known === true)
+        return name;
+    const words = name.split(/\s+/).map((word) => word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').toLocaleLowerCase()).filter(Boolean);
+    if (!words.length || DISCOVERY_FRAGMENT_WORDS.has(words[0]))
+        return '';
+    const lexical = words.filter((word) => !DISCOVERY_FRAGMENT_WORDS.has(word) && !DISCOVERY_NAME_STOPWORDS.has(word));
+    if (!lexical.length)
+        return '';
+    if (options.strong !== true && words.length > 3)
+        return '';
+    return name;
+}
+function sceneIdentityEntries(config) {
+    const entries = [];
+    const seen = new Set();
+    for (const binding of Object.values(config?.bindings || {})) {
+        if (binding.kind !== 'character')
+            continue;
+        const key = String(binding.speakerUid || `target:${binding.targetId}`);
+        if (seen.has(key))
+            continue;
+        seen.add(key);
+        entries.push({
+            name: binding.name,
+            aliases: uniqueStrings(binding.aliases),
+            speakerUid: binding.speakerUid || null,
+            targetId: String(binding.targetId || ''),
+            binding,
+        });
+    }
+    for (const manual of Object.values(config?.manualCharacters || {})) {
+        const names = [manual.name, ...(manual.aliases || [])].map(normalizeName).filter(Boolean);
+        if (entries.some((entry) => [entry.name, ...(entry.aliases || [])].map(normalizeName).some((name) => names.includes(name))))
+            continue;
+        entries.push({
+            name: manual.name,
+            aliases: uniqueStrings(manual.aliases),
+            speakerUid: null,
+            targetId: String(manual.id || ''),
+            binding: null,
+        });
+    }
+    return entries;
+}
+function knownSceneIdentityByName(config, value) {
+    const normalized = normalizeName(value);
+    if (!normalized)
+        return null;
+    const matches = sceneIdentityEntries(config).filter((entry) => [entry.name, ...(entry.aliases || [])].map(normalizeName).includes(normalized));
+    return matches.length === 1 ? matches[0] : null;
 }
 const REPORTING_VERB_SOURCE = '(?:say|said|says|ask|asked|asks|reply|replied|replies|answer|answered|answers|announce|announced|announces|observe|observed|observes|remark|remarked|remarks|state|stated|states|declare|declared|declares|note|noted|notes|explain|explained|explains|add|added|adds|continue|continued|continues|whisper|whispered|whispers|murmur|murmured|murmurs|mutter|muttered|mutters|breathe|breathed|breathes|hiss|hissed|hisses|growl|growled|growls|drawl|drawled|drawls|intone|intoned|intones|shout|shouted|shouts|yell|yelled|yells|cry|cried|cries|call|called|calls|snap|snapped|snaps|bark|barked|barks|exclaim|exclaimed|exclaims|retort|retorted|retorts|protest|protested|protests|insist|insisted|insists|warn|warned|warns|demand|demanded|demands|urge|urged|urges|correct|corrected|corrects|admit|admitted|admits|concede|conceded|concedes|agree|agreed|agrees|object|objected|objects|promise|promised|promises|laugh|laughed|laughs|sigh|sighed|sighs|scoff|scoffed|scoffs|groan|groaned|groans|repeat|repeated|repeats|echo|echoed|echoes|offer|offered|offers|assure|assured|assures)';
 function extractSceneNamesFromText(value) {
@@ -2037,25 +2100,38 @@ function inferTagSpeakerEvidence(content, tag) {
 function inferTagSpeakerName(content, tag) {
     return inferTagSpeakerEvidence(content, tag).name;
 }
-function classifyTagObservation(tag, inferredName, registry) {
+function classifyTagObservation(tag, inferredName, registry, context = {}) {
     const colorOwner = registry.byColor?.[tag.color] || null;
-    const inferredSpeaker = knownRegistrySpeakerByName(registry, inferredName);
+    const identity = context.identity || null;
+    const registrySpeaker = knownRegistrySpeakerByName(registry, inferredName);
+    const inferredSpeaker = identity?.speakerUid
+        ? (registry.bySpeakerUid?.[identity.speakerUid] || { speakerUid: identity.speakerUid, name: identity.name })
+        : registrySpeaker;
+    const weakStructural = context.evidenceSource === 'structural-speech-tag' && context.strong !== true;
     const collision = (registry.conflicts || []).find((item) => item.color === tag.color);
     if (collision)
-        return { kind: 'color-collision', confidence: 0.98, matchedSpeakerUid: inferredSpeaker?.speakerUid || null, confirmed: false };
+        return { kind: 'color-collision', confidence: 0.98, matchedSpeakerUid: inferredSpeaker?.speakerUid || null, matchedTargetId: identity?.targetId || null, confirmed: false };
     if (colorOwner && !inferredName)
-        return { kind: 'confirmed-use', confidence: 0.9, matchedSpeakerUid: colorOwner.speakerUid, confirmed: true };
+        return { kind: 'confirmed-use', confidence: 0.9, matchedSpeakerUid: colorOwner.speakerUid, matchedTargetId: null, confirmed: true };
     if (colorOwner && inferredSpeaker?.speakerUid === colorOwner.speakerUid)
-        return { kind: 'confirmed-use', confidence: 0.99, matchedSpeakerUid: colorOwner.speakerUid, confirmed: true };
-    if (colorOwner && inferredSpeaker)
-        return { kind: 'speaker-conflict', confidence: 0.96, matchedSpeakerUid: inferredSpeaker.speakerUid, confirmed: false };
-    if (colorOwner && inferredName)
-        return { kind: 'alias-suggestion', confidence: 0.82, matchedSpeakerUid: colorOwner.speakerUid, confirmed: false };
+        return { kind: 'confirmed-use', confidence: 0.99, matchedSpeakerUid: colorOwner.speakerUid, matchedTargetId: identity?.targetId || null, confirmed: true };
+    if (colorOwner && (inferredSpeaker || identity)) {
+        if (weakStructural)
+            return { kind: 'confirmed-use', confidence: 0.76, matchedSpeakerUid: colorOwner.speakerUid, matchedTargetId: null, confirmed: true, suppressedReason: 'weak-structural-conflict' };
+        return { kind: 'speaker-conflict', confidence: 0.96, matchedSpeakerUid: inferredSpeaker?.speakerUid || null, matchedTargetId: identity?.targetId || null, confirmed: false };
+    }
+    if (colorOwner && inferredName) {
+        if (weakStructural)
+            return { kind: 'confirmed-use', confidence: 0.76, matchedSpeakerUid: colorOwner.speakerUid, matchedTargetId: null, confirmed: true, suppressedReason: 'weak-structural-alias' };
+        return { kind: 'alias-suggestion', confidence: 0.82, matchedSpeakerUid: colorOwner.speakerUid, matchedTargetId: null, confirmed: false };
+    }
     if (!colorOwner && inferredSpeaker)
-        return { kind: 'color-drift', confidence: 0.95, matchedSpeakerUid: inferredSpeaker.speakerUid, confirmed: false };
+        return { kind: 'color-drift', confidence: 0.95, matchedSpeakerUid: inferredSpeaker.speakerUid, matchedTargetId: identity?.targetId || null, confirmed: false };
+    if (!colorOwner && identity)
+        return { kind: 'known-speaker-color', confidence: context.strong === true ? 0.94 : 0.74, matchedSpeakerUid: null, matchedTargetId: identity.targetId || null, confirmed: false };
     if (!colorOwner && inferredName)
-        return { kind: 'new-speaker', confidence: 0.9, matchedSpeakerUid: null, confirmed: false };
-    return { kind: 'unknown-color', confidence: 0.55, matchedSpeakerUid: null, confirmed: false };
+        return { kind: 'new-speaker', confidence: context.strong === true ? 0.9 : 0.72, matchedSpeakerUid: null, matchedTargetId: null, confirmed: false };
+    return { kind: 'unknown-color', confidence: 0.55, matchedSpeakerUid: null, matchedTargetId: null, confirmed: false };
 }
 function pendingReviewGroups(config) {
     const groups = new Map();
@@ -2069,12 +2145,14 @@ function pendingReviewGroups(config) {
                 inferredName: observation.inferredName,
                 observedColor: observation.observedColor,
                 matchedSpeakerUid: observation.matchedSpeakerUid,
+                matchedTargetId: observation.matchedTargetId || null,
                 confidence: 0,
                 count: 0,
                 independentCount: 0,
                 echoCount: 0,
                 strongEvidence: false,
                 evidenceOrigins: new Set(),
+                evidenceSources: new Set(),
                 lastAssistantIndex: 0,
                 lastIndependentSeenAt: 0,
                 messageIds: new Set(),
@@ -2094,13 +2172,24 @@ function pendingReviewGroups(config) {
             group.confidence = Math.max(group.confidence, observation.confidence);
         }
         group.evidenceOrigins.add(observation.evidenceOrigin || 'model-first-seen');
+        group.evidenceSources.add(observation.evidenceSource || 'unknown');
         group.messageIds.add(observation.messageId);
         group.firstSeenAt = Math.min(group.firstSeenAt, observation.createdAt);
         group.lastSeenAt = Math.max(group.lastSeenAt, observation.lastSeenAt);
         if (observation.quote && !group.examples.includes(observation.quote) && group.examples.length < 4)
             group.examples.push(observation.quote);
     }
-    return [...groups.values()].map((group) => ({ ...group, messageCount: group.messageIds.size, messageIds: undefined, evidenceOrigins: [...group.evidenceOrigins] }))
+    return [...groups.values()]
+        .map((group) => ({ ...group, messageCount: group.messageIds.size, messageIds: undefined, evidenceOrigins: [...group.evidenceOrigins], evidenceSources: [...group.evidenceSources] }))
+        .filter((group) => {
+        const known = knownSceneIdentityByName(config, group.inferredName);
+        if (group.inferredName && !plausibleInferredSceneName(group.inferredName, { known: Boolean(known), strong: group.strongEvidence }))
+            return false;
+        const weakSingle = !group.strongEvidence && group.independentCount < 2;
+        if (weakSingle && ['alias-suggestion', 'speaker-conflict', 'new-speaker', 'known-speaker-color', 'unknown-color'].includes(group.kind))
+            return false;
+        return true;
+    })
         .sort((a, b) => b.confidence - a.confidence || b.lastSeenAt - a.lastSeenAt);
 }
 function delay(ms) {
@@ -2194,8 +2283,13 @@ async function hydrateGeneratedMessage(payload, userId) {
         const occurrenceIndex = occurrences.get(`${tag.color}:${tag.quote}`) || 0;
         occurrences.set(`${tag.color}:${tag.quote}`, occurrenceIndex + 1);
         const inference = inferTagSpeakerEvidence(content, tag);
-        const inferredName = inference.name;
-        const classification = classifyTagObservation(tag, inferredName, registry);
+        const knownIdentity = knownSceneIdentityByName(config, inference.name);
+        const inferredName = knownIdentity?.name || plausibleInferredSceneName(inference.name, { known: Boolean(knownIdentity), strong: inference.strong === true }) || null;
+        const classification = classifyTagObservation(tag, inferredName, registry, {
+            identity: knownIdentity,
+            evidenceSource: inference.source,
+            strong: inference.strong === true,
+        });
         if (classification.confirmed) {
             const usage = config.registryUsage[classification.matchedSpeakerUid] || { count: 0, lastSeenAt: 0 };
             usage.count += 1;
@@ -2211,7 +2305,7 @@ async function hydrateGeneratedMessage(payload, userId) {
         const observation = {
             id, groupKey, messageId: String(message.id), swipeId, contentHash,
             quote: tag.quote, surroundingText: decodeObservedText(content.slice(Math.max(0, tag.start - 140), tag.end + 140)),
-            observedColor: tag.color, inferredName, matchedSpeakerUid: classification.matchedSpeakerUid,
+            observedColor: tag.color, inferredName, matchedSpeakerUid: classification.matchedSpeakerUid, matchedTargetId: classification.matchedTargetId || null,
             registryRevision: registry.revision, kind: classification.kind, confidence: classification.confidence,
             status: 'pending', resolvedSpeakerUid: null, source: tag.source, occurrenceIndex,
             evidenceOrigin: provisionalEcho ? 'provisional-echo' : 'model-first-seen',
@@ -2428,7 +2522,7 @@ function compileRegistry(config) {
     const revision = hashString(revisionSource).toString(16).padStart(8, '0');
     const byColor = Object.fromEntries(entries.map((entry) => [entry.color, entry]));
     const bySpeakerUid = Object.fromEntries(entries.map((entry) => [entry.speakerUid, entry]));
-    const pendingCount = Object.values(config.observations || {}).filter((observation) => observation.status === 'pending').length;
+    const pendingCount = pendingReviewGroups(config).length;
     return { revision, entries, byColor, bySpeakerUid, conflicts, pendingCount, trimmedCount: Math.max(0, eligible.length - entries.length) };
 }
 const HYBRID_DISCOVERY_PALETTE = Object.freeze([

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2
+
+- Resolve inferred Hybrid names against the existing scene roster before creating alias suggestions.
+- Treat explicit mismatched known speakers as conflicts instead of proposing that they become aliases of the color owner.
+- Suppress one-off weak structural guesses and fragment names such as “in the” until independent evidence exists.
+- Preselect known unbound characters when Hybrid finds a color for them.
+
 ## 1.0.1
 
 - Serializes per-user, per-chat backend state mutations so editor autosaves, Hybrid hydration, roster changes, and review approval cannot overwrite one another with stale config.

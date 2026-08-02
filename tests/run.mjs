@@ -30,6 +30,7 @@ const backendCompiled = compile('backend.ts', `${backendSource}\n;globalThis.__p
   promptField, snapshotScopeKey, rememberRegistrySnapshot, selectRegistrySnapshot,
   messagesForHydration, reconcileConfigWithMessages, pendingReviewGroups,
   provisionalRegistryHints, inferTagSpeakerEvidence, classifyTagObservation,
+  plausibleInferredSceneName, knownSceneIdentityByName,
   extractSceneNamesFromText, hydrateGeneratedMessage, resetTemporaryEvidence,
   addSceneCharacter, resolveObservationGroup, mergeSceneCharacter, loadConfig, saveConfig,
   enqueueConfigOperation, configOperationQueues,
@@ -105,7 +106,7 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.1');
+  assert.equal(manifest.version, '1.0.2');
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -303,9 +304,7 @@ test('provisional echoes do not become independent corroboration', () => {
     first: { ...base, id: 'first', groupKey: 'new-speaker:selby:#C9832E', evidenceOrigin: 'model-first-seen' },
     echo: { ...base, id: 'echo', messageId: 'm2', contentHash: 'h2', groupKey: 'new-speaker:selby:#C9832E', evidenceOrigin: 'provisional-echo', strongEvidence: true, assistantIndex: 2 },
   } });
-  const group = api.pendingReviewGroups(config)[0];
-  assert.equal(group.independentCount, 1);
-  assert.equal(group.echoCount, 1);
+  assert.equal(api.pendingReviewGroups(config).length, 0);
   assert.equal(api.provisionalRegistryHints(config, api.compileRegistry(config)).length, 0);
 });
 
@@ -365,6 +364,64 @@ test('state collections are bounded during migration', () => {
 
 test('scene discovery corpus rejects prose fragments and keeps explicit speakers', async () => {
   for (const item of await fixture('scene-discovery.json')) assert.deepEqual([...api.extractSceneNamesFromText(item.text)], item.expected, item.id);
+});
+
+
+
+test('Hybrid review rejects fragment names and does not relabel known characters as aliases', () => {
+  const config = api.safeConfig({
+    version: 11,
+    engine: 'hybrid',
+    bindings: {
+      'character:denise': binding('Denise', '#50DB29', { speakerUid: 'denise' }),
+      'character:fast': binding('Fast', '#9F72E4', { speakerUid: 'fast' }),
+      'character:maxwell': binding('Maxwell', '#E05D7B', { speakerUid: 'maxwell' }),
+    },
+  });
+  const registry = api.compileRegistry(config);
+  const fast = api.knownSceneIdentityByName(config, 'Fast');
+  assert.equal(fast?.speakerUid, 'fast');
+  assert.equal(api.plausibleInferredSceneName('In the', { strong: false }), '');
+
+  const weak = api.classifyTagObservation(
+    { color: '#50DB29' },
+    'Fast',
+    registry,
+    { identity: fast, evidenceSource: 'structural-speech-tag', strong: false },
+  );
+  assert.equal(weak.kind, 'confirmed-use');
+  assert.equal(weak.matchedSpeakerUid, 'denise');
+
+  const explicit = api.classifyTagObservation(
+    { color: '#50DB29' },
+    'Fast',
+    registry,
+    { identity: fast, evidenceSource: 'reporting-verb', strong: true },
+  );
+  assert.equal(explicit.kind, 'speaker-conflict');
+  assert.equal(explicit.matchedSpeakerUid, 'fast');
+});
+
+test('Hybrid review hides one-off weak alias and junk-name observations', () => {
+  const now = Date.now();
+  const config = api.safeConfig({
+    version: 11,
+    observations: {
+      fast: {
+        id: 'fast', groupKey: 'alias-suggestion:fast:#50DB29:denise', messageId: 'm1', swipeId: 0, contentHash: 'h1',
+        quote: '"Eleven minutes,"', observedColor: '#50DB29', inferredName: 'Fast', matchedSpeakerUid: 'denise',
+        kind: 'alias-suggestion', confidence: 0.82, status: 'pending', evidenceOrigin: 'model-first-seen',
+        evidenceSource: 'structural-speech-tag', strongEvidence: false, assistantIndex: 1, createdAt: now, lastSeenAt: now,
+      },
+      junk: {
+        id: 'junk', groupKey: 'new-speaker:in the:#C9832E:', messageId: 'm1', swipeId: 0, contentHash: 'h1',
+        quote: '"No."', observedColor: '#C9832E', inferredName: 'In the', matchedSpeakerUid: null,
+        kind: 'new-speaker', confidence: 0.72, status: 'pending', evidenceOrigin: 'model-first-seen',
+        evidenceSource: 'structural-speech-tag', strongEvidence: false, assistantIndex: 1, createdAt: now, lastSeenAt: now,
+      },
+    },
+  });
+  assert.equal(api.pendingReviewGroups(config).length, 0);
 });
 
 let passed = 0;
