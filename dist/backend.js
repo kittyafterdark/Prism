@@ -12,7 +12,7 @@ function withTimeout(promise, timeoutMs, label) {
     ]).finally(() => clearTimeout(timer));
 }
 const DEFAULT_CONFIG = Object.freeze({
-    version: 5,
+    version: 6,
     engine: 'dom',
     autoUserMode: 'quoted',
     promptCharacterColors: true,
@@ -95,15 +95,29 @@ function safePaint(raw, fallbackColor) {
     }
     return { mode: 'solid', stops: [stops[0] || anchor], angle: 90, anchor };
 }
-function safeChannels(raw, fallbackColor) {
+function paintSignature(raw, fallbackColor) {
+    const paint = safePaint(raw, fallbackColor);
+    return JSON.stringify({ mode: paint.mode, stops: paint.stops, angle: paint.angle, anchor: paint.anchor });
+}
+function safeChannels(raw, fallbackColor, assumeLegacyThoughtLink = false) {
+    const dialogue = {
+        enabled: raw?.dialogue?.enabled !== false,
+        paint: safePaint(raw?.dialogue?.paint, fallbackColor),
+    };
+    const storedThoughtPaint = safePaint(raw?.thought?.paint, fallbackColor);
+    const explicitlyLinked = typeof raw?.thought?.linkedToDialogue === 'boolean'
+        ? raw.thought.linkedToDialogue
+        : null;
+    const matchesDialogue = paintSignature(storedThoughtPaint, fallbackColor) === paintSignature(dialogue.paint, fallbackColor);
+    const looksLikeLegacyDefault = assumeLegacyThoughtLink
+        && paintSignature(storedThoughtPaint, fallbackColor) === paintSignature(defaultPaint(fallbackColor), fallbackColor);
+    const linkedToDialogue = explicitlyLinked ?? (!raw?.thought?.paint || matchesDialogue || looksLikeLegacyDefault);
     return {
-        dialogue: {
-            enabled: raw?.dialogue?.enabled !== false,
-            paint: safePaint(raw?.dialogue?.paint, fallbackColor),
-        },
+        dialogue,
         thought: {
             enabled: raw?.thought?.enabled === true,
-            paint: safePaint(raw?.thought?.paint, fallbackColor),
+            linkedToDialogue,
+            paint: linkedToDialogue ? safePaint(dialogue.paint, fallbackColor) : storedThoughtPaint,
         },
     };
 }
@@ -117,7 +131,7 @@ function safeGlobalState(raw) {
                 continue;
             library[key] = {
                 color,
-                channels: safeChannels(item?.channels, color),
+                channels: safeChannels(item?.channels, color, Number(source.version || 0) < 3),
                 aliases: uniqueStrings(item?.aliases),
                 name: String(item?.name || '').trim(),
                 source: ['cortex', 'transcript', 'preset', 'generated', 'manual'].includes(item?.source) ? item.source : 'library',
@@ -126,7 +140,7 @@ function safeGlobalState(raw) {
             };
         }
     }
-    return { version: 2, preferences: safePreferences(source.preferences), library };
+    return { version: 3, preferences: safePreferences(source.preferences), library };
 }
 function normalizeHex(value) {
     const raw = String(value || '').trim();
@@ -175,7 +189,7 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
                 name,
                 aliases: uniqueStrings(value.aliases),
                 color,
-                channels: safeChannels(value.channels, color),
+                channels: safeChannels(value.channels, color, Number(raw.version || 0) < 6),
                 previousColors: uniqueStrings(value.previousColors)
                     .map(normalizeHex)
                     .filter(Boolean)
@@ -237,7 +251,7 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
             override.speakerKey = speakerKeyMap.get(override.speakerKey);
     }
     return {
-        version: 5,
+        version: 6,
         engine: normalizeEngine(raw.engine, preferredEngine),
         autoUserMode: mode,
         promptCharacterColors: raw.promptCharacterColors !== false,
