@@ -1,6 +1,13 @@
 # Changelog
 
-## 1.0.9 still mf — Accessibility scroll repair
+## 1.0.9c — Single vertical scroll surface
+
+- Replaces the unreliable nested editor scroller with one native vertical scroll surface on the fullscreen main workspace.
+- Keeps the horizontal roster as its own horizontal scroller while the character editor flows normally beneath it.
+- Removes the competing JavaScript touch-drag fallback so Android/PWA no longer has two systems fighting over the same vertical gesture.
+- Preserves the fullscreen workspace scroll position across ordinary rerenders.
+
+## 1.0.9b — Accessibility scroll repair
 
 - Adds a guarded single-touch vertical drag and momentum fallback for Android/PWA WebViews that refuse the editor's native nested scroll gesture. Horizontal roster swipes and two-finger pinch zoom remain native.
 - Sizes the fullscreen accessibility portal from the live visual viewport and updates it as browser chrome, orientation, or the on-screen keyboard changes.

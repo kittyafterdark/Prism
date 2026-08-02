@@ -107,8 +107,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.18');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.18'/);
+  assert.equal(manifest.version, '1.0.19');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.19'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -176,31 +176,25 @@ test('horizontal layout owns the viewport and removes redundant editor chrome', 
   assert.match(frontendSource, /ldc-remove-character span\{display:none\}/);
 });
 
-test('high-scale fullscreen uses an unscaled body portal with one scroll surface', () => {
+test('high-scale fullscreen uses an unscaled body portal with one native scroll surface', () => {
   assert.match(frontendSource, /function createFullscreenModalProxy\(handle\)/);
   assert.match(frontendSource, /document\.body\.appendChild\(overlay\)/);
   assert.match(frontendSource, /handle\.root\.classList\.add\('ldc-fullscreen-host-hidden'\)/);
   assert.match(frontendSource, /bodyOverflowBefore=document\.body\.style\.overflow/);
-  assert.match(frontendSource, /ldc-fullscreen-root \.ldc-main-wrap\{flex:1 1 0!important;height:0!important/);
-  assert.match(frontendSource, /ldc-main>\.ldc-panel\{flex:1 1 0!important;width:100%!important;height:0!important/);
-  assert.match(frontendSource, /overflow-y:auto!important;-webkit-overflow-scrolling:touch!important/);
+  assert.match(frontendSource, /ldc-fullscreen-root \.ldc-main-wrap\{[^}]*overflow-y:auto!important/);
+  assert.match(frontendSource, /ldc-main>\.ldc-panel\{[^}]*overflow:visible!important/);
   assert.match(frontendSource, /ldc-fullscreen-root\{[^}]*touch-action:auto!important/);
-  assert.doesNotMatch(frontendSource, /ldc-fullscreen-root\{[^}]*touch-action:none!important/);
-  assert.match(frontendSource, /ldc-fullscreen-root \.ldc-panel\{[^}]*touch-action:pan-y pinch-zoom!important/);
+  assert.match(frontendSource, /ldc-fullscreen-root \.ldc-main-wrap\{[^}]*touch-action:pan-y pinch-zoom!important/);
   assert.match(frontendSource, /ldc-fullscreen-root \.ldc-roster-scroll\{touch-action:pan-x pinch-zoom!important/);
+  assert.doesNotMatch(frontendSource, /function installPanelTouchScroll/);
+  assert.match(frontendSource, /oldLayout==='tabs'\?'\.ldc-main-wrap':'\.ldc-panel'/);
   assert.match(frontendSource, /releaseFullscreenOverlay\(\)/);
 });
 
-test('high-scale editor has a runtime mobile scroll fallback and live viewport sizing', () => {
+test('high-scale viewport sizing follows mobile browser chrome', () => {
   assert.match(frontendSource, /function visibleViewportHeight\(\)/);
   assert.match(frontendSource, /window\.visualViewport\?\.height/);
   assert.match(frontendSource, /--prism-viewport-height/);
-  assert.match(frontendSource, /function installPanelTouchScroll\(panel\)/);
-  assert.match(frontendSource, /panel\.addEventListener\('touchmove'.*passive:false/s);
-  assert.match(frontendSource, /event\.touches\.length!==1/);
-  assert.match(frontendSource, /if\(event\.cancelable\)event\.preventDefault\(\)/);
-  assert.match(frontendSource, /requestAnimationFrame\(step\)/);
-  assert.match(frontendSource, /modalLayout==='tabs'\)installPanelTouchScroll\(nextPanel\)/);
   assert.match(frontendSource, /visualViewport\?\.addEventListener\('resize',onViewportChange/);
   assert.match(frontendSource, /visualViewport\?\.removeEventListener\('resize',onViewportChange/);
 });
@@ -626,6 +620,13 @@ test('accessibility layout and save-indicator preferences are persisted', () => 
   assert.match(frontendSource, /ldc-roster-settings/);
   assert.match(frontendSource, /data-action=\"settings-tab\"/);
   assert.match(frontendSource, /position:sticky;top:0;z-index:20/);
+});
+
+test('fullscreen accessibility uses one native vertical scroll surface', () => {
+  assert.match(frontendSource, /ldc-fullscreen-root \.ldc-main-wrap\{[^}]*overflow-y:auto!important/);
+  assert.match(frontendSource, /ldc-main>\.ldc-panel\{[^}]*overflow:visible!important/);
+  assert.doesNotMatch(frontendSource, /function installPanelTouchScroll/);
+  assert.match(frontendSource, /oldLayout==='tabs'\?'\.ldc-main-wrap':'\.ldc-panel'/);
 });
 
 test('toolbar status can be completely omitted', () => {

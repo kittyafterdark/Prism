@@ -117,6 +117,11 @@ body .ldc-toolbar-save-state[data-prism-save-status=syncing] i,body .ldc-savebar
 .ldc-shell[data-prism-layout=tabs] .ldc-channel-tabs button{flex:1 1 0!important;height:auto!important;min-height:38px!important;padding:8px 10px!important}
 .ldc-shell[data-prism-layout=tabs] .ldc-mode-select{flex:0 0 auto!important;height:auto!important;min-height:0!important}
 @media(max-width:620px){.ldc-shell[data-prism-layout=tabs] .ldc-editor-switch{grid-template-columns:minmax(0,1fr)!important}.ldc-shell[data-prism-layout=tabs] .ldc-mode-select{width:100%!important;justify-content:space-between!important}.ldc-shell[data-prism-layout=tabs] .ldc-mode-select .ldc-select{width:min(180px,55vw)!important}}
+/* Android/PWA reliability: one native vertical scroll surface. The main wrapper scrolls; the editor itself is ordinary flowing content. */
+.ldc-fullscreen-root .ldc-main-wrap{overflow-x:hidden!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;overscroll-behavior-y:contain!important;touch-action:pan-y pinch-zoom!important;scrollbar-gutter:stable}
+.ldc-fullscreen-root .ldc-main{height:auto!important;min-height:100%!important;overflow:visible!important}
+.ldc-fullscreen-root .ldc-shell[data-prism-layout=tabs] .ldc-main>.ldc-panel{flex:0 0 auto!important;height:auto!important;min-height:0!important;overflow:visible!important;touch-action:auto!important}
+.ldc-fullscreen-root .ldc-shell[data-prism-layout=tabs] .ldc-main>.ldc-side{position:sticky;top:0;z-index:12;background:color-mix(in srgb,var(--lumiverse-bg-elevated) 98%,transparent);backdrop-filter:blur(18px)}
 `;
 const VERBS = [
     'say', 'said', 'says', 'ask', 'asked', 'asks', 'reply', 'replied', 'replies', 'answer', 'answered', 'answers',
@@ -250,40 +255,6 @@ export function setup(ctx) {
         modal.root.style.removeProperty('--prism-viewport-height');
         Object.assign(modal.root.style, { display: 'flex', flexDirection: 'column', height: `${dimensions.contentHeight}px`, maxHeight: `${dimensions.contentHeight}px`, minHeight: '0', width: '', maxWidth: '', overflow: 'hidden' });
     } }
-    function installPanelTouchScroll(panel) {
-        if (!panel || panel.dataset.prismTouchScroll === 'true' || !(navigator.maxTouchPoints > 0 || window.matchMedia?.('(pointer: coarse)').matches))
-            return;
-        panel.dataset.prismTouchScroll = 'true';
-        let startX = 0, startY = 0, lastY = 0, lastAt = 0, velocity = 0, axis = '', frame = 0;
-        const stop = () => { if (frame)
-            cancelAnimationFrame(frame); frame = 0; };
-        const coast = () => { stop(); let previous = performance.now(); const step = now => { if (!panel.isConnected || Math.abs(velocity) < .02) {
-            frame = 0;
-            return;
-        } const elapsed = Math.min(32, now - previous); previous = now; const max = Math.max(0, panel.scrollHeight - panel.clientHeight), before = panel.scrollTop, next = Math.max(0, Math.min(max, before + velocity * elapsed)); panel.scrollTop = next; if (next === before || next === 0 || next === max) {
-            frame = 0;
-            return;
-        } velocity *= Math.pow(.94, elapsed / 16.67); frame = requestAnimationFrame(step); }; frame = requestAnimationFrame(step); };
-        panel.addEventListener('touchstart', event => { if (event.touches.length !== 1)
-            return; stop(); const touch = event.touches[0]; startX = touch.clientX; startY = lastY = touch.clientY; lastAt = performance.now(); velocity = 0; axis = ''; }, { passive: true });
-        panel.addEventListener('touchmove', event => { if (event.touches.length !== 1 || panel.scrollHeight <= panel.clientHeight + 1)
-            return; const touch = event.touches[0], x = touch.clientX, y = touch.clientY, totalX = x - startX, totalY = y - startY; if (!axis && Math.hypot(totalX, totalY) >= 6)
-            axis = Math.abs(totalY) > Math.abs(totalX) * 1.05 ? 'y' : 'x'; if (axis !== 'y') {
-            lastY = y;
-            lastAt = performance.now();
-            return;
-        } const now = performance.now(), delta = lastY - y, max = Math.max(0, panel.scrollHeight - panel.clientHeight), before = panel.scrollTop, next = Math.max(0, Math.min(max, before + delta)); if (next !== before) {
-            panel.scrollTop = next;
-            const elapsed = Math.max(8, now - lastAt);
-            velocity = velocity * .68 + (delta / elapsed) * .32;
-            if (event.cancelable)
-                event.preventDefault();
-        } lastY = y; lastAt = now; }, { passive: false });
-        const finish = () => { if (axis === 'y' && Math.abs(velocity) >= .02)
-            coast(); axis = ''; };
-        panel.addEventListener('touchend', finish, { passive: true });
-        panel.addEventListener('touchcancel', () => { axis = ''; stop(); }, { passive: true });
-    }
     function current() { return state?.characters?.find(c => String(c.id) === String(selectedId)) || state?.characters?.[0] || null; }
     function missingCount() { return (state?.characters || []).filter(c => !bindingRegistryColor(c.binding)).length + (state?.config?.personaEnabled !== false && state?.persona && !bindingRegistryColor(state.persona.binding) ? 1 : 0); }
     function setBusy(value) { busy = value; modal?.root.querySelectorAll('button,input,select').forEach(el => { el.disabled = value; }); }
@@ -354,7 +325,7 @@ export function setup(ctx) {
         const b = target.binding || {}, channels = safeChannels(b), color = channels.dialogue.paint.stops[0] || (isPersona ? '#7DB7FF' : '#B58CFF'), aliases = (b.aliases?.length ? b.aliases : target.aliases || []).join(', '), channel = channels[activeChannel], paint = channel.paint, gradient = paint.mode === 'gradient', stop1 = paint.stops[0], stop2 = paint.stops[1] || harmonicColor(stop1), rail = gradient ? `linear-gradient(${paint.angle}deg,${stop1},${stop2})` : stop1, subtitle = isPersona ? (target.title || (target.isNarrator ? 'Narrator persona' : 'Active persona')) : `${target.status || 'active'} · ${(b.aliases || target.aliases || []).length} aliases`;
         return `<div class="ldc-editor-head"><div class="ldc-profile"><span class="ldc-profile-avatar">${esc(initials(target.name))}</span><div><h3>${esc(target.name)}</h3><div class="ldc-sub">${esc(subtitle)}</div></div></div><span class="ldc-chip">${esc(sourceLabel(b.source || (isPersona ? 'active' : target.source)))}</span></div><div class="ldc-preview"><span ${paintAttrs(channels.dialogue.paint)}>“Prism keeps this local and reversible.”</span><span class="ldc-preview-line" ${paintAttrs(channels.thought.paint)}><i>This was, categorically, not safe.</i></span></div><div class="ldc-editor-controls"><div class="ldc-editor-switch"><div class="ldc-channel-tabs"><button data-channel="dialogue" data-active="${activeChannel === 'dialogue'}">Dialogue</button><button data-channel="thought" data-active="${activeChannel === 'thought'}">Thoughts</button></div><label class="ldc-mode-select"><span>Paint</span><select class="ldc-select" data-role="paint-mode"><option value="solid" ${!gradient ? 'selected' : ''}>Solid</option><option value="gradient" ${gradient ? 'selected' : ''}>Gradient</option></select></label></div><label class="ldc-enable"><input type="checkbox" data-role="channel-enabled" ${channel.enabled ? 'checked' : ''}> Enable ${activeChannel} paint</label><div class="ldc-gradient-editor" style="--editor-gradient:${rail}"><label class="ldc-stop" title="First color"><input data-role="picker" type="color" value="${stop1}"><span style="--stop:${stop1}"></span></label><div class="ldc-gradient-rail"></div>${gradient ? `<label class="ldc-stop" title="Second color"><input data-role="picker-2" type="color" value="${stop2}"><span style="--stop:${stop2}"></span></label>` : ''}</div><div class="ldc-hex-row" data-gradient="${gradient}"><input class="ldc-input" data-role="hex" value="${stop1}" maxlength="7">${gradient ? `<input class="ldc-input" data-role="hex-2" value="${stop2}" maxlength="7">` : ''}</div>${gradient ? `<div class="ldc-direction"><label><span>Direction</span><input class="ldc-input" data-role="angle" type="number" min="0" max="360" value="${paint.angle}"></label><button class="ldc-btn" data-action="swap-colors">Swap colors</button></div>` : ''}<details class="ldc-details"><summary>Identity and attribution</summary><label class="ldc-field"><span class="ldc-label">Registry color <span class="ldc-hint">Always follows the first dialogue stop</span></span><input class="ldc-input" data-role="canonical-readout" value="${color}" readonly aria-readonly="true"></label>${isPersona ? `<label class="ldc-field"><span class="ldc-label">Persona dialogue</span><select class="ldc-select" data-role="auto-mode"><option value="off" ${state.config.autoUserMode === 'off' ? 'selected' : ''}>Off</option><option value="quoted" ${state.config.autoUserMode === 'quoted' ? 'selected' : ''}>Quoted dialogue only</option><option value="whole" ${state.config.autoUserMode === 'whole' ? 'selected' : ''}>Whole message</option></select></label>` : `<label class="ldc-field"><span class="ldc-label">Aliases <span class="ldc-hint">Comma-separated</span></span><input class="ldc-input" data-role="aliases" value="${esc(aliases)}" placeholder="Hugo, Mr. Vlad, narrator"></label>`}</details></div><div class="ldc-savebar" data-status-hidden="${!showSaveIndicator}">${showSaveIndicator ? `<span data-save-status="${saveStatus}">${saveStatus === 'saving' ? 'Saving changes…' : saveStatus === 'pending' ? 'Changes waiting…' : saveStatus === 'error' ? 'Could not save changes' : 'Changes saved automatically'}</span>` : ''}${isPersona ? '' : `<button class="ldc-btn" data-action="remove-character">Remove from scene</button>`}</div>`;
     }
-    function diagnosticsText() { const d = state?.diagnostics || {}, last = d.lastHydration || state?.config?.lastHydration || null, messageSuffix = last?.messageId ? String(last.messageId).slice(-8) : 'none'; return [`Prism ${d.prismVersion || '1.0.18'}`, `Engine: ${engineLabel(state?.config?.engine)}`, `Config schema: ${d.configSchema || state?.config?.version || 'unknown'}`, `Registry revision: ${d.registryRevision || state?.registry?.revision || 'none'}`, `Confirmed speakers: ${d.confirmedSpeakers ?? state?.registry?.entries?.length ?? 0}`, `Registry collisions: ${d.registryCollisions ?? state?.registry?.conflicts?.length ?? 0}`, `Registry entries omitted by budget: ${d.registryTrimmed || 0}`, `New character reviews: ${d.tentativeGroups ?? pendingReviewCount}`, `Unresolved rendered segments: ${unresolvedSegments().length}`, `Cortex entities: ${d.cortexEntities || 'unknown'}`, `Cortex macro: ${d.cortexMacro || 'unknown'}`, `Last hydration: ${last?.status || 'none'}`, `Last hydration message: …${messageSuffix}`, `Interface: ${uiPreferences().modalSize}${uiPreferences().modalExpanded ? ' · expanded' : ''}`, `Toolbar mounted: ${document.querySelector('[data-prism-toolbar-button]') ? 'yes' : 'no'}`, `DOM helpers: ${ctx.dom?.listMessageElements && ctx.dom?.inject ? 'healthy' : 'unavailable'}`, `Frontend/backend roundtrip: ${lastRoundtripMs ? `${lastRoundtripMs} ms` : 'not measured'}`, `Last backend error: ${lastBackendError || 'none'}`].join('\n'); }
+    function diagnosticsText() { const d = state?.diagnostics || {}, last = d.lastHydration || state?.config?.lastHydration || null, messageSuffix = last?.messageId ? String(last.messageId).slice(-8) : 'none'; return [`Prism ${d.prismVersion || '1.0.19'}`, `Engine: ${engineLabel(state?.config?.engine)}`, `Config schema: ${d.configSchema || state?.config?.version || 'unknown'}`, `Registry revision: ${d.registryRevision || state?.registry?.revision || 'none'}`, `Confirmed speakers: ${d.confirmedSpeakers ?? state?.registry?.entries?.length ?? 0}`, `Registry collisions: ${d.registryCollisions ?? state?.registry?.conflicts?.length ?? 0}`, `Registry entries omitted by budget: ${d.registryTrimmed || 0}`, `New character reviews: ${d.tentativeGroups ?? pendingReviewCount}`, `Unresolved rendered segments: ${unresolvedSegments().length}`, `Cortex entities: ${d.cortexEntities || 'unknown'}`, `Cortex macro: ${d.cortexMacro || 'unknown'}`, `Last hydration: ${last?.status || 'none'}`, `Last hydration message: …${messageSuffix}`, `Interface: ${uiPreferences().modalSize}${uiPreferences().modalExpanded ? ' · expanded' : ''}`, `Toolbar mounted: ${document.querySelector('[data-prism-toolbar-button]') ? 'yes' : 'no'}`, `DOM helpers: ${ctx.dom?.listMessageElements && ctx.dom?.inject ? 'healthy' : 'unavailable'}`, `Frontend/backend roundtrip: ${lastRoundtripMs ? `${lastRoundtripMs} ms` : 'not measured'}`, `Last backend error: ${lastBackendError || 'none'}`].join('\n'); }
     function registryExportText() { return JSON.stringify({ format: 'prism-registry', version: 1, exportedAt: new Date().toISOString(), entries: (state?.registry?.entries || []).map(entry => ({ speakerUid: entry.speakerUid, kind: entry.kind, name: entry.name, aliases: entry.aliases, color: entry.color })) }, null, 2); }
     async function copyText(value) { if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(value);
@@ -382,11 +353,11 @@ export function setup(ctx) {
     function render() {
         if (!modal)
             return;
-        const oldSide = modal.root.querySelector('.ldc-side'), oldPanel = modal.root.querySelector('.ldc-panel');
+        const oldSide = modal.root.querySelector('.ldc-side'), oldLayout = modal.root.querySelector('.ldc-shell')?.dataset.prismLayout, oldScroller = modal.root.querySelector(oldLayout === 'tabs' ? '.ldc-main-wrap' : '.ldc-panel');
         if (oldSide && activeTab === 'character')
             sideScroll = oldSide.scrollTop;
-        if (oldPanel)
-            panelScroll = oldPanel.scrollTop;
+        if (oldScroller)
+            panelScroll = oldScroller.scrollTop;
         if (!state) {
             modal.root.innerHTML = '<div class="ldc-loading">Reading the scene registry…</div>';
             return;
@@ -412,18 +383,14 @@ export function setup(ctx) {
         if (bridge)
             bridge.textContent = `${engineLabel(engine)} · ${state.characters.length} characters · ${cortexSummary()}`;
         wire();
-        const next = modal.root.querySelector('.ldc-side'), nextPanel = modal.root.querySelector('.ldc-panel');
+        const next = modal.root.querySelector('.ldc-side'), nextScroller = modal.root.querySelector(modalLayout === 'tabs' ? '.ldc-main-wrap' : '.ldc-panel');
         if (next && activeTab === 'character')
             next.scrollTop = sideScroll;
         const nextRoster = modal.root.querySelector('.ldc-roster-scroll');
         if (nextRoster && activeTab === 'character')
             nextRoster.scrollLeft = sideScrollLeft;
-        if (nextPanel) {
-            nextPanel.scrollTop = panelScroll;
-            if (modalLayout === 'tabs')
-                installPanelTouchScroll(nextPanel);
-        }
-        ;
+        if (nextScroller)
+            nextScroller.scrollTop = panelScroll;
         setSaveStatus(saveStatus);
         setBusy(busy);
     }
