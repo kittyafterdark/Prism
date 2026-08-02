@@ -1,6 +1,3 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.setup = setup;
 const PRISM_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M12 2.8 21 19H3L12 2.8Z" stroke="currentColor" stroke-width="1.65"/><path d="M12 2.8V19M3 19l9-6.2 9 6.2" stroke="currentColor" stroke-width="1.35"/><path d="m8.2 15.4 3.8 3.6 4-3.7" stroke="currentColor" stroke-width="1.25"/></svg>`;
 const GEAR_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M9.7 3.5h4.6l.5 2c.5.2.9.4 1.3.7l2-.6 2.3 4-1.5 1.5c0 .3.1.6.1.9s0 .6-.1.9l1.5 1.5-2.3 4-2-.6c-.4.3-.8.5-1.3.7l-.5 2H9.7l-.5-2a7 7 0 0 1-1.3-.7l-2 .6-2.3-4 1.5-1.5A6 6 0 0 1 5 12c0-.3 0-.6.1-.9L3.6 9.6l2.3-4 2 .6c.4-.3.8-.5 1.3-.7l.5-2Z" stroke="currentColor" stroke-width="1.4"/><circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="1.4"/></svg>`;
 const SPARK_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M12 3.5c.6 4.8 3.1 7.3 7.8 8-4.7.7-7.2 3.2-7.8 8-.7-4.8-3.2-7.3-7.8-8 4.6-.7 7.1-3.2 7.8-8Z" stroke="currentColor" stroke-width="1.55"/></svg>`;
@@ -73,7 +70,7 @@ function evidenceLabel(s) { return ({ manual: 'manual correction', 'existing-col
 function normalizeEngine(value) { return ['dom', 'hybrid', 'llm'].includes(value) ? value : 'dom'; }
 function engineLabel(value) { return ({ dom: 'Local', hybrid: 'Hybrid', llm: 'LLM sidecar' })[normalizeEngine(value)]; }
 function engineDescription(value) { return ({ dom: 'Visual only · heuristic paint', hybrid: 'Model tags first · local repair', llm: 'Model tags only · no local fill' })[normalizeEngine(value)]; }
-function setup(ctx) {
+export function setup(ctx) {
     const removeStyle = ctx.dom.addStyle(CSS), pending = new Map(), signatures = new Map(), dirty = new Set(), hydratingMessages = new Set();
     let modal = null, addModal = null, state = null, activeTab = 'character', activeChannel = 'dialogue', selectedId = null, sideScroll = 0, panelScroll = 0, settingsOpen = false, reviewOpen = false, busy = false, saveStatus = 'saved', hydrationStatus = 'idle', pendingReviewCount = 0, reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, applying = false, revision = 0, saveGeneration = 0, saveQueue = Promise.resolve(), stateLoadPromise = null;
     const request = (type, data = {}, timeoutMs = 15000) => new Promise((resolve, reject) => { const requestId = uid(), timer = setTimeout(() => { pending.delete(requestId); reject(new Error(`Prism's backend did not answer ${type} within ${Math.round(timeoutMs / 1000)} seconds.`)); }, timeoutMs); pending.set(requestId, { resolve, reject, timer }); ctx.sendToBackend({ type, requestId, ...data }); });
