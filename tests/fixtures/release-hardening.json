@@ -1,0 +1,8 @@
+[
+  {"id":"operator-snapshot-scope","expected":"userId:chatId"},
+  {"id":"requested-hydration-never-falls-back","requestedMessageId":"missing","previousMessageId":"old","expected":"error"},
+  {"id":"prompt-budget","characters":70,"expectedMaximumCharacters":48,"expectedMaximumInstructionChars":8000},
+  {"id":"provisional-echo-is-not-independent","origins":["model-first-seen","provisional-echo"],"expectedIndependentCount":1},
+  {"id":"transcript-normalization-is-role-scoped","expectedHistoricalPersonaMutation":false},
+  {"id":"bounded-state","previousColors":8,"overrides":500,"resolvedObservations":400,"dismissedSignatures":500}
+]

@@ -1,0 +1,14 @@
+{
+  "name": "lumiverse-prism",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node tests/run.mjs",
+    "verify": "npm run build && npm test && node scripts/check-dist.mjs"
+  },
+  "devDependencies": {
+    "typescript": "6.0.2"
+  }
+}

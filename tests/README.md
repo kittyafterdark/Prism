@@ -1,5 +1,7 @@
 # Prism regression corpus
 
+Run the executable harness with `npm test`. It compiles both entrypoints, exercises backend registry, hydration, and transcript-mutation contracts in a mocked Spindle host, and checks the fixtures below.
+
 `fixtures/attribution.json` covers reporting verbs, structural speech tags, speech nouns, unpainted known speakers, cross-node Markdown, structured data, legacy colors, collisions, and unseeded alternation.
 
 `fixtures/cortex-reconciliation.json` covers safe sync, repair precedence, manual conflicts, registry-only roster entries, stable override identity, and chat-local temporary generated colors.
@@ -16,4 +18,6 @@
 
 `fixtures/editor-stability.json` covers paint-only saves retaining their existing target identity, roster position, selected speaker, and scroll context while still permitting intentional alias edits to reconcile Cortex identity.
 
-The release verification harness loads the compiled frontend in a DOM fixture and exposes the backend reconciliation helpers under an isolated test build. It must confirm these fixtures before `dist/` is regenerated.
+`fixtures/release-hardening.json` covers operator-scoped snapshot keys, exact-message hydration, prompt budgets, provisional echo independence, bounded state, and role-scoped transcript normalization.
+
+`fixtures/streaming-paint.json` covers first-stop rendering during streaming and gradient restoration on completion or cancellation.

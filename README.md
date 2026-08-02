@@ -1,99 +1,99 @@
 # Prism
 
-Prism gives Lumiverse scenes deterministic dialogue colors without requiring roleplayers to type formatting tags. Hybrid is the default for fresh installs: it emits portable identity tags, rehydrates them after generation, and asks before admitting any new or conflicting evidence into the confirmed registry. Existing Local and LLM choices stay unchanged during migration.
-
-Existing formatting is authoritative. Prism indexes real or escaped `<font color>`, inline color styles, and `[color]` regions as protected segments, uses uniquely matched colors as speaker evidence, and fills only unstyled gaps. Local solid/gradient overlays are reversible. The saved-tag normalization action only updates matching portable font colors; it does not persist heuristic or gradient overlays.
-
-## Local-first workflow
-
-- v0.8.3 keeps the selected character and roster order stable through editor saves. Paint-only changes no longer upsert or relink Cortex identities, fixing the one-time Solid → Gradient jump caused by a card/scene entry receiving a new entity ID during its first style edit. v0.8.2 restores the frontend ESM entrypoint after the v0.8.1 release bundle was accidentally compiled as CommonJS, preventing Lumi from mounting Prism’s toolbar button and input action. v0.8.1 lets Hybrid color clearly identified unbound NPCs instead of suppressing them. It reuses visible prior colors, injects high-confidence tentative continuity hints, or assigns a collision-safe provisional color from a supplied discovery palette; those tags remain tentative until the user approves them. A settings toggle can restore strict confirmed-registry-only behavior. v0.8.0 closes Hybrid's loop: the same compiled registry drives prompting, persona tags, DOM matching, and post-generation hydration. Model-emitted tags reinforce known speakers; new names, unexpected colors, and prose/tag conflicts become aggregated tentative observations that require approval. The chat-toolbar status reports `Syncing…`, `Awaiting review · N`, `Saved`, or an error without pending-review toast spam. Hybrid is the default only for fresh configurations; existing Local and LLM selections are preserved. v0.7.5 makes the first dialogue paint stop the single canonical registry color everywhere: saved bindings, Cortex/legacy matching, persona tags, and Hybrid/LLM prompt rows are normalized to the same value. Existing split-color configs migrate automatically and preserve the stale registry hex only as legacy history. v0.7.4 excludes Lumi theme paint from legacy speaker evidence, removes hidden characters from the model registry, and adds a persisted persona master switch. v0.7.3 fixes live solid-color previews in the editor and gives solid paint the same full-width visual preview treatment as gradients. v0.7.2 keeps thought paint linked to dialogue paint until it is deliberately customized, and makes roster swatches render the actual dialogue solid/gradient paint. v0.7.1 refined the modal language and settings layout. v0.7.0 added a **Hybrid** engine: the model emits portable canonical `<font color>` identity tags first, then Prism preserves those tags as authoritative anchors and applies a conservative DOM overpass only to untagged gaps.
-
-- **Set up scene** imports Cortex, preset, and transcript colors, then fills only missing character/persona colors.
-- **Local / Hybrid / LLM** is visible in the modal top bar and remembered across chats.
-- **Closed-loop Hybrid** hydrates only the newly generated message, groups repeated evidence, and keeps possible speakers local and tentative until approved.
-- **Review in place** uses the persistent toolbar status rather than toast notifications; clicking the yellow `Awaiting review` indicator opens the inbox directly.
-- **Registry revisions** tie returned tags to the exact compiled registry used for generation, while duplicate canonical colors are withheld from prompt injection instead of teaching the model an impossible mapping.
-- **Balanced attribution** uses labels, speech verbs, action beats, continuity, and bubble authors without silently blaming the primary character.
-- Paragraph-aware dialogue turns recognize expanded reporting verbs, preserve prose continuations, and alternate quote-only replies only after two speakers are established.
-- Existing legacy colors can establish dialogue turns, teach Prism their owner, and receive the owner’s current local paint without changing the underlying tag.
-- Dialogue and thought channels have independent solid/gradient paint. The first dialogue stop is the canonical hex used for Cortex matching and portable transcript markup; there is no separate color value to drift out of sync.
-- Italic and single-quoted thought detection is opt-in and never participates in dialogue alternation.
-- Low-confidence dialogue is marked with a dotted underline.
-- Every detected segment—including unresolved, disabled, and ignored dialogue—is wrapped as a teachable target. Right-click, long-press, or focus it and press Enter to assign its speaker or content type.
-- Quote detection follows rendered text across nested emphasis nodes, so `"This is <em>extremely</em> inconvenient"` remains one assignable segment.
-- The editor autosaves, keeps identity and save state sticky, shows a single color in Solid mode, and reveals the harmonic second stop only when Gradient is enabled.
-- Color dragging updates the preview in place and saves without rebuilding or disabling the editor, preserving the native picker and both sidebar/editor scroll positions.
-- Gradient paint is delegated to CSS feature fallback directly, preventing supported Lumi renderers from being incorrectly downgraded to the anchor color.
-- Routine bindings and quote corrections use a persistent mint/gold `Saved` / `Saving…` indicator beside the Prism toolbar button and in the sticky editor footer instead of stacking success toasts.
-- Gradients support two or three stops from the compact selector beside Direction. Newly enabled gradients default to a mirrored `edge → harmonic accent → edge` treatment, while existing two-stop paints remain unchanged.
-- Speaker recognition is independent from paint availability: uncolored scene members remain candidates for names, speech tags, continuity, bubble ownership, and manual corrections.
-- Cortex now reports registry health and exposes separate **Sync missing** and **Repair links** operations. Repair replaces generated/library/transcript colors, preserves manual decisions as visible conflicts, records previous colors, and brings registry-only characters into the roster.
-- Bindings carry stable Prism speaker IDs and legacy references, so Cortex/card relinking migrates quote corrections instead of orphaning them.
-- Structural speech tags and speech-noun constructions supplement the reporting-verb dictionary in both rendered attribution and backend scene discovery.
-- Temporary generated or transcript-only `scene-name:` guesses remain chat-local until they gain a stable card/Cortex identity or are manually pinned.
-- Dialogue and thought previews render their actual independent channel paint, and the top-bar unresolved review action jumps directly to teachable gaps.
-- Add missing characters or remove noisy discovered entries directly from the scene roster; manual aliases can map generic bubble labels such as `narrator` to the right character.
-- Manual corrections remain chat-local and expire when the source message content changes.
-- Character/persona colors are reused globally; generated colors remain regenerable.
-
-A small Spindle extension for binding per-speaker dialogue colors in Lumiverse.
-
-## What it does
-
-- Adds a compact palette button to Lumiverse's chat toolbar using the stable `[class*="chatToolbar"]` class-fragment selector.
-- Also registers **Prism** in the input-bar Extras menu as a fallback.
-- Opens a native Lumiverse modal with **Character** and **Persona** tabs.
-- Builds the scene roster from every group-card member, camel-cased Cortex character entities, explicit card cast lists, and speaker labels already present in the transcript.
-- Lets you bind a hex color and aliases to each character, and manually curate the per-chat roster.
-- Shows the currently active persona and can automatically color its sent dialogue.
-- Keeps the **Local / Hybrid / LLM** engine switch visible in the modal header; the cog contains attribution behavior only.
-- In DOM-only mode, colors rendered dialogue reversibly without changing saved messages or model context.
-- In Hybrid and LLM-sidecar modes, injects the active registry so models emit the correct canonical `<font color="#RRGGBB">...</font>` tags. Hybrid then fills only missing untagged dialogue locally; pure LLM mode does not.
-- Imports attributable colors from existing `<font color>`, inline `style="color:…"`, and `[color=…]` dialogue, including preset-produced transcripts.
-- Renders escaped legacy color tags with allowlisted inline emphasis in both engines without mutating the saved message.
-- Offers Preserve, Enhance, and Replace-visually policies for existing tags; all remain non-destructive.
-- The confirmation-heavy **Normalize saved font colors** updates matching legacy `<font color>` tags and persona markup in saved messages, including swipe variants. Reversible DOM gradients and heuristic-only paint are intentionally not persisted.
+Prism gives Lumiverse scenes deterministic, reversible dialogue and thought colors without making roleplayers type formatting tags. Hybrid is the default for new installs: it emits portable `<font color>` identity tags, rehydrates the finished response, and asks before new or conflicting evidence enters the confirmed registry.
 
 ## Engines
 
-- **Local** — no prompt injection and no saved assistant markup. Prism heuristically paints the rendered DOM only.
-- **Hybrid** — injects the confirmed registry plus provisional NPC continuity guidance, so the model writes portable font tags for both known and clearly identified new speakers. New colors are rehydrated into the review inbox before they can enter the confirmed registry; Prism then enhances tags with local paint and conservatively fills untagged gaps.
-- **LLM** — injects the same portable registry but performs no heuristic gap filling; only existing/model-emitted tags receive Prism overlays.
+- **Local** — colors the rendered DOM only. Saved messages and model context are unchanged.
+- **Hybrid** — asks the model for portable canonical font tags, enhances those tags locally, fills confident untagged gaps, and sends discoveries to a review inbox.
+- **LLM** — asks the model for canonical font tags and enhances those tags locally, without heuristic gap filling.
 
-Hybrid also applies persona font tags to newly sent user dialogue using the selected Off / Quoted / Whole-message policy.
+Existing engine choices survive migration. Hybrid is the default only for a fresh configuration.
 
-## Cortex integration
+## Everyday workflow
 
-The extension uses only supported Spindle surfaces:
+1. Open Prism from the chat toolbar.
+2. Use **Set up scene** to import Cortex/transcript colors and generate collision-safe colors for anything missing.
+3. Edit solid or two/three-stop gradient paint directly in the roster editor. The first dialogue stop is always the character’s canonical registry color.
+4. In Local or Hybrid, right-click, long-press, or keyboard-open any detected segment to correct its speaker or content type.
+5. In Hybrid, click the yellow **Awaiting review** status when Prism finds tentative speakers, unexpected colors, or prose/tag conflicts.
 
-1. It reads the current Cortex color registry through the built-in `{{characterColors}}` macro.
-2. It upserts character names and aliases through `spindle.memories.entities`.
-3. It writes real `<font color>` tags into the transcript and generation output, which gives Cortex normal evidence to learn/reinforce its own dialogue-color registry.
+During generation, gradient text temporarily renders as its first canonical stop. Prism restores the full gradient only when the response completes or is cancelled, preventing streaming repaint flicker.
 
-Lumiverse does not currently expose direct `memory_font_colors` CRUD through the public Spindle Memory API. This extension intentionally does not poke private database tables or undocumented frontend state.
+## Existing formatting
 
-## User-message modes
+Portable `<font color>`, escaped legacy tags, BBCode colors, and explicit inline colors are protected. Prism may use a uniquely matched tag as speaker evidence and may apply a reversible local solid/gradient overlay, but it does not destructively rewrite saved markup while rendering.
 
-- **Off** — do not modify newly sent user messages.
-- **Quoted dialogue only** — color straight or curly quoted speech while leaving narration untouched.
-- **Whole message** — wrap the entire user message; useful for chat-style RP.
+Lumi theme colors applied as presentation are not treated as legacy speaker evidence.
+
+The rendering trust order is:
+
+1. Manual correction.
+2. Confirmed tag consistent with explicit prose.
+3. Explicit speaker label or reporting clause.
+4. Confirmed tag without contradictory prose.
+5. Tentative observed tag.
+6. Paragraph/action continuity.
+7. Bubble ownership and carefully seeded alternation.
+8. Unresolved, teachable text.
+
+## Hybrid closed loop
+
+Hybrid compiles one registry snapshot for prompt injection, persona tags, DOM matching, collision detection, and hydration. Snapshots are scoped by operator and chat, correlated to a generation, capped, and expired.
+
+After generation, Prism inspects only the requested assistant message. Delayed storage is retried; Prism never substitutes the previous assistant message. Known tags reinforce existing speakers. New speakers, color drift, collisions, and explicit prose conflicts remain tentative until reviewed.
+
+Provisional model echoes do not count as independent evidence. Weak discoveries require two independent sightings, and provisional hints expire after inactivity.
+
+## Transcript tools
+
+**Normalize existing font tags** performs a dry run, changes only matching legacy tags, skips ambiguous shared colors, and stores a recovery backup. It does not bake gradients or heuristic DOM paint and does not add persona formatting.
+
+**Historical persona colors** is a separate opt-in operation for older user messages. Both operations roll back partial failures and expose **Restore last backup**.
+
+## Registry and diagnostics
+
+Settings can copy privacy-safe diagnostics, export the confirmed registry as JSON, import a prior Prism registry, retry the last hydration, rescan only the current message, or reset temporary evidence without touching confirmed colors.
+
+Diagnostics omit message text and include the Prism/schema version, engine, registry revision, speaker/collision counts, unresolved count, Cortex health, hydration state, toolbar/DOM health, and backend roundtrip time.
+
+## Cortex
+
+Prism uses supported Spindle surfaces:
+
+- Reads `{{characterColors}}`.
+- Reconciles character names and aliases through Cortex entities.
+- Writes portable canonical font tags in Hybrid/LLM and configured persona output.
+
+**Sync missing** fills genuinely absent links. **Repair links** can replace generated/library/transcript guesses while preserving manual pinned decisions as visible conflicts.
 
 ## Install
 
-This zip is repository-ready. Put the files in a Git repository and install it through Lumiverse's Spindle extension manager, or copy the unpacked folder into the extension location used by your local Lumiverse setup.
+Install the repository or release archive through Lumiverse’s Spindle extension manager, or copy the unpacked folder into the local extension directory. Grant the requested chat, character, persona, memory, mutation, interceptor, and generation-event permissions.
 
-Grant the requested permissions when prompted. The toolbar button and input-bar Extras fallback use the regular frontend DOM and modal surfaces; Prism no longer requests a floating-widget permission.
+The toolbar mount uses the stable `[class*="chatToolbar"]` fragment and also registers Prism in the input-bar Extras menu.
 
-## Notes
+## Development
 
-- In **Hybrid**, character output is guided at prompt time and then locally repaired. Model-emitted tags outrank every heuristic; Prism never recolors or nests over a tagged segment.
-- Hybrid defers low-confidence local guesses instead of painting them automatically. Deferred segments remain underlined, teachable, and available from the unresolved review control.
-- In pure **LLM** mode, existing untagged assistant prose is left alone. In **Local**, all coloring remains render-only.
-- Existing-tag migration is role-scoped: character color history can only rewrite assistant messages, while persona color history can only rewrite user messages.
-- Scenario, setting, and multi-character container cards are treated as cast sources instead of automatically being mistaken for speakers when a real cast can be identified.
-- JSON objects, JSON-property lines, fenced code, and identifier-like structured keys are excluded from speaker discovery.
-- Change the `github` and `homepage` fields in `spindle.json` if you publish under a different repository URL.
+Requirements: Node.js 22 or newer.
 
-## Operator-scoped installs
+```sh
+npm ci
+npm run build
+npm test
+npm run verify
+```
 
-Prism forwards the originating `userId` through active-chat, persona, Cortex, chat-mutation, macro, toast, and frontend-reply calls. This keeps globally installed/operator-scoped copies isolated to the user who opened the palette.
+`npm run build` compiles both Spindle entrypoints to ESM. The regression harness checks attribution/scene fixtures, canonical color migration, operator-scoped snapshots, exact-message hydration, state garbage collection, prompt budgets and sanitization, provisional anti-feedback behavior, transcript dry runs/rollback, streaming paint lifecycle, and source/dist consistency.
+
+CI rebuilds the distribution and fails if `dist/` differs from source.
+
+## Privacy and limits
+
+- Local mode never injects instructions or changes assistant messages.
+- Hybrid/LLM prompt data is sanitized, alias/name limited, capped at 48 confirmed speakers and 12 provisional hints, and hard-limited to 8,000 characters.
+- Manual quote corrections stay chat-local and expire when their source content changes.
+- Temporary scene-name colors remain chat-local unless confirmed by a stable card/Cortex identity or manually pinned.
+- Thought detection is opt-in because roleplay italics are gloriously ambiguous.
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.

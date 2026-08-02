@@ -1,0 +1,5 @@
+[
+  {"id":"stream-start-solidifies-gradient","event":"STREAM_TOKEN_RECEIVED","expectedPaint":"first-stop-solid"},
+  {"id":"generation-end-restores-gradient","event":"GENERATION_ENDED","expectedPaint":"configured-gradient"},
+  {"id":"generation-stop-restores-gradient","event":"GENERATION_STOPPED","expectedPaint":"configured-gradient"}
+]

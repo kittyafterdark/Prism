@@ -4,6 +4,8 @@ const SPARK_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><pat
 const CSS = `
 .ldc-shell,.ldc-shell *{box-sizing:border-box}.ldc-shell{--psoft:color-mix(in srgb,var(--lumiverse-primary) 15%,transparent);display:flex;flex-direction:column;min-height:430px;color:var(--lumiverse-text);font-size:12px;overflow:hidden}
 body .ldc-toolbar-save-state[data-prism-save-status=syncing] i,body .ldc-savebar [data-save-status][data-prism-save-status=syncing]::before{background:#63d9ef;box-shadow:0 0 8px color-mix(in srgb,#63d9ef 48%,transparent)}body .ldc-toolbar-save-state[data-prism-save-status=awaiting] i,body .ldc-savebar [data-save-status][data-prism-save-status=awaiting]::before{background:#e4b94f;box-shadow:0 0 9px color-mix(in srgb,#e4b94f 55%,transparent)}.ldc-toolbar-save-state[data-prism-save-status=awaiting]{cursor:pointer;color:#e4c979}.ldc-toolbar-save-state[data-prism-save-status=awaiting]:hover{text-decoration:underline;text-underline-offset:2px}
+[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]{background-image:none!important;color:var(--ldc-color,var(--ldc-fallback))!important;-webkit-text-fill-color:var(--ldc-color,var(--ldc-fallback))!important}
+.ldc-toolbar-save-state{appearance:none;border:0;background:transparent;font:inherit;padding:0}.ldc-registry-warning{border-color:color-mix(in srgb,#e4b94f 55%,var(--lumiverse-border))!important;color:#e4c979!important}.ldc-registry-import{display:grid;gap:12px;padding:16px}.ldc-registry-import textarea{width:100%;min-height:250px;resize:vertical;padding:12px;border:1px solid var(--lumiverse-border);border-radius:11px;background:var(--lumiverse-fill-subtle);color:var(--lumiverse-text);font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}.ldc-registry-import-actions{display:flex;justify-content:flex-end;gap:8px}
 .ldc-review-inbox .ldc-heading{position:sticky;top:-18px;z-index:2;padding:14px 0;background:color-mix(in srgb,var(--lumiverse-bg-elevated) 98%,transparent)}.ldc-review-list{display:grid;gap:11px}.ldc-observation-card{padding:13px;border:1px solid color-mix(in srgb,#e4b94f 38%,var(--lumiverse-border));border-radius:13px;background:linear-gradient(145deg,color-mix(in srgb,#e4b94f 7%,transparent),var(--lumiverse-fill-subtle))}.ldc-observation-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.ldc-observation-head h4{margin:0;font-size:12px}.ldc-observation-meta{margin-top:3px;color:var(--lumiverse-text-dim);font-size:8.5px}.ldc-observation-color{display:flex;align-items:center;gap:6px;color:var(--lumiverse-text-muted);font-size:9px}.ldc-observation-color i{width:12px;height:12px;border-radius:50%;background:var(--observed);box-shadow:0 0 8px color-mix(in srgb,var(--observed) 55%,transparent)}.ldc-observation-examples{display:grid;gap:5px;margin:10px 0;padding:9px;border-left:2px solid color-mix(in srgb,#e4b94f 52%,transparent);color:var(--lumiverse-text-muted);font-size:9.5px}.ldc-observation-form{display:grid;grid-template-columns:minmax(110px,1fr) 110px minmax(150px,1fr);gap:8px}.ldc-observation-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:10px}.ldc-observation-empty{display:grid;place-items:center;min-height:280px;color:var(--lumiverse-text-dim);text-align:center}.ldc-tentative-label{margin-top:12px;padding-top:10px;border-top:1px solid var(--lumiverse-border);color:#e4c979}.ldc-tentative-person{cursor:pointer;border-color:color-mix(in srgb,#e4b94f 30%,transparent)}.ldc-tentative-person .ldc-inline-swatch{background:#e4b94f}
 @media(max-width:620px){.ldc-observation-form{grid-template-columns:1fr}.ldc-observation-actions{justify-content:stretch}.ldc-observation-actions .ldc-btn{flex:1}}
 .ldc-persona-master{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:14px 18px 0;padding:10px 12px;border:1px solid var(--lumiverse-border);border-radius:11px;background:var(--lumiverse-fill-subtle);cursor:pointer}.ldc-persona-master span{display:grid;gap:2px}.ldc-persona-master strong{font-size:10px}.ldc-persona-master small{color:var(--lumiverse-text-dim);font-size:8.5px}
@@ -71,13 +73,20 @@ function normalizeEngine(value) { return ['dom', 'hybrid', 'llm'].includes(value
 function engineLabel(value) { return ({ dom: 'Local', hybrid: 'Hybrid', llm: 'LLM sidecar' })[normalizeEngine(value)]; }
 function engineDescription(value) { return ({ dom: 'Visual only · heuristic paint', hybrid: 'Model tags first · local repair', llm: 'Model tags only · no local fill' })[normalizeEngine(value)]; }
 export function setup(ctx) {
-    const removeStyle = ctx.dom.addStyle(CSS), pending = new Map(), signatures = new Map(), dirty = new Set(), hydratingMessages = new Set();
-    let modal = null, addModal = null, state = null, activeTab = 'character', activeChannel = 'dialogue', selectedId = null, sideScroll = 0, panelScroll = 0, settingsOpen = false, reviewOpen = false, busy = false, saveStatus = 'saved', hydrationStatus = 'idle', pendingReviewCount = 0, reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, applying = false, revision = 0, saveGeneration = 0, saveQueue = Promise.resolve(), stateLoadPromise = null;
-    const request = (type, data = {}, timeoutMs = 15000) => new Promise((resolve, reject) => { const requestId = uid(), timer = setTimeout(() => { pending.delete(requestId); reject(new Error(`Prism's backend did not answer ${type} within ${Math.round(timeoutMs / 1000)} seconds.`)); }, timeoutMs); pending.set(requestId, { resolve, reject, timer }); ctx.sendToBackend({ type, requestId, ...data }); });
+    const removeStyle = ctx.dom.addStyle(CSS), pending = new Map(), signatures = new Map(), dirty = new Set(), hydratingMessages = new Set(), activeGenerationIds = new Set(), streamingMessageIds = new Set();
+    let modal = null, addModal = null, importModal = null, state = null, activeTab = 'character', activeChannel = 'dialogue', selectedId = null, sideScroll = 0, panelScroll = 0, settingsOpen = false, reviewOpen = false, busy = false, saveStatus = 'saved', hydrationStatus = 'idle', pendingReviewCount = 0, reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, applying = false, revision = 0, saveGeneration = 0, saveQueue = Promise.resolve(), stateLoadPromise = null, lastRoundtripMs = 0, lastBackendError = '', themeColorCache = null, themeColorSignature = '';
+    const request = (type, data = {}, timeoutMs = 15000) => new Promise((resolve, reject) => { const requestId = uid(), startedAt = performance.now(), timer = setTimeout(() => { pending.delete(requestId); lastBackendError = `${type} timed out`; reject(new Error(`Prism's backend did not answer ${type} within ${Math.round(timeoutMs / 1000)} seconds.`)); }, timeoutMs); pending.set(requestId, { resolve, reject, timer, startedAt, type }); ctx.sendToBackend({ type, requestId, ...data }); });
     const loadState = (sync = false) => { if (stateLoadPromise)
         return stateLoadPromise; stateLoadPromise = request('ldc_load_state', { importCortex: sync, scanTranscript: sync }, sync ? 60000 : 15000).finally(() => { stateLoadPromise = null; }); return stateLoadPromise; };
     const unsubBackend = ctx.onBackendMessage(payload => { const task = pending.get(payload?.requestId); if (!task)
-        return; clearTimeout(task.timer); pending.delete(payload.requestId); payload.type === 'ldc_error' ? task.reject(new Error(payload.error || 'Unknown error')) : task.resolve(payload); });
+        return; clearTimeout(task.timer); pending.delete(payload.requestId); lastRoundtripMs = Math.max(0, Math.round(performance.now() - task.startedAt)); if (payload.type === 'ldc_error') {
+        lastBackendError = payload.error || 'Unknown error';
+        task.reject(new Error(lastBackendError));
+    }
+    else {
+        lastBackendError = '';
+        task.resolve(payload);
+    } });
     function characterStateKey(character) { return String(character?.binding?.speakerUid || `name:${String(character?.name || '').trim().toLowerCase()}`); }
     function acceptState(next) { const previous = state?.ok ? state : null, selected = previous?.characters?.find(character => String(character.id) === String(selectedId)) || null, selectedKey = characterStateKey(selected); if (previous && next?.ok && Array.isArray(next.characters)) {
         const order = new Map(previous.characters.map((character, index) => [characterStateKey(character), index]));
@@ -96,7 +105,8 @@ export function setup(ctx) {
         return { state: 'error', label: 'Prism error' }; if (saveStatus === 'saving' || saveStatus === 'pending' || hydrationStatus === 'syncing')
         return { state: 'syncing', label: 'Syncing…' }; if (pendingReviewCount > 0)
         return { state: 'awaiting', label: `Awaiting review · ${pendingReviewCount}` }; return { state: 'saved', label: 'Saved' }; }
-    function refreshPrismStatus() { const visible = visiblePrismStatus(); document.querySelectorAll('[data-prism-save-status],.ldc-shell [data-save-status]').forEach(node => { node.dataset.prismSaveStatus = visible.state; const label = node.querySelector('[data-prism-save-label]'); if (label)
+    function refreshPrismStatus() { const visible = visiblePrismStatus(); document.querySelectorAll('[data-prism-save-status],.ldc-shell [data-save-status]').forEach(node => { node.dataset.prismSaveStatus = visible.state; if (node instanceof HTMLButtonElement)
+        node.setAttribute('aria-label', visible.label); const label = node.querySelector('[data-prism-save-label]'); if (label)
         label.textContent = visible.label;
     else
         node.textContent = visible.label; }); }
@@ -163,7 +173,31 @@ export function setup(ctx) {
         const b = target.binding || {}, channels = safeChannels(b), color = channels.dialogue.paint.stops[0] || (isPersona ? '#7DB7FF' : '#B58CFF'), aliases = (b.aliases?.length ? b.aliases : target.aliases || []).join(', '), channel = channels[activeChannel], paint = channel.paint, gradient = paint.mode === 'gradient', stop1 = paint.stops[0], stop2 = paint.stops[1] || harmonicColor(stop1), rail = gradient ? `linear-gradient(${paint.angle}deg,${stop1},${stop2})` : stop1, subtitle = isPersona ? (target.title || (target.isNarrator ? 'Narrator persona' : 'Active persona')) : `${target.status || 'active'} · ${(b.aliases || target.aliases || []).length} aliases`;
         return `<div class="ldc-editor-head"><div class="ldc-profile"><span class="ldc-profile-avatar">${esc(initials(target.name))}</span><div><h3>${esc(target.name)}</h3><div class="ldc-sub">${esc(subtitle)}</div></div></div><span class="ldc-chip">${esc(sourceLabel(b.source || (isPersona ? 'active' : target.source)))}</span></div><div class="ldc-preview"><span ${paintAttrs(channels.dialogue.paint)}>“Prism keeps this local and reversible.”</span><span class="ldc-preview-line" ${paintAttrs(channels.thought.paint)}><i>This was, categorically, not safe.</i></span></div><div class="ldc-editor-controls"><div class="ldc-editor-switch"><div class="ldc-channel-tabs"><button data-channel="dialogue" data-active="${activeChannel === 'dialogue'}">Dialogue</button><button data-channel="thought" data-active="${activeChannel === 'thought'}">Thoughts</button></div><label class="ldc-mode-select"><span>Paint</span><select class="ldc-select" data-role="paint-mode"><option value="solid" ${!gradient ? 'selected' : ''}>Solid</option><option value="gradient" ${gradient ? 'selected' : ''}>Gradient</option></select></label></div><label class="ldc-enable"><input type="checkbox" data-role="channel-enabled" ${channel.enabled ? 'checked' : ''}> Enable ${activeChannel} paint</label><div class="ldc-gradient-editor" style="--editor-gradient:${rail}"><label class="ldc-stop" title="First color"><input data-role="picker" type="color" value="${stop1}"><span style="--stop:${stop1}"></span></label><div class="ldc-gradient-rail"></div>${gradient ? `<label class="ldc-stop" title="Second color"><input data-role="picker-2" type="color" value="${stop2}"><span style="--stop:${stop2}"></span></label>` : ''}</div><div class="ldc-hex-row" data-gradient="${gradient}"><input class="ldc-input" data-role="hex" value="${stop1}" maxlength="7">${gradient ? `<input class="ldc-input" data-role="hex-2" value="${stop2}" maxlength="7">` : ''}</div>${gradient ? `<div class="ldc-direction"><label><span>Direction</span><input class="ldc-input" data-role="angle" type="number" min="0" max="360" value="${paint.angle}"></label><button class="ldc-btn" data-action="swap-colors">Swap colors</button></div>` : ''}<details class="ldc-details"><summary>Identity and attribution</summary><label class="ldc-field"><span class="ldc-label">Registry color <span class="ldc-hint">Always follows the first dialogue stop</span></span><input class="ldc-input" data-role="canonical-readout" value="${color}" readonly aria-readonly="true"></label>${isPersona ? `<label class="ldc-field"><span class="ldc-label">Persona dialogue</span><select class="ldc-select" data-role="auto-mode"><option value="off" ${state.config.autoUserMode === 'off' ? 'selected' : ''}>Off</option><option value="quoted" ${state.config.autoUserMode === 'quoted' ? 'selected' : ''}>Quoted dialogue only</option><option value="whole" ${state.config.autoUserMode === 'whole' ? 'selected' : ''}>Whole message</option></select></label>` : `<label class="ldc-field"><span class="ldc-label">Aliases <span class="ldc-hint">Comma-separated</span></span><input class="ldc-input" data-role="aliases" value="${esc(aliases)}" placeholder="Hugo, Mr. Vlad, narrator"></label>`}</details></div><div class="ldc-savebar"><span data-save-status="${saveStatus}">${saveStatus === 'saving' ? 'Saving changes…' : saveStatus === 'pending' ? 'Changes waiting…' : saveStatus === 'error' ? 'Could not save changes' : 'Changes saved automatically'}</span>${isPersona ? '' : `<button class="ldc-btn" data-action="remove-character">Remove from scene</button>`}</div>`;
     }
-    function settingsPanel() { const p = state?.preferences || {}; return `<section class="ldc-settings"><div class="ldc-heading ldc-settings-heading"><div><h3>Paint and attribution</h3><div class="ldc-sub">Existing font tags stay authoritative. Local and Hybrid modes fill only missing regions.</div></div></div><div class="ldc-settings-grid"><div class="ldc-card ldc-settings-card"><h4>Attribution mode</h4><p>Balanced uses labels, speech tags, action beats, continuity, legacy colors, and bubble authors.</p><div class="ldc-card-controls"><select class="ldc-select" data-role="mode"><option value="strict" ${p.domAttributionMode === 'strict' ? 'selected' : ''}>Strict</option><option value="balanced" ${p.domAttributionMode === 'balanced' ? 'selected' : ''}>Balanced</option><option value="aggressive" ${p.domAttributionMode === 'aggressive' ? 'selected' : ''}>Aggressive</option></select><label class="ldc-setting-check"><input type="checkbox" data-role="uncertain" ${p.markUncertain !== false ? 'checked' : ''}> <span>Mark uncertain dialogue</span></label></div></div><div class="ldc-card ldc-settings-card"><h4>Existing formatting</h4><p>Tags are never rewritten during rendering. Matched colors can teach turns and receive reversible local paint.</p><div class="ldc-card-controls"><select class="ldc-select" data-role="legacy-policy"><option value="preserve" ${p.existingStylePolicy === 'preserve' ? 'selected' : ''}>Preserve exactly</option><option value="enhance" ${p.existingStylePolicy === 'enhance' ? 'selected' : ''}>Enhance matched tags</option><option value="replace" ${p.existingStylePolicy === 'replace' ? 'selected' : ''}>Replace visually</option></select><label class="ldc-setting-check"><input type="checkbox" data-role="legacy-evidence" ${p.useExistingAsEvidence !== false ? 'checked' : ''}> <span>Use matched tags as speaker evidence</span></label></div></div><div class="ldc-card ldc-settings-card"><h4>Thought detection</h4><p>Opt-in because roleplay italics and single quotes are gloriously ambiguous.</p><div class="ldc-card-controls"><select class="ldc-select" data-role="thought-detection"><option value="off" ${p.thoughtDetection === 'off' ? 'selected' : ''}>Off</option><option value="italics" ${p.thoughtDetection === 'italics' ? 'selected' : ''}>Italics</option><option value="single-quotes" ${p.thoughtDetection === 'single-quotes' ? 'selected' : ''}>Single quotes</option><option value="italics-and-single-quotes" ${p.thoughtDetection === 'italics-and-single-quotes' ? 'selected' : ''}>Italics + single quotes</option></select><label class="ldc-setting-check"><input type="checkbox" data-role="prompt-thoughts" ${state.config.promptThoughtColors === true ? 'checked' : ''}> <span>Ask LLM sidecar to mark thoughts</span></label></div></div><div class="ldc-card ldc-settings-card ldc-settings-card-wide"><h4>Hybrid NPC discovery</h4><p>Clearly named unbound speakers may keep an existing color or receive a provisional palette color. Prism rehydrates those tags and waits for your approval before adding them to the confirmed registry.</p><div class="ldc-card-controls"><label class="ldc-setting-check"><input type="checkbox" data-role="hybrid-discovery" ${state.config.hybridDiscovery !== false ? 'checked' : ''}> <span>Color and rehydrate new speakers in Hybrid mode</span></label></div></div><div class="ldc-card ldc-settings-card"><h4>Saved font tags</h4><p>Normalizes old saved <code>&lt;font color&gt;</code> tags to each character's current canonical color. It does not persist local gradients or heuristic-only overlays.</p><div class="ldc-card-controls ldc-card-controls-action"><button class="ldc-btn" data-action="bake-colors">Normalize saved font colors</button></div></div></div></section>`; }
+    function diagnosticsText() { const d = state?.diagnostics || {}, last = d.lastHydration || state?.config?.lastHydration || null, messageSuffix = last?.messageId ? String(last.messageId).slice(-8) : 'none'; return [`Prism ${d.prismVersion || '1.0.0'}`, `Engine: ${engineLabel(state?.config?.engine)}`, `Config schema: ${d.configSchema || state?.config?.version || 'unknown'}`, `Registry revision: ${d.registryRevision || state?.registry?.revision || 'none'}`, `Confirmed speakers: ${d.confirmedSpeakers ?? state?.registry?.entries?.length ?? 0}`, `Registry collisions: ${d.registryCollisions ?? state?.registry?.conflicts?.length ?? 0}`, `Registry entries omitted by budget: ${d.registryTrimmed || 0}`, `Tentative groups: ${d.tentativeGroups ?? pendingReviewCount}`, `Unresolved rendered segments: ${unresolvedSegments().length}`, `Cortex entities: ${d.cortexEntities || 'unknown'}`, `Cortex macro: ${d.cortexMacro || 'unknown'}`, `Last hydration: ${last?.status || 'none'}`, `Last hydration message: …${messageSuffix}`, `Toolbar mounted: ${document.querySelector('[data-prism-toolbar-button]') ? 'yes' : 'no'}`, `DOM helpers: ${ctx.dom?.listMessageElements && ctx.dom?.inject ? 'healthy' : 'unavailable'}`, `Frontend/backend roundtrip: ${lastRoundtripMs ? `${lastRoundtripMs} ms` : 'not measured'}`, `Last backend error: ${lastBackendError || 'none'}`].join('\n'); }
+    function registryExportText() { return JSON.stringify({ format: 'prism-registry', version: 1, exportedAt: new Date().toISOString(), entries: (state?.registry?.entries || []).map(entry => ({ speakerUid: entry.speakerUid, kind: entry.kind, name: entry.name, aliases: entry.aliases, color: entry.color })) }, null, 2); }
+    async function copyText(value) { if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        return;
+    } const area = document.createElement('textarea'); area.value = value; area.style.position = 'fixed'; area.style.opacity = '0'; document.body.append(area); area.select(); document.execCommand('copy'); area.remove(); }
+    function openRegistryImport() {
+        importModal?.dismiss();
+        importModal = ctx.ui.showModal({ title: 'Import Prism registry', width: 560, maxHeight: 560 });
+        importModal.onDismiss(() => { importModal = null; });
+        importModal.root.innerHTML = `<div class="ldc-registry-import"><div><strong>Paste a Prism registry export</strong><div class="ldc-sub">Imports up to 48 confirmed entries. Existing stable speakers are merged; duplicate colors are reported instead of silently accepted.</div></div><textarea data-registry-json spellcheck="false" placeholder='{ "format": "prism-registry", "entries": [...] }'></textarea><div class="ldc-registry-import-actions"><button class="ldc-btn" data-action="cancel-import">Cancel</button><button class="ldc-btn ldc-primary" data-action="apply-import">Import registry</button></div></div>`;
+        importModal.root.querySelector('[data-action=cancel-import]')?.addEventListener('click', () => importModal?.dismiss());
+        importModal.root.querySelector('[data-action=apply-import]')?.addEventListener('click', () => perform(async () => { const text = importModal?.root.querySelector('[data-registry-json]')?.value || ''; let parsed; try {
+            parsed = JSON.parse(text);
+        }
+        catch {
+            throw new Error('That is not valid JSON.');
+        } if (parsed?.format !== 'prism-registry' || !Array.isArray(parsed.entries))
+            throw new Error('Choose a Prism registry export containing an entries array.'); const result = await request('ldc_import_registry', { chatId: state.chat.id, entries: parsed.entries }, 60000); importModal?.dismiss(); acceptState(result.state); if (modal)
+            render(); await ctx.ui.showConfirm({ title: 'Registry imported', message: `Imported ${result.imported} entr${result.imported === 1 ? 'y' : 'ies'}.${result.conflicts?.length ? ` ${result.conflicts.length} color collision${result.conflicts.length === 1 ? ' was' : 's were'} skipped.` : ''}`, confirmLabel: 'Okay', cancelLabel: 'Close', variant: result.conflicts?.length ? 'warning' : 'success' }); }));
+    }
+    async function runTranscriptMutation(mode) { const personaMode = mode === 'persona-history', previewType = personaMode ? 'ldc_persona_history_preview' : 'ldc_normalize_preview', applyType = personaMode ? 'ldc_persona_history_apply' : 'ldc_normalize_apply', preview = await request(previewType, { chatId: state.chat.id }, 60000), summary = personaMode ? `${preview.userMessages} historical user message${preview.userMessages === 1 ? '' : 's'} would receive the current persona mode.` : `${preview.assistantMessages} assistant and ${preview.userMessages} user message${preview.assistantMessages + preview.userMessages === 1 ? '' : 's'} contain replaceable legacy tags.${preview.ambiguousSharedColors ? ` ${preview.ambiguousSharedColors} ambiguous shared color${preview.ambiguousSharedColors === 1 ? ' is' : 's are'} skipped.` : ''}`, title = personaMode ? 'Apply persona colors historically?' : 'Normalize existing font tags?'; const { confirmed } = await ctx.ui.showConfirm({ title, message: `Dry run complete. ${summary} Prism stores a recovery backup before changing anything.`, confirmLabel: preview.changed ? `Apply ${preview.changed} change${preview.changed === 1 ? '' : 's'}` : 'Nothing to change', cancelLabel: 'Cancel', variant: preview.changed ? 'danger' : 'warning' }); if (!confirmed || !preview.changed)
+        return; setSaveStatus('saving'); const result = await request(applyType, { chatId: state.chat.id }, 120000); setSaveStatus('saved'); for (const { messageId } of ctx.dom.listMessageElements())
+        dirty.add(messageId); schedule(true); await ctx.ui.showConfirm({ title: 'Transcript update complete', message: `Updated ${result.changed} message${result.changed === 1 ? '' : 's'}. A recovery backup is available from Prism settings.`, confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'success' }); }
+    function settingsPanel() { const p = state?.preferences || {}, last = state?.config?.lastHydration; return `<section class="ldc-settings"><div class="ldc-heading ldc-settings-heading"><div><h3>Paint and attribution</h3><div class="ldc-sub">Existing font tags stay authoritative. Local and Hybrid modes fill only missing regions.</div></div></div><div class="ldc-settings-grid"><div class="ldc-card ldc-settings-card"><h4>Attribution mode</h4><p>Balanced uses labels, speech tags, action beats, continuity, legacy colors, and bubble authors.</p><div class="ldc-card-controls"><select class="ldc-select" data-role="mode"><option value="strict" ${p.domAttributionMode === 'strict' ? 'selected' : ''}>Strict</option><option value="balanced" ${p.domAttributionMode === 'balanced' ? 'selected' : ''}>Balanced</option><option value="aggressive" ${p.domAttributionMode === 'aggressive' ? 'selected' : ''}>Aggressive</option></select><label class="ldc-setting-check"><input type="checkbox" data-role="uncertain" ${p.markUncertain !== false ? 'checked' : ''}> <span>Mark uncertain dialogue</span></label></div></div><div class="ldc-card ldc-settings-card"><h4>Existing formatting</h4><p>Tags are never rewritten during rendering. Matched colors can teach turns and receive reversible local paint.</p><div class="ldc-card-controls"><select class="ldc-select" data-role="legacy-policy"><option value="preserve" ${p.existingStylePolicy === 'preserve' ? 'selected' : ''}>Preserve exactly</option><option value="enhance" ${p.existingStylePolicy === 'enhance' ? 'selected' : ''}>Enhance matched tags</option><option value="replace" ${p.existingStylePolicy === 'replace' ? 'selected' : ''}>Replace visually</option></select><label class="ldc-setting-check"><input type="checkbox" data-role="legacy-evidence" ${p.useExistingAsEvidence !== false ? 'checked' : ''}> <span>Use matched tags as speaker evidence</span></label></div></div><div class="ldc-card ldc-settings-card"><h4>Thought detection</h4><p>Opt-in because roleplay italics and single quotes are gloriously ambiguous.</p><div class="ldc-card-controls"><select class="ldc-select" data-role="thought-detection"><option value="off" ${p.thoughtDetection === 'off' ? 'selected' : ''}>Off</option><option value="italics" ${p.thoughtDetection === 'italics' ? 'selected' : ''}>Italics</option><option value="single-quotes" ${p.thoughtDetection === 'single-quotes' ? 'selected' : ''}>Single quotes</option><option value="italics-and-single-quotes" ${p.thoughtDetection === 'italics-and-single-quotes' ? 'selected' : ''}>Italics + single quotes</option></select><label class="ldc-setting-check"><input type="checkbox" data-role="prompt-thoughts" ${state.config.promptThoughtColors === true ? 'checked' : ''}> <span>Ask LLM sidecar to mark thoughts</span></label></div></div><div class="ldc-card ldc-settings-card ldc-settings-card-wide"><h4>Hybrid NPC discovery</h4><p>Strong explicit evidence may create one provisional hint; weaker discoveries require two independent sightings. Model echoes never increase confidence, and stale hints expire.</p><div class="ldc-card-controls"><label class="ldc-setting-check"><input type="checkbox" data-role="hybrid-discovery" ${state.config.hybridDiscovery !== false ? 'checked' : ''}> <span>Color and rehydrate new speakers in Hybrid mode</span></label></div></div><div class="ldc-card ldc-settings-card"><h4>Normalize existing font tags</h4><p>Dry-runs first, changes only matching legacy tags, skips ambiguous shared colors, and stores a rollback backup. It never adds persona markup.</p><div class="ldc-card-controls ldc-card-controls-action"><button class="ldc-btn" data-action="normalize-tags">Preview normalization</button></div></div><div class="ldc-card ldc-settings-card"><h4>Historical persona colors</h4><p>Separate opt-in operation for applying the current persona mode to older user messages. A recovery backup is stored before mutation.</p><div class="ldc-card-controls ldc-card-controls-action"><button class="ldc-btn" data-action="persona-history">Preview persona changes</button><button class="ldc-btn" data-action="restore-transcript">Restore last backup</button></div></div><div class="ldc-card ldc-settings-card"><h4>Hybrid repair</h4><p>Retry delayed storage, rescan only the current message, or clear tentative evidence without touching confirmed colors.</p><div class="ldc-card-controls ldc-card-controls-action"><button class="ldc-btn" data-action="retry-hydration" ${last?.messageId ? '' : 'disabled'}>Retry last hydration</button><button class="ldc-btn" data-action="rescan-current">Rescan current message</button><button class="ldc-btn" data-action="reset-temporary">Reset temporary evidence</button></div></div><div class="ldc-card ldc-settings-card ldc-settings-card-wide"><h4>Compatibility and registry</h4><p>Diagnostics and exports never contain message text. Imports preserve stable speakers and stop on color collisions.</p><div class="ldc-card-controls ldc-card-controls-action"><button class="ldc-btn" data-action="copy-diagnostics">Copy diagnostics</button><button class="ldc-btn" data-action="copy-registry">Copy registry JSON</button><button class="ldc-btn" data-action="import-registry">Import registry JSON</button></div></div></div></section>`; }
     function render() {
         if (!modal)
             return;
@@ -184,8 +218,8 @@ export function setup(ctx) {
             selectedId = state.characters[0].id;
         const missing = missingCount(), engine = normalizeEngine(state.config.engine), needs = missing > 0;
         const setupTitle = `Set up scene colors · ${missing} scene member${missing === 1 ? '' : 's'} still need colors`;
-        const unresolved = unresolvedSegments().length;
-        modal.root.innerHTML = `<div class="ldc-shell"><div class="ldc-top"><div class="ldc-tabs"><button class="ldc-tab" data-tab="character" data-active="${activeTab === 'character' && !settingsOpen && !reviewOpen}">Characters</button><button class="ldc-tab" data-tab="persona" data-active="${activeTab === 'persona' && !settingsOpen && !reviewOpen}">Persona</button></div><div class="ldc-top-actions"><span class="ldc-engine-copy">${esc(engineDescription(engine))}</span>${pendingReviewCount ? `<button class="ldc-review" data-action="review-hydration">${pendingReviewCount} awaiting review</button>` : ''}${unresolved ? `<button class="ldc-review" data-action="review-unresolved">${unresolved} unresolved · Review</button>` : ''}<div class="ldc-engine"><button data-engine="dom" data-active="${engine === 'dom'}" title="Render-only heuristic coloring">Local</button><button data-engine="hybrid" data-active="${engine === 'hybrid'}" title="Persist model font tags, then fill untagged gaps locally">Hybrid</button><button data-engine="llm" data-active="${engine === 'llm'}" title="Use only model-emitted font tags">LLM</button></div><button class="ldc-icon" data-action="settings" data-active="${settingsOpen}" title="Prism settings">${GEAR_ICON}</button></div></div>${needs ? `<div class="ldc-setup"><div class="ldc-setup-copy"><span class="ldc-setup-icon">${SPARK_ICON}</span><div><div class="ldc-setup-title">${esc(setupTitle)}</div><div class="ldc-setup-desc">Found ${state.characters.length} characters${state.persona ? ' and your active persona' : ''}. Existing imported and manual colors stay untouched.</div></div></div><button class="ldc-mini" data-action="setup">Set up scene</button></div>` : ''}<div class="ldc-main-wrap"><div class="ldc-main">${activeTab === 'character' ? `<aside class="ldc-side">${sidebar()}</aside><section class="ldc-panel">${charPanel(current())}</section>` : `<aside class="ldc-side"><div class="ldc-side-label">Active persona</div><div class="ldc-person" data-active="true"><span class="ldc-avatar">${esc(initials(state.persona?.name))}</span><span class="ldc-person-copy"><span class="ldc-person-name">${esc(state.persona?.name || 'No persona')}</span><span class="ldc-person-source">${state.config.personaEnabled === false ? 'disabled' : 'currently applied'}</span></span></div></aside><section class="ldc-panel">${personaPanel()}</section>`}</div>${reviewOpen ? reviewPanel() : settingsOpen ? settingsPanel() : ''}</div><div class="ldc-status"><span>${esc(state.chat.name)}</span><span class="ldc-bridge">${engineLabel(engine)} · ${state.characters.length} characters · Cortex ${state.cortexAvailable ? 'linked' : 'unavailable'}</span></div></div>`;
+        const unresolved = unresolvedSegments().length, collisionCount = state.registry?.conflicts?.length || 0;
+        modal.root.innerHTML = `<div class="ldc-shell"><div class="ldc-top"><div class="ldc-tabs"><button class="ldc-tab" data-tab="character" data-active="${activeTab === 'character' && !settingsOpen && !reviewOpen}">Characters</button><button class="ldc-tab" data-tab="persona" data-active="${activeTab === 'persona' && !settingsOpen && !reviewOpen}">Persona</button></div><div class="ldc-top-actions"><span class="ldc-engine-copy">${esc(engineDescription(engine))}</span>${collisionCount ? `<button class="ldc-review ldc-registry-warning" data-action="settings" title="Conflicting speakers are quarantined from Hybrid injection">${collisionCount} color collision${collisionCount === 1 ? '' : 's'}</button>` : ''}${pendingReviewCount ? `<button class="ldc-review" data-action="review-hydration">${pendingReviewCount} awaiting review</button>` : ''}${unresolved ? `<button class="ldc-review" data-action="review-unresolved">${unresolved} unresolved · Review</button>` : ''}<div class="ldc-engine"><button data-engine="dom" data-active="${engine === 'dom'}" title="Render-only heuristic coloring">Local</button><button data-engine="hybrid" data-active="${engine === 'hybrid'}" title="Persist model font tags, then fill untagged gaps locally">Hybrid</button><button data-engine="llm" data-active="${engine === 'llm'}" title="Use only model-emitted font tags">LLM</button></div><button class="ldc-icon" data-action="settings" data-active="${settingsOpen}" title="Prism settings">${GEAR_ICON}</button></div></div>${needs ? `<div class="ldc-setup"><div class="ldc-setup-copy"><span class="ldc-setup-icon">${SPARK_ICON}</span><div><div class="ldc-setup-title">${esc(setupTitle)}</div><div class="ldc-setup-desc">Found ${state.characters.length} characters${state.persona ? ' and your active persona' : ''}. Existing imported and manual colors stay untouched.</div></div></div><button class="ldc-mini" data-action="setup">Set up scene</button></div>` : ''}<div class="ldc-main-wrap"><div class="ldc-main">${activeTab === 'character' ? `<aside class="ldc-side">${sidebar()}</aside><section class="ldc-panel">${charPanel(current())}</section>` : `<aside class="ldc-side"><div class="ldc-side-label">Active persona</div><div class="ldc-person" data-active="true"><span class="ldc-avatar">${esc(initials(state.persona?.name))}</span><span class="ldc-person-copy"><span class="ldc-person-name">${esc(state.persona?.name || 'No persona')}</span><span class="ldc-person-source">${state.config.personaEnabled === false ? 'disabled' : 'currently applied'}</span></span></div></aside><section class="ldc-panel">${personaPanel()}</section>`}</div>${reviewOpen ? reviewPanel() : settingsOpen ? settingsPanel() : ''}</div><div class="ldc-status"><span>${esc(state.chat.name)}</span><span class="ldc-bridge">${engineLabel(engine)} · ${state.characters.length} characters · Cortex ${state.cortexAvailable ? 'linked' : 'unavailable'}</span></div></div>`;
         if (settingsOpen) {
             const grid = modal.root.querySelector('.ldc-settings-grid');
             if (grid)
@@ -344,7 +378,7 @@ export function setup(ctx) {
             return; const side = modal.root.querySelector('.ldc-side'); if (side)
             sideScroll = side.scrollTop; navigateEditor(() => { selectedId = row.dataset.characterId; }); }; row.onclick = activate; row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ')
             activate(e); }; });
-        modal.root.querySelector('[data-action=settings]')?.addEventListener('click', () => navigateEditor(() => { reviewOpen = false; settingsOpen = !settingsOpen; }));
+        modal.root.querySelectorAll('[data-action=settings]').forEach(button => button.addEventListener('click', () => navigateEditor(() => { reviewOpen = false; settingsOpen = button.classList.contains('ldc-icon') ? !settingsOpen : true; })));
         for (const [action, type] of [['cortex-sync', 'ldc_cortex_sync'], ['cortex-repair', 'ldc_cortex_repair']])
             modal.root.querySelector(`[data-action=${action}]`)?.addEventListener('click', () => perform(async () => { setSaveStatus('saving'); const response = await request(type, { chatId: state.chat.id }, 60000); acceptState(response.state); setSaveStatus('saved'); render(); }));
         modal.root.querySelector('[data-action=review-unresolved]')?.addEventListener('click', reviewUnresolved);
@@ -354,7 +388,7 @@ export function setup(ctx) {
         modal.root.querySelectorAll('[data-engine]').forEach(b => b.onclick = () => perform(async () => { if (b.dataset.engine === state.config.engine)
             return; const r = await request('ldc_update_options', { engine: b.dataset.engine, autoUserMode: state.config.autoUserMode }); acceptState(r.state); render(); }));
         for (const [action, regenerate] of [['setup', false], ['assign', false], ['regenerate', true]])
-            modal.root.querySelectorAll(`[data-action=${action}]`).forEach(button => button.addEventListener('click', () => perform(async () => { const r = await request(action === 'setup' ? 'ldc_setup_scene' : 'ldc_assign_colors', { chatId: state.chat.id, regenerate }, 60000); acceptState(r.state); render(); })));
+            modal.root.querySelectorAll(`[data-action=${action}]`).forEach(button => button.addEventListener('click', () => perform(async () => { const r = await request(action === 'setup' ? 'ldc_setup_scene' : 'ldc_assign_colors', { chatId: state.chat.id, regenerate, surfaceColor: messageSurfaceColor() }, 60000); acceptState(r.state); render(); })));
         modal.root.querySelectorAll('[data-inline-color]').forEach(p => { p.onclick = e => e.stopPropagation(); p.oninput = () => { const color = normalizeHex(p.value), swatch = p.closest('[data-inline-swatch]'); if (color && swatch) {
             swatch.style.setProperty('--swatch', color);
             swatch.style.setProperty('--swatch-paint', color);
@@ -410,8 +444,22 @@ export function setup(ctx) {
         modal.root.querySelector('[data-role=legacy-evidence]')?.addEventListener('change', e => perform(async () => { const r = await request('ldc_update_options', { engine: state.config.engine, useExistingAsEvidence: e.target.checked }); acceptState(r.state); render(); }));
         modal.root.querySelector('[data-role=prompt-thoughts]')?.addEventListener('change', e => perform(async () => { const r = await request('ldc_update_options', { engine: state.config.engine, promptThoughtColors: e.target.checked }); acceptState(r.state); render(); }));
         modal.root.querySelector('[data-role=hybrid-discovery]')?.addEventListener('change', e => perform(async () => { const r = await request('ldc_update_options', { engine: state.config.engine, hybridDiscovery: e.target.checked }); acceptState(r.state); render(); }));
-        modal.root.querySelector('[data-action=bake-colors]')?.addEventListener('click', async () => { const { confirmed } = await ctx.ui.showConfirm({ title: 'Normalize saved font colors?', message: 'This updates matching legacy <font color> tags in saved messages and swipe variants to each character’s current canonical color. It does not save Prism gradients or heuristic-only DOM paint.', confirmLabel: 'Normalize colors', cancelLabel: 'Cancel', variant: 'danger' }); if (!confirmed)
-            return; await perform(async () => { const r = await request('ldc_recolor_existing', { chatId: state.chat.id }, 60000); await ctx.ui.showConfirm({ title: 'Normalization complete', message: `Updated ${r.changed} saved message${r.changed === 1 ? '' : 's'}.`, confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'success' }); }); });
+        modal.root.querySelector('[data-action=normalize-tags]')?.addEventListener('click', () => perform(() => runTranscriptMutation('normalize')));
+        modal.root.querySelector('[data-action=persona-history]')?.addEventListener('click', () => perform(() => runTranscriptMutation('persona-history')));
+        modal.root.querySelector('[data-action=restore-transcript]')?.addEventListener('click', async () => { const { confirmed } = await ctx.ui.showConfirm({ title: 'Restore last Prism transcript backup?', message: 'This restores every message captured before the most recent Prism transcript operation.', confirmLabel: 'Restore backup', cancelLabel: 'Cancel', variant: 'danger' }); if (!confirmed)
+            return; await perform(async () => { setSaveStatus('saving'); const result = await request('ldc_restore_transcript', { chatId: state.chat.id }, 120000); setSaveStatus('saved'); for (const { messageId } of ctx.dom.listMessageElements())
+            dirty.add(messageId); schedule(true); await ctx.ui.showConfirm({ title: 'Backup restored', message: `Restored ${result.restored} message${result.restored === 1 ? '' : 's'}.`, confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'success' }); }); });
+        modal.root.querySelector('[data-action=copy-diagnostics]')?.addEventListener('click', () => perform(async () => { await copyText(diagnosticsText()); const button = modal?.root.querySelector('[data-action=copy-diagnostics]'); if (button)
+            button.textContent = 'Copied diagnostics'; }));
+        modal.root.querySelector('[data-action=copy-registry]')?.addEventListener('click', () => perform(async () => { await copyText(registryExportText()); const button = modal?.root.querySelector('[data-action=copy-registry]'); if (button)
+            button.textContent = 'Copied registry'; }));
+        modal.root.querySelector('[data-action=import-registry]')?.addEventListener('click', openRegistryImport);
+        modal.root.querySelector('[data-action=retry-hydration]')?.addEventListener('click', () => perform(async () => { const messageId = state?.config?.lastHydration?.messageId; if (!messageId)
+            throw new Error('There is no previous hydration message to retry.'); await hydrateMessage({ messageId }, true, false); }));
+        modal.root.querySelector('[data-action=rescan-current]')?.addEventListener('click', () => perform(async () => { const messageId = ctx.messages.getLatestMessageId(); if (!messageId)
+            throw new Error('There is no mounted message to rescan.'); await hydrateMessage({ messageId }, true, false); }));
+        modal.root.querySelector('[data-action=reset-temporary]')?.addEventListener('click', async () => { const { confirmed } = await ctx.ui.showConfirm({ title: 'Reset temporary Hybrid evidence?', message: 'Removes tentative and dismissed observations plus hydration caches. Confirmed colors and approved corrections stay untouched.', confirmLabel: 'Reset temporary evidence', cancelLabel: 'Cancel', variant: 'warning' }); if (!confirmed)
+            return; await perform(async () => { const result = await request('ldc_reset_temporary', { chatId: state.chat.id }, 30000); acceptState(result.state); render(); }); });
     }
     function rememberClass(element) { if (element.dataset.prismOriginalClass == null)
         element.dataset.prismOriginalClass = element.hasAttribute('class') ? element.getAttribute('class') : '\u0000'; }
@@ -519,10 +567,25 @@ export function setup(ctx) {
     }
     function rgbHex(value) { const direct = normalizeHex(value); if (direct)
         return direct; const match = String(value || '').match(/^rgba?\(\s*(\d+)\D+(\d+)\D+(\d+)/i); return match ? `#${match.slice(1, 4).map(x => Math.max(0, Math.min(255, Number(x))).toString(16).padStart(2, '0')).join('').toUpperCase()}` : null; }
+    function messageSurfaceColor() { const mounted = ctx.dom.listMessageElements(), message = mounted[mounted.length - 1]?.element || document.querySelector('[data-component="MessageContent"]'), nodes = [message?.closest('[class*="messageBubble"]'), message?.parentElement, document.querySelector('[class*="chatColumnInner"]'), document.body, document.documentElement]; for (const node of nodes) {
+        if (!node)
+            continue;
+        const value = getComputedStyle(node).backgroundColor;
+        if (/rgba\([^)]*,\s*0(?:\.0+)?\s*\)$/i.test(value) || value === 'transparent')
+            continue;
+        const color = rgbHex(value);
+        if (color)
+            return color;
+    } for (const property of ['--lumiverse-bg-elevated', '--lumiverse-bg', '--background']) {
+        const color = rgbHex(getComputedStyle(document.documentElement).getPropertyValue(property));
+        if (color)
+            return color;
+    } return '#15131D'; }
     function explicitElementColor(element) { return normalizeHex(element.getAttribute('color')) || normalizeHex(element.dataset.prismOriginalColor) || rgbHex(element.style?.color); }
     function candidateForExistingColor(color, list) { const normalized = normalizeHex(color); if (!normalized)
         return null; const matches = list.filter(c => [bindingRegistryColor(c.binding), c.binding?.color, c.binding?.channels?.dialogue?.paint?.anchor, c.binding?.channels?.thought?.paint?.anchor, ...(c.binding?.previousColors || [])].map(normalizeHex).filter(Boolean).includes(normalized)); return matches.length === 1 ? matches[0] : null; }
-    function themeBoundColors(root) { const colors = new Set(), properties = ['--lumiverse-primary', '--lumiverse-primary-hover', '--lumiverse-primary-active', '--lumiverse-accent', '--lumiverse-text', '--lumiverse-text-muted', '--lumiverse-text-dim', '--lumiverse-text-secondary', '--lumiverse-link', '--lumiverse-info', '--primary', '--primary-color', '--accent-color']; for (const node of [document.documentElement, document.body, root]) {
+    function themeBoundColors(root) { const signature = [document.documentElement.className, document.documentElement.getAttribute('style') || '', document.body?.className || '', document.body?.getAttribute('style') || '', root?.closest('[class*="chatColumn"]')?.className || ''].join('|'); if (themeColorCache && themeColorSignature === signature)
+        return new Set(themeColorCache); const colors = new Set(), properties = ['--lumiverse-primary', '--lumiverse-primary-hover', '--lumiverse-primary-active', '--lumiverse-accent', '--lumiverse-text', '--lumiverse-text-muted', '--lumiverse-text-dim', '--lumiverse-text-secondary', '--lumiverse-link', '--lumiverse-info', '--primary', '--primary-color', '--accent-color']; for (const node of [document.documentElement, document.body, root]) {
         if (!node)
             continue;
         const style = getComputedStyle(node), textColor = rgbHex(style.color);
@@ -533,7 +596,7 @@ export function setup(ctx) {
             if (color)
                 colors.add(color);
         }
-    } return colors; }
+    } themeColorCache = new Set(colors); themeColorSignature = signature; return colors; }
     function collectExisting(root, list) { const selector = 'font[color],span[style*="color"],em[style*="color"],i[style*="color"],[data-prism-original-color],.ldc-inline-color', map = new Map(), themeColors = themeBoundColors(root); for (const element of root.querySelectorAll(selector)) {
         if (element.closest('code,pre,textarea,script,style') || structured(logicalBlock(element, root)?.textContent || ''))
             continue;
@@ -927,46 +990,83 @@ export function setup(ctx) {
     function schedule(immediate = false) { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => processMounted(false), immediate ? 0 : 70); }
     function markLatest() { const id = ctx.messages.getLatestMessageId(); if (id)
         dirty.add(id); schedule(); }
-    async function hydrateLatest() {
-        const messageId = ctx.messages.getLatestMessageId();
+    function eventGenerationId(payload) { return String(payload?.generationId || payload?.generation_id || payload?.requestId || payload?.request_id || ''); }
+    function setMessageStreaming(messageId, value) { if (!messageId)
+        return; for (const item of ctx.dom.listMessageElements()) {
+        if (String(item.messageId) !== String(messageId))
+            continue;
+        if (value)
+            item.element.dataset.prismStreaming = 'true';
+        else
+            delete item.element.dataset.prismStreaming;
+    } }
+    function markStreaming(payload = {}) { if (payload.chatId && state?.chat?.id && String(payload.chatId) !== String(state.chat.id))
+        return; const generationId = eventGenerationId(payload); if (generationId)
+        activeGenerationIds.add(generationId); const messageId = String(payload.messageId || ctx.messages.getLatestMessageId() || ''); if (messageId) {
+        streamingMessageIds.add(messageId);
+        setMessageStreaming(messageId, true);
+        dirty.add(messageId);
+    } schedule(); }
+    function clearStreaming(payload = {}) { const generationId = eventGenerationId(payload); if (generationId)
+        activeGenerationIds.delete(generationId); const messageId = String(payload.messageId || ''); if (messageId) {
+        streamingMessageIds.delete(messageId);
+        setMessageStreaming(messageId, false);
+        dirty.add(messageId);
+    } if (!generationId || activeGenerationIds.size === 0) {
+        for (const id of streamingMessageIds) {
+            setMessageStreaming(id, false);
+            dirty.add(id);
+        }
+        streamingMessageIds.clear();
+    } schedule(true); }
+    async function hydrateMessage(payload = {}, force = false, quiet = false) {
+        const messageId = String(payload.messageId || ctx.messages.getLatestMessageId() || '');
         markLatest();
         if (!messageId || !state?.ok || normalizeEngine(state.config.engine) !== 'hybrid' || hydratingMessages.has(messageId))
             return;
         hydratingMessages.add(messageId);
         setHydrationStatus('syncing');
         try {
-            const response = await request('ldc_hydrate_message', { chatId: state.chat.id, messageId }, 30000);
+            const response = await request('ldc_hydrate_message', { chatId: state.chat.id, messageId, generationId: eventGenerationId(payload), generationEndedAt: Date.now(), force }, 30000);
             acceptState(response.state);
             dirty.add(messageId);
             schedule(true);
             setHydrationStatus(response.pendingCount > 0 ? 'awaiting' : 'idle');
             if (modal)
                 render();
+            return response;
         }
         catch (error) {
             setHydrationStatus('error');
-            console.warn('[Prism] Hybrid hydration failed:', error);
+            if (quiet) {
+                console.warn('[Prism] Hybrid hydration failed:', error);
+                return;
+            }
+            throw error;
         }
         finally {
             hydratingMessages.delete(messageId);
         }
     }
+    async function hydrateLatest(payload = {}) { clearStreaming(payload); return hydrateMessage(payload, false, true); }
     function ensureToolbar() {
         const toolbar = document.querySelector('[class*="chatToolbar"]');
         if (!toolbar || toolbar.querySelector('[data-prism-toolbar-button]'))
             return;
         if (toolbarInjection?.isConnected)
             ctx.dom.uninject(toolbarInjection);
-        toolbarInjection = ctx.dom.inject(toolbar, `<span class="ldc-toolbar-host"><button class="ldc-toolbar-button" data-prism-toolbar-button title="Prism dialogue colors" aria-label="Open Prism dialogue colors">${PRISM_ICON}</button><span class="ldc-toolbar-save-state" data-prism-save-status="${saveStatus}" aria-live="polite"><i></i><span data-prism-save-label>${saveStatusLabel(saveStatus)}</span></span></span>`, 'beforeend');
+        toolbarInjection = ctx.dom.inject(toolbar, `<span class="ldc-toolbar-host"><button class="ldc-toolbar-button" data-prism-toolbar-button title="Prism dialogue colors" aria-label="Open Prism dialogue colors">${PRISM_ICON}</button><button type="button" class="ldc-toolbar-save-state" data-prism-save-status="${saveStatus}" aria-live="polite" aria-label="${saveStatusLabel(saveStatus)}"><i></i><span data-prism-save-label>${saveStatusLabel(saveStatus)}</span></button></span>`, 'beforeend');
         toolbarInjection.querySelector('[data-prism-toolbar-button]')?.addEventListener('click', openMainPalette);
         toolbarInjection.querySelector('[data-prism-save-status]')?.addEventListener('click', () => { if (pendingReviewCount > 0)
             openReviewInbox(); });
         refreshPrismStatus();
     }
-    const observer = new MutationObserver(() => { ensureToolbar(); schedule(); });
-    function observe() { if (document.body) {
+    const observer = new MutationObserver(records => { if (records.every(record => record.target instanceof Element && record.target.closest('.ldc-toolbar-host,.ldc-shell')))
+        return; ensureToolbar(); schedule(); });
+    function observationRoot() { return document.querySelector('[class*="chatColumnInner"]') || document.querySelector('[class*="chatColumn"]') || document.body; }
+    function observe() { const root = observationRoot(); if (root) {
         observer.disconnect();
-        observer.observe(document.body, { childList: true, subtree: true });
+        observer.observe(root, { childList: true, subtree: true });
     } }
     async function openPalette() {
         if (modal) {
@@ -1018,7 +1118,8 @@ export function setup(ctx) {
     ensureToolbar();
     observe();
     const action = ctx.ui.registerInputBarAction({ id: 'open-dialogue-colors', label: 'Prism', iconSvg: PRISM_ICON, enabled: true });
-    const unsubAction = action.onClick(openMainPalette), unsubChat = ctx.events.on('CHAT_SWITCHED', () => { state = null; reviewOpen = false; settingsOpen = false; hydratingMessages.clear(); setHydrationStatus('idle'); signatures.clear(); dirty.clear(); ensureToolbar(); reload(true); }), unsubMessage = ctx.events.on('MESSAGE_SENT', markLatest), unsubGeneration = ctx.events.on('GENERATION_ENDED', hydrateLatest);
+    const clearAllStreaming = () => { activeGenerationIds.clear(); streamingMessageIds.clear(); document.querySelectorAll('[data-prism-streaming]').forEach(element => delete element.dataset.prismStreaming); };
+    const unsubAction = action.onClick(openMainPalette), unsubChat = ctx.events.on('CHAT_SWITCHED', () => { state = null; reviewOpen = false; settingsOpen = false; hydratingMessages.clear(); clearAllStreaming(); themeColorCache = null; themeColorSignature = ''; setHydrationStatus('idle'); signatures.clear(); dirty.clear(); ensureToolbar(); observe(); reload(true); }), unsubMessage = ctx.events.on('MESSAGE_SENT', markLatest), unsubGenerationStart = ctx.events.on('GENERATION_STARTED', markStreaming), unsubStream = ctx.events.on('STREAM_TOKEN_RECEIVED', markStreaming), unsubGeneration = ctx.events.on('GENERATION_ENDED', hydrateLatest), unsubGenerationStop = ctx.events.on('GENERATION_STOPPED', payload => { clearStreaming(payload); markLatest(); });
     reload();
     return () => {
         for (const task of pending.values()) {
@@ -1035,11 +1136,16 @@ export function setup(ctx) {
             if (content)
                 clearRoot(content);
         }
+        clearAllStreaming();
         addModal?.dismiss();
+        importModal?.dismiss();
         modal?.dismiss();
         unsubChat();
         unsubMessage();
+        unsubGenerationStart();
+        unsubStream();
         unsubGeneration();
+        unsubGenerationStop();
         unsubAction();
         action.destroy();
         if (toolbarInjection)
