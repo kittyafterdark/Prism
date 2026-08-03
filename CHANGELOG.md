@@ -7,6 +7,7 @@
 - Centers Horizontal Carousel selections by changing only the roster's own scroll position; selecting a character no longer shifts the desktop modal or page.
 - Reorganizes Settings into aligned **Look & feel**, **Prompt**, and **Cortex & attribution** sections.
 - Adds persistent interface scale and modal corner-style controls.
+- Extends interface scale down to 80% and 70%, and gives the unresolved review pill its own phone/PWA row in Vertical Sidebar as well as Horizontal Carousel.
 - Adds Automatic and Preset macro prompt delivery, a custom prompt editor, and live `{{prismPrompt}}` / `{{prismHexes}}` macros.
 - Preserves the saved/sync indicator preference in a user-wide cache across chat switches and transient state reloads.
 - Extends release regression coverage for the safe-area portal, carousel isolation, grouped settings, prompt placeholders, and macro-only delivery.

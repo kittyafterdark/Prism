@@ -156,7 +156,7 @@ function safePreferences(raw) {
             : ['auto', 'split', 'horizontal', 'accessibility'].includes(source.modalLayout)
                 ? source.modalLayout
                 : DEFAULT_PREFERENCES.modalLayout,
-        modalScale: [0.9, 1, 1.1, 1.25].includes(Number(source.modalScale))
+        modalScale: [0.7, 0.8, 0.9, 1, 1.1, 1.25].includes(Number(source.modalScale))
             ? Number(source.modalScale)
             : DEFAULT_PREFERENCES.modalScale,
         modalShape: ['rounded', 'soft', 'square'].includes(source.modalShape)
@@ -1907,7 +1907,7 @@ async function updateUiPreferences(payload, userId) {
         if (['auto', 'split', 'horizontal', 'accessibility'].includes(payload.modalLayout)) {
             globalState.preferences.modalLayout = payload.modalLayout;
         }
-        if ([0.9, 1, 1.1, 1.25].includes(Number(payload.modalScale))) {
+        if ([0.7, 0.8, 0.9, 1, 1.1, 1.25].includes(Number(payload.modalScale))) {
             globalState.preferences.modalScale = Number(payload.modalScale);
         }
         if (['rounded', 'soft', 'square'].includes(payload.modalShape)) {

@@ -742,8 +742,16 @@ test('settings use grouped aligned sections and persistent presentation controls
   assert.match(frontendSource, /data-role="modal-scale"/);
   assert.match(frontendSource, /data-role="modal-shape"/);
   assert.match(frontendSource, /uiPreferenceCache=\{\.\.\.\(uiPreferenceCache\|\|\{\}\),\.\.\.next\.preferences\}/);
-  assert.match(backendSource, /modalScale: \[0\.9, 1, 1\.1, 1\.25\]/);
+  assert.match(backendSource, /modalScale: \[0\.7, 0\.8, 0\.9, 1, 1\.1, 1\.25\]/);
   assert.match(backendSource, /modalShape: \['rounded', 'soft', 'square'\]/);
+});
+
+test('low-scale controls and mobile vertical review row stay usable', () => {
+  assert.match(frontendSource, /function hydrateScaleOptions\(root,value\)/);
+  assert.match(frontendSource, /\[\[\.8,'80%'\],\[\.7,'70%'\]\]/);
+  assert.match(frontendSource, /return Math\.max\(\.7,Math\.min\(1\.4,base\*ui\.modalScale\)\)/);
+  assert.match(frontendSource, /data-prism-layout=split\] \.ldc-top\{display:grid;grid-template-columns:minmax\(0,1fr\) auto;grid-template-areas:"tabs tools" "reviews reviews" "engine engine"/);
+  assert.match(frontendSource, /data-prism-layout=split\] \.ldc-review-strip\{grid-area:reviews/);
 });
 
 test('Prism exposes live prompt macros and custom prompt placeholders', async () => {
