@@ -10,6 +10,15 @@ Prism gives Lumiverse scenes deterministic, reversible dialogue and thought colo
 
 Existing engine choices survive migration. Hybrid is the default only for a fresh configuration.
 
+## Prompt delivery
+
+Prism can deliver its live registry automatically or expose it to a preset:
+
+- **Automatic** appends the compiled Prism instruction through the generation interceptor.
+- **Preset macro** disables that automatic append. Place `{{prismPrompt}}` wherever the full instruction belongs in the preset, or use `{{prismHexes}}` for only the current confirmed and provisional speaker-to-hex rows.
+
+The Prompt settings include an autosaved custom instruction editor. Templates can use `{{prismRegistry}}`, `{{prismHexes}}`, `{{prismProvisional}}`, and `{{prismPalette}}`; Prism appends essential registry data when a custom template omits it.
+
 ## Everyday workflow
 
 1. Open Prism from the chat toolbar.
@@ -56,6 +65,12 @@ Provisional model echoes do not count as independent evidence. Weak discoveries 
 Settings can copy privacy-safe diagnostics, export the confirmed registry as JSON, import a prior Prism registry, retry the last hydration, rescan only the current message, or reset temporary evidence without touching confirmed colors.
 
 Diagnostics omit message text and include the Prism/schema version, engine, registry revision, speaker/collision counts, unresolved count, Cortex health, hydration state, toolbar/DOM health, and backend roundtrip time.
+
+## Layout and accessibility
+
+Settings are grouped into **Look & feel**, **Prompt**, and **Cortex & attribution**. Look & feel controls the roster layout, compact/large presentation, interface scale, corner style, expanded mode, and the saved/sync indicator.
+
+On phone-sized and iOS PWA viewports, Prism opens in its own safe-area-aware portal rather than inheriting Lumiverse's transformed modal tree. The Close control remains inside the visible viewport, Settings is available in every layout, and horizontal roster gestures are isolated from the vertically scrolling editor.
 
 ## Cortex
 

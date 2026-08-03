@@ -1,5 +1,16 @@
 # Prism changelog
 
+## 1.0.2.6 — safe mobile workspace and prompt controls
+
+- Routes phone and iOS PWA layouts through a Prism-owned, safe-area-aware body portal with an always-reachable Close control and live `visualViewport` sizing.
+- Keeps Settings available as a top-level tab in every roster layout, preventing Vertical Sidebar from locking users out of presentation controls.
+- Centers Horizontal Carousel selections by changing only the roster's own scroll position; selecting a character no longer shifts the desktop modal or page.
+- Reorganizes Settings into aligned **Look & feel**, **Prompt**, and **Cortex & attribution** sections.
+- Adds persistent interface scale and modal corner-style controls.
+- Adds Automatic and Preset macro prompt delivery, a custom prompt editor, and live `{{prismPrompt}}` / `{{prismHexes}}` macros.
+- Preserves the saved/sync indicator preference in a user-wide cache across chat switches and transient state reloads.
+- Extends release regression coverage for the safe-area portal, carousel isolation, grouped settings, prompt placeholders, and macro-only delivery.
+
 ## 1.0.2.2 — I admit defeat because nobody but me is using Lumiverse mobile at 67% browser zoom
 
 - Replaces the cramped side roster in narrow landscape Split mode with a contained horizontal cast carousel above the editor.

@@ -1,7 +1,8 @@
+"use strict";
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const RECOVERY_VAR = 'prism_transcript_recovery_v1';
-const PRISM_VERSION = '1.0.28';
+const PRISM_VERSION = '1.0.2.6';
 const FAST_OPTIONAL_TIMEOUT_MS = 4500;
 const TRANSCRIPT_TIMEOUT_MS = 12000;
 const HYDRATION_FETCH_TIMEOUT_MS = 5000;
@@ -29,12 +30,14 @@ function withTimeout(promise, timeoutMs, label) {
     ]).finally(() => clearTimeout(timer));
 }
 const DEFAULT_CONFIG = Object.freeze({
-    version: 12,
+    version: 13,
     engine: 'hybrid',
     autoUserMode: 'quoted',
     personaEnabled: true,
     promptCharacterColors: true,
     promptThoughtColors: false,
+    promptDelivery: 'interceptor',
+    promptTemplate: '',
     hybridDiscovery: true,
     bindings: {},
     overrides: {},
@@ -50,6 +53,7 @@ const DEFAULT_CONFIG = Object.freeze({
 });
 const ENGINE_VALUES = Object.freeze(['dom', 'hybrid', 'llm']);
 const recentRegistrySnapshots = new Map();
+const recentUserIdsByChat = new Map();
 const configOperationQueues = new Map();
 const globalPreferenceQueues = new Map();
 function configOperationScopeKey(userId, chatId) {
@@ -96,6 +100,8 @@ const DEFAULT_PREFERENCES = Object.freeze({
     modalSize: 'auto',
     modalExpanded: false,
     modalLayout: 'auto',
+    modalScale: 1,
+    modalShape: 'rounded',
     showSaveIndicator: true,
 });
 function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
@@ -106,6 +112,8 @@ function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
         personaEnabled: DEFAULT_CONFIG.personaEnabled,
         promptCharacterColors: DEFAULT_CONFIG.promptCharacterColors,
         promptThoughtColors: DEFAULT_CONFIG.promptThoughtColors,
+        promptDelivery: DEFAULT_CONFIG.promptDelivery,
+        promptTemplate: DEFAULT_CONFIG.promptTemplate,
         hybridDiscovery: DEFAULT_CONFIG.hybridDiscovery,
         bindings: {},
         overrides: {},
@@ -148,6 +156,12 @@ function safePreferences(raw) {
             : ['auto', 'split', 'horizontal', 'accessibility'].includes(source.modalLayout)
                 ? source.modalLayout
                 : DEFAULT_PREFERENCES.modalLayout,
+        modalScale: [0.9, 1, 1.1, 1.25].includes(Number(source.modalScale))
+            ? Number(source.modalScale)
+            : DEFAULT_PREFERENCES.modalScale,
+        modalShape: ['rounded', 'soft', 'square'].includes(source.modalShape)
+            ? source.modalShape
+            : DEFAULT_PREFERENCES.modalShape,
         showSaveIndicator: source.showSaveIndicator !== false,
     };
 }
@@ -494,12 +508,14 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
             override.speakerKey = speakerKeyMap.get(override.speakerKey);
     }
     return {
-        version: 12,
+        version: 13,
         engine: normalizeEngine(raw.engine, preferredEngine),
         autoUserMode: mode,
         personaEnabled: raw.personaEnabled !== false,
         promptCharacterColors: raw.promptCharacterColors !== false,
         promptThoughtColors: raw.promptThoughtColors === true,
+        promptDelivery: raw.promptDelivery === 'macro' ? 'macro' : 'interceptor',
+        promptTemplate: String(raw.promptTemplate || '').slice(0, 6000),
         hybridDiscovery: raw.hybridDiscovery !== false,
         bindings,
         overrides,
@@ -1839,6 +1855,12 @@ async function updateOptions(payload, userId) {
     if (typeof payload.promptThoughtColors === 'boolean') {
         config.promptThoughtColors = payload.promptThoughtColors;
     }
+    if (['interceptor', 'macro'].includes(payload.promptDelivery)) {
+        config.promptDelivery = payload.promptDelivery;
+    }
+    if (typeof payload.promptTemplate === 'string') {
+        config.promptTemplate = payload.promptTemplate.slice(0, 6000);
+    }
     if (typeof payload.hybridDiscovery === 'boolean') {
         config.hybridDiscovery = payload.hybridDiscovery;
     }
@@ -1884,6 +1906,12 @@ async function updateUiPreferences(payload, userId) {
         }
         if (['auto', 'split', 'horizontal', 'accessibility'].includes(payload.modalLayout)) {
             globalState.preferences.modalLayout = payload.modalLayout;
+        }
+        if ([0.9, 1, 1.1, 1.25].includes(Number(payload.modalScale))) {
+            globalState.preferences.modalScale = Number(payload.modalScale);
+        }
+        if (['rounded', 'soft', 'square'].includes(payload.modalShape)) {
+            globalState.preferences.modalShape = payload.modalShape;
         }
         if (typeof payload.showSaveIndicator === 'boolean') {
             globalState.preferences.showSaveIndicator = payload.showSaveIndicator;
@@ -2830,6 +2858,16 @@ function selectRegistrySnapshot(userId, chatId, payload, config) {
         match.claimedMessageId = messageId;
     return match;
 }
+function registryHexText(config, registry = compileRegistry(config), suppliedProvisional = null) {
+    const confirmed = registry.entries
+        .map((entry) => `${promptField(entry.name, MAX_NAME_LENGTH)}: ${entry.color}`)
+        .filter(Boolean);
+    const provisional = (suppliedProvisional || provisionalRegistryHints(config, registry))
+        .slice(0, MAX_PROVISIONAL_HINTS)
+        .map((entry) => `${promptField(entry.name, MAX_NAME_LENGTH)}: ${entry.color} (provisional)`)
+        .filter(Boolean);
+    return [...confirmed, ...provisional].join('\n');
+}
 function registryInstruction(config, registry = compileRegistry(config), suppliedProvisional = null) {
     if (!usesModelTags(config.engine) || !config.promptCharacterColors)
         return '';
@@ -2846,6 +2884,7 @@ function registryInstruction(config, registry = compileRegistry(config), supplie
     const thoughtInstruction = config.promptThoughtColors
         ? 'For direct internal thought only, use <i><font color="#RRGGBB">thought</font></i> with the same speaker anchor. Do not mark actions, narration, description, or ordinary emphasis as thought.'
         : 'Do not color internal thoughts.';
+    const customTemplate = String(config.promptTemplate || '').trim();
     const base = [
         '[Prism Dialogue Markup Registry]',
         `Prism confirmed registry revision: ${registry.revision}`,
@@ -2856,6 +2895,23 @@ function registryInstruction(config, registry = compileRegistry(config), supplie
     ];
     const discoveryEnabled = config.engine === 'hybrid' && config.hybridDiscovery !== false;
     const compose = () => {
+        if (customTemplate) {
+            const registryJson = JSON.stringify(bindings);
+            const provisionalJson = JSON.stringify(provisional);
+            const hexRows = [...bindings.map((entry) => `${entry.name}: ${entry.color}`), ...provisional.map((entry) => `${entry.name}: ${entry.color} (provisional)`)].join('\n');
+            let output = customTemplate
+                .replaceAll('{{prismRegistry}}', registryJson)
+                .replaceAll('{{prismHexes}}', hexRows)
+                .replaceAll('{{prismProvisional}}', provisionalJson)
+                .replaceAll('{{prismPalette}}', palette.join(', '));
+            if (!/\{\{prism(?:Registry|Hexes)\}\}/.test(customTemplate)) {
+                output += `\n\nPrism confirmed registry JSON: ${registryJson}`;
+            }
+            if (discoveryEnabled && !/\{\{prism(?:Provisional|Palette)\}\}/.test(customTemplate)) {
+                output += `\nPrism provisional hints JSON: ${provisionalJson}\nPrism unused discovery palette: ${palette.join(', ')}`;
+            }
+            return output.trim();
+        }
         const lines = [...base];
         if (bindings.length)
             lines.push('Confirmed speakers use the exact canonical color in this JSON:', JSON.stringify(bindings));
@@ -2888,30 +2944,69 @@ function registryInstruction(config, registry = compileRegistry(config), supplie
     }
     return instruction;
 }
+async function resolvePrismMacroContext(context) {
+    const chatId = String(context?.env?.chat?.id || '');
+    if (!chatId)
+        return null;
+    const userId = recentUserIdsByChat.get(chatId);
+    const config = await loadConfig(chatId, userId);
+    const registry = compileRegistry(config);
+    const provisional = config.engine === 'hybrid' && config.hybridDiscovery !== false
+        ? provisionalRegistryHints(config, registry)
+        : [];
+    rememberRegistrySnapshot(userId, chatId, registry, { ...(context?.env?.extra || {}), provisional });
+    return { config, registry, provisional };
+}
+spindle.registerMacro({
+    name: 'prismPrompt',
+    category: 'extension:prism',
+    description: 'The complete live Prism dialogue-color instruction for the active chat.',
+    returnType: 'string',
+    handler: async (context) => {
+        const current = await resolvePrismMacroContext(context);
+        return current ? registryInstruction(current.config, current.registry, current.provisional) : '';
+    },
+});
+spindle.registerMacro({
+    name: 'prismHexes',
+    category: 'extension:prism',
+    description: 'The current confirmed and provisional Prism speaker-to-hex rows.',
+    returnType: 'string',
+    handler: async (context) => {
+        const current = await resolvePrismMacroContext(context);
+        return current ? registryHexText(current.config, current.registry, current.provisional) : '';
+    },
+});
 spindle.registerInterceptor(async (messages, context) => {
     const chatId = String(context?.chatId || '');
     if (!chatId)
         return messages;
     const userId = context?.userId;
+    if (userId != null)
+        recentUserIdsByChat.set(chatId, userId);
     const config = await loadConfig(chatId, userId);
     const registry = compileRegistry(config);
     const provisional = config.engine === 'hybrid' && config.hybridDiscovery !== false ? provisionalRegistryHints(config, registry) : [];
-    const instruction = registryInstruction(config, registry, provisional);
-    if (!instruction)
-        return messages;
-    rememberRegistrySnapshot(userId, chatId, registry, { ...context, provisional });
+    const instruction = config.promptDelivery === 'macro' ? '' : registryInstruction(config, registry, provisional);
+    if (instruction)
+        rememberRegistrySnapshot(userId, chatId, registry, { ...context, provisional });
     const next = messages.map((message) => ({ ...message }));
+    let changed = false;
     const personaContext = await personaColorContext(chatId, userId, config);
     if (personaContext) {
         for (let index = next.length - 1; index >= 0; index -= 1) {
             if (next[index]?.role !== 'user')
                 continue;
             const colored = applyPersonaColorToLlmContent(next[index].content, personaContext.color, personaContext.mode);
-            if (colored !== next[index].content)
+            if (colored !== next[index].content) {
                 next[index] = { ...next[index], content: colored };
+                changed = true;
+            }
             break;
         }
     }
+    if (!instruction)
+        return changed ? { messages: next } : messages;
     const injected = { role: 'system', content: instruction };
     const last = next[next.length - 1];
     const insertAt = last?.role === 'assistant' ? next.length - 1 : next.length;
@@ -2952,6 +3047,8 @@ spindle.onFrontendMessage(async (payload, userId) => {
             }
             throw new Error('Open a chat first.');
         }
+        if (userId != null)
+            recentUserIdsByChat.set(String(activeChat.id), userId);
         const requestedChatId = String(payload?.chatId || activeChat.id || '');
         if (payload?.chatId && requestedChatId !== String(activeChat.id)) {
             throw new Error('The active chat changed before Prism could finish the request.');

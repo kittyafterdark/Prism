@@ -26,7 +26,7 @@ function compile(name, source) {
 
 compile('frontend.ts', frontendSource);
 const backendCompiled = compile('backend.ts', `${backendSource}\n;globalThis.__prismTest = {
-  safeConfig, safePreferences, safeChannels, bindingRegistryColor, compileRegistry, registryInstruction,
+  safeConfig, safePreferences, safeChannels, bindingRegistryColor, compileRegistry, registryInstruction, registryHexText,
   promptField, snapshotScopeKey, rememberRegistrySnapshot, selectRegistrySnapshot,
   messagesForHydration, reconcileConfigWithMessages, pendingReviewGroups,
   provisionalRegistryHints, inferTagSpeakerEvidence, classifyTagObservation,
@@ -46,6 +46,7 @@ const host = {
   failUpdateAt: 0,
   updateCalls: 0,
   interceptor: null,
+  registeredMacros: new Map(),
   activeChat: { id: 'chat-a', characterId: 'primary', personaId: 'persona-a' },
 };
 const spindle = {
@@ -75,6 +76,7 @@ const spindle = {
   personas: { getActive: async () => ({ id: 'persona-a', name: 'You' }) },
   memories: { entities: { list: async () => [], upsert: async () => ({}) }, cortex: { invalidateCache: async () => {} } },
   macros: { resolve: async () => '' },
+  registerMacro: (definition) => host.registeredMacros.set(definition.name, definition),
   registerInterceptor: (handler) => { host.interceptor = handler; return () => {}; },
   onFrontendMessage: () => () => {},
   on: () => () => {},
@@ -107,8 +109,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.28');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.28'/);
+  assert.equal(manifest.version, '1.0.2.6');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.2\.6'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -163,7 +165,7 @@ test('horizontal layout uses a contained cast carousel instead of floating initi
 });
 
 test('horizontal layout uses tall modal proportions and a compact scene action menu', () => {
-  assert.match(frontendSource, /if\(horizontal&&!modalExpanded\).*contentHeight=clampHeight\(vh\*\(mobile\?\.88:\.84\)/s);
+  assert.match(frontendSource, /if\(horizontal&&!modalExpanded\).*contentHeight=clampHeight\(vh\*\(mobile\?\.9:\.84\)/s);
   assert.match(frontendSource, /class="ldc-scene-menu"/);
   assert.match(frontendSource, /class="ldc-scene-menu-popover"/);
   assert.match(frontendSource, /Assign missing colors/);
@@ -247,8 +249,8 @@ test('high-scale viewport sizing follows mobile browser chrome', () => {
 });
 
 test('modal body height is budgeted below viewport chrome', () => {
-  assert.match(frontendSource, /contentHeight=clampHeight\(vh\*\.66,500,vh-170\)/);
-  assert.match(frontendSource, /contentHeight=clampHeight\(vh\*\.74,540,vh-150\)/);
+  assert.match(frontendSource, /contentHeight=clampHeight\(vh\*\.66,500,vh-48\)/);
+  assert.match(frontendSource, /contentHeight=clampHeight\(vh\*\.74,540,vh-44\)/);
   assert.match(frontendSource, /function applyModalPresentation\(layout=resolvedModalLayout\(\),dimensions=modalDimensions\(\)\)/);
   assert.match(frontendSource, /height:`\$\{dimensions\.contentHeight\}px`/);
   assert.match(frontendSource, /ldc-main-wrap\{min-height:0;overflow:hidden\}/);
@@ -684,7 +686,8 @@ test('fullscreen child dialogs are portal-owned above the workspace', () => {
   assert.match(frontendSource, /function createPortalDialog\(title\)/);
   assert.match(frontendSource, /ldc-portal-dialog-backdrop/);
   assert.match(frontendSource, /2147483647/);
-  assert.match(frontendSource, /resolvedModalLayout\(\)!==\'split\'\?createPortalDialog/);
+  assert.match(frontendSource, /addModal=createPortalDialog\('Add scene character'\)/);
+  assert.match(frontendSource, /importModal=createPortalDialog\('Import Prism registry'\)/);
 });
 
 test('mobile portal dialogs stay inside Prism and avoid browser focus zoom', () => {
@@ -712,6 +715,55 @@ test('editor page state is preserved and wired to native horizontal scroll', () 
   assert.match(frontendSource, /data-editor-track/);
   assert.match(frontendSource, /editorTrack\.scrollLeft>editorTrack\.clientWidth\*\.5/);
   assert.match(frontendSource, /activeEditorPage==='identity'\?editorTrack\.clientWidth:0/);
+});
+
+test('iOS-safe modal routing preserves close access and viewport safe areas', () => {
+  assert.match(frontendSource, /function createSafeAreaModal\(dimensions\)/);
+  assert.match(frontendSource, /ldc-main-portal-backdrop/);
+  assert.match(frontendSource, /env\(safe-area-inset-top,0px\)/);
+  assert.match(frontendSource, /env\(safe-area-inset-right,0px\)/);
+  assert.match(frontendSource, /env\(safe-area-inset-bottom,0px\)/);
+  assert.match(frontendSource, /env\(safe-area-inset-left,0px\)/);
+  assert.match(frontendSource, /else if\(isPhoneLikeViewport\(\)\)\{[\s\S]*createSafeAreaModal\(dimensions\)/);
+  assert.match(frontendSource, /data-safe-close aria-label="Close Prism"/);
+});
+
+test('carousel centering scrolls only its roster surface', () => {
+  assert.match(frontendSource, /function centerActiveRoster\(roster,smooth=false\)/);
+  assert.match(frontendSource, /roster\.scrollTo\(\{left:Math\.max\(0,Math\.min\(max,target\)\),behavior:smooth\?'smooth':'auto'\}\)/);
+  assert.doesNotMatch(frontendSource, /activeItem\.scrollIntoView/);
+  assert.match(frontendSource, /centerActiveRoster\(nextRoster,true\)/);
+});
+
+test('settings use grouped aligned sections and persistent presentation controls', () => {
+  for (const label of ['Look & feel', 'Prompt', 'Cortex & attribution']) assert.ok(frontendSource.includes(label));
+  assert.match(frontendSource, /class="ldc-settings-nav"/);
+  assert.match(frontendSource, /class="ldc-setting-row"/);
+  assert.match(frontendSource, /data-role="modal-scale"/);
+  assert.match(frontendSource, /data-role="modal-shape"/);
+  assert.match(frontendSource, /uiPreferenceCache=\{\.\.\.\(uiPreferenceCache\|\|\{\}\),\.\.\.next\.preferences\}/);
+  assert.match(backendSource, /modalScale: \[0\.9, 1, 1\.1, 1\.25\]/);
+  assert.match(backendSource, /modalShape: \['rounded', 'soft', 'square'\]/);
+});
+
+test('Prism exposes live prompt macros and custom prompt placeholders', async () => {
+  assert.ok(host.registeredMacros.has('prismPrompt'));
+  assert.ok(host.registeredMacros.has('prismHexes'));
+  const config = api.safeConfig({
+    engine: 'hybrid',
+    promptDelivery: 'macro',
+    promptTemplate: 'Registry rows:\n{{prismHexes}}',
+    bindings: { 'character:macro': binding('Macro Hero', '#12ABEF') },
+  });
+  const registry = api.compileRegistry(config);
+  assert.match(api.registryInstruction(config, registry, []), /Macro Hero: #12ABEF/);
+  assert.equal(api.registryHexText(config, registry, []), 'Macro Hero: #12ABEF');
+  host.chatVars.set('chat-macro|lumi_dialogue_colors_v1', JSON.stringify(config));
+  const before = [{ role: 'assistant', content: 'untouched' }];
+  const after = await host.interceptor(before, { chatId: 'chat-macro', userId: 'macro-user' });
+  assert.deepEqual(after, before);
+  const macroText = await host.registeredMacros.get('prismPrompt').handler({ env: { chat: { id: 'chat-macro' } } });
+  assert.match(macroText, /Macro Hero: #12ABEF/);
 });
 
 let passed = 0;
