@@ -754,6 +754,15 @@ test('low-scale controls and mobile vertical review row stay usable', () => {
   assert.match(frontendSource, /data-prism-layout=split\] \.ldc-review-strip\{grid-area:reviews/);
 });
 
+test('character editor exposes a stable manual save action beside removal', () => {
+  assert.match(frontendSource, /const SAVE_ICON = `<svg/);
+  assert.match(frontendSource, /function mountManualSaveActions\(root\)/);
+  assert.match(frontendSource, /remove\.parentElement\?\.insertBefore\(button,remove\)/);
+  assert.match(frontendSource, /async function saveEditorNow\(\)\{clearTimeout\(saveTimer\)/);
+  assert.match(frontendSource, /await saveQueue\.catch\(\(\)=>\{\}\);await saveEditor\(activeTab==='persona'\?'persona':'character',false\)/);
+  assert.match(frontendSource, /querySelectorAll\('\[data-action=save-now\]'\)/);
+});
+
 test('Prism exposes live prompt macros and custom prompt placeholders', async () => {
   assert.ok(host.registeredMacros.has('prismPrompt'));
   assert.ok(host.registeredMacros.has('prismHexes'));
