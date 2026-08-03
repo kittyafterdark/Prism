@@ -107,8 +107,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.27');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.27'/);
+  assert.equal(manifest.version, '1.0.28');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.28'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -170,6 +170,19 @@ test('horizontal layout uses tall modal proportions and a compact scene action m
   assert.match(frontendSource, /Regenerate generated colors/);
   assert.match(frontendSource, /horizontalLayout\?'':`<div class="ldc-status"/);
   assert.match(frontendSource, /class="ldc-horizontal-status"/);
+});
+
+
+test('horizontal density pass keeps top controls and paint actions compact', () => {
+  assert.match(frontendSource, /class="ldc-review-strip"/);
+  assert.match(frontendSource, /class="ldc-top-tools"/);
+  assert.match(frontendSource, /data-prism-layout=tabs\] \.ldc-top>\.ldc-engine,\.ldc-shell\[data-prism-layout=tabs\] \.ldc-top>\.ldc-top-tools\{display:none\}/);
+  assert.match(frontendSource, /data-prism-layout=horizontal\] \.ldc-top\{display:grid/);
+  assert.match(frontendSource, /grid-template-areas:"tabs tools" "reviews reviews" "engine engine"/);
+  assert.match(frontendSource, /class="ldc-btn ldc-reverse-button"/);
+  assert.match(frontendSource, /ldc-remove-character span\{display:none!important\}/);
+  assert.match(frontendSource, /ldc-scene-menu-trigger\{width:38px;min-width:38px/);
+  assert.match(frontendSource, /ldc-hex-row \.ldc-input\{height:32px/);
 });
 
 test('high-scale channel tabs retain intrinsic height on narrow layouts', () => {
