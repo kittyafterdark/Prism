@@ -2,6 +2,12 @@
 
 Prism gives Lumiverse scenes deterministic, reversible dialogue and thought colors without making roleplayers type formatting tags. Hybrid is the default for new installs: it emits portable `<font color>` identity tags, rehydrates the finished response, and asks only whether genuinely new tagged speakers should enter the confirmed registry.
 
+## Master switch
+
+Prism has a user-wide master switch at the top of the palette. Turning it off pauses prompt injection/macros, automatic persona coloring, DOM attribution/paint, Hybrid discovery, and post-generation hydration without deleting the saved registry, colors, or per-chat configuration. The disabled state persists across characters and chats until Prism is turned back on.
+
+Existing persistent color tags already stored in message content are left untouched; the switch prevents Prism from adding or enhancing new runtime color behavior rather than destructively rewriting chat history.
+
 ## Engines
 
 - **Local** — colors the rendered DOM only. Saved messages and model context are unchanged.

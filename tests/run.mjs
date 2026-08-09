@@ -109,8 +109,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.2.7');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.2\.7'/);
+  assert.equal(manifest.version, '1.0.2.8');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.2\.8'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -170,13 +170,13 @@ test('horizontal layout uses tall modal proportions and a compact scene action m
   assert.match(frontendSource, /class="ldc-scene-menu-popover"/);
   assert.match(frontendSource, /Assign missing colors/);
   assert.match(frontendSource, /Regenerate generated colors/);
-  assert.match(frontendSource, /horizontalLayout\?'':`<div class="ldc-status"/);
+  assert.match(frontendSource, /horizontalLayout\?'':`<div class="ldc-status ldc-master-gated"/);
   assert.match(frontendSource, /class="ldc-horizontal-status"/);
 });
 
 
 test('horizontal density pass keeps top controls and paint actions compact', () => {
-  assert.match(frontendSource, /class="ldc-review-strip"/);
+  assert.match(frontendSource, /class="ldc-review-strip ldc-master-gated"/);
   assert.match(frontendSource, /class="ldc-top-tools"/);
   assert.match(frontendSource, /data-prism-layout=tabs\] \.ldc-top>\.ldc-engine,\.ldc-shell\[data-prism-layout=tabs\] \.ldc-top>\.ldc-top-tools\{display:none\}/);
   assert.match(frontendSource, /data-prism-layout=horizontal\] \.ldc-top\{display:grid/);
@@ -268,6 +268,47 @@ test('UI preferences bypass chat queues and persist globally', async () => {
   assert.equal(api.globalPreferenceQueues.size, 0);
 });
 
+test('master switch is global, visible, and gates the Prism workspace', async () => {
+  host.globalVars.clear();
+  api.globalPreferenceQueues.clear();
+  assert.equal(api.safePreferences({}).prismEnabled, true);
+  const preferences = await api.updateUiPreferences({ prismEnabled: false }, 'user-master');
+  assert.equal(preferences.prismEnabled, false);
+  const stored = JSON.parse(host.globalVars.get('prism_preferences_v1'));
+  assert.equal(stored.preferences.prismEnabled, false);
+  assert.equal(stored.version, 7);
+  assert.match(frontendSource, /data-role="prism-enabled"/);
+  assert.match(frontendSource, /data-prism-enabled="\$\{prismOn\}"/);
+  assert.match(frontendSource, /ldc-shell\[data-prism-enabled=false\] \.ldc-master-gated/);
+  assert.match(frontendSource, /Prism is off/);
+  assert.match(frontendSource, /inert aria-disabled="true"/);
+  host.globalVars.clear();
+});
+
+test('disabled master switch bypasses prompt, persona, and Hybrid runtime work', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.messages = [{ id: 'm-disabled', role: 'assistant', content: '<font color="#12ABEF">"Hi."</font>', swipes: ['<font color="#12ABEF">"Hi."</font>'], swipe_id: 0 }];
+  host.updates = [];
+  host.activeChat = { id: 'chat-disabled', name: 'Disabled', character_id: 'primary', metadata: {} };
+  const persona = binding('You', '#57D6C7', { kind: 'persona', targetId: 'persona-a', speakerUid: 'speaker-you' });
+  const character = binding('Primary', '#12ABEF', { targetId: 'primary', speakerUid: 'speaker-primary' });
+  host.chatVars.set('chat-disabled|lumi_dialogue_colors_v1', JSON.stringify(api.safeConfig({ engine: 'hybrid', personaEnabled: true, promptDelivery: 'interceptor', bindings: { 'persona:persona-a': persona, 'character:primary': character } })));
+  host.globalVars.set('prism_preferences_v1', JSON.stringify({ version: 7, preferences: { prismEnabled: false, preferredEngine: 'hybrid' }, library: {} }));
+  const original = [{ role: 'user', content: '"Do not color me."' }];
+  const intercepted = await host.interceptor(original, { chatId: 'chat-disabled', userId: 'user-disabled', generationId: 'g-disabled' });
+  assert.deepEqual(intercepted, original);
+  const personaChanged = await api.persistPersonaColorForMessage('chat-disabled', { id: 'u-disabled', role: 'user', content: '"Nope."', metadata: {} }, 'user-disabled');
+  assert.equal(personaChanged, false);
+  const hydrated = await api.hydrateGeneratedMessage({ chatId: 'chat-disabled', messageId: 'm-disabled' }, 'user-disabled');
+  assert.equal(hydrated.skipped, 'disabled');
+  const macroText = await host.registeredMacros.get('prismPrompt').handler({ env: { chat: { id: 'chat-disabled' } } });
+  assert.equal(macroText, '');
+  assert.match(frontendSource, /const enabled=prismEnabled\(\),list=enabled\?candidates\(\):\[\]/);
+  assert.match(frontendSource, /if\(!messageId\|\|!state\?\.ok\|\|!prismEnabled\(\)\|\|normalizeEngine/);
+  host.globalVars.clear();
+});
+
 test('persona DOM candidates use the stable speaker identity and remain paintable', () => {
   assert.match(frontendSource, /personaBinding\.speakerUid\|\|personaBinding\.targetId/);
   assert.match(frontendSource, /key:`persona:\$\{personaStableId\}`/);
@@ -280,7 +321,7 @@ test('persona color preference becomes the default for brand-new chats', async (
   host.chatVars.clear();
   host.globalVars.clear();
   host.globalVars.set('prism_preferences_v1', JSON.stringify({
-    version: 6,
+    version: 7,
     preferences: { personaColorsEnabled: false, preferredEngine: 'hybrid' },
     library: {},
   }));
@@ -299,7 +340,7 @@ test('legacy disabled persona state seeds the new global preference once', async
   assert.equal(config.personaEnabled, false);
   const storedGlobal = JSON.parse(host.globalVars.get('prism_preferences_v1'));
   assert.equal(storedGlobal.preferences.personaColorsEnabled, false);
-  assert.equal(storedGlobal.version, 6);
+  assert.equal(storedGlobal.version, 7);
 });
 
 test('persona options persist current chat first and remember future-chat preference', async () => {

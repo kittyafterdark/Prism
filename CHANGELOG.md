@@ -1,3 +1,11 @@
+## 1.0.2.8
+
+- Adds a user-wide **Prism is on / Prism is off** master switch above the scene workspace.
+- Keeps the switch state across characters and chats while preserving all saved colors, bindings, and configuration.
+- Dims and locks Prism controls while disabled, while keeping navigation, window controls, and the master switch reachable.
+- Disables generation-time prompt injection/macros, automatic persona coloring, local DOM attribution/paint, Hybrid discovery, and post-generation hydration while Prism is off.
+- Shows **Prism off** in the toolbar status instead of pretending the disabled extension is merely saved.
+
 ## 1.0.2.7
 
 - Remember the persona-color enabled/disabled choice as the default for new chats.

@@ -1,7 +1,7 @@
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const RECOVERY_VAR = 'prism_transcript_recovery_v1';
-const PRISM_VERSION = '1.0.2.7';
+const PRISM_VERSION = '1.0.2.8';
 const FAST_OPTIONAL_TIMEOUT_MS = 4500;
 const TRANSCRIPT_TIMEOUT_MS = 12000;
 const HYDRATION_FETCH_TIMEOUT_MS = 5000;
@@ -89,6 +89,7 @@ function usesDomOverpass(engine) {
     return engine === 'dom' || engine === 'hybrid';
 }
 const DEFAULT_PREFERENCES = Object.freeze({
+    prismEnabled: true,
     preferredEngine: 'hybrid',
     domAttributionMode: 'balanced',
     autoAssignMissing: true,
@@ -133,6 +134,7 @@ function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine, personaEnab
 function safePreferences(raw) {
     const source = raw && typeof raw === 'object' ? raw : {};
     return {
+        prismEnabled: source.prismEnabled !== false,
         preferredEngine: normalizeEngine(source.preferredEngine),
         domAttributionMode: ['strict', 'balanced', 'aggressive'].includes(source.domAttributionMode)
             ? source.domAttributionMode
@@ -245,7 +247,7 @@ function safeGlobalState(raw) {
             };
         }
     }
-    return { version: 6, preferences: safePreferences(source.preferences), library };
+    return { version: 7, preferences: safePreferences(source.preferences), library };
 }
 function normalizeHex(value) {
     const raw = String(value || '').trim();
@@ -557,8 +559,8 @@ async function saveGlobalState(globalState, userId) {
     await spindle.variables.global.set(GLOBAL_PREFS_VAR, JSON.stringify(safe), userId);
     return safe;
 }
-async function loadConfig(chatId, userId) {
-    const globalState = await loadGlobalState(userId);
+async function loadConfig(chatId, userId, suppliedGlobalState = null) {
+    const globalState = suppliedGlobalState || await loadGlobalState(userId);
     try {
         const text = await spindle.variables.chat.get(chatId, CONFIG_VAR);
         if (!text)
@@ -1624,7 +1626,10 @@ function applyPersonaColorToLlmContent(content, color, mode) {
     return changed ? next : content;
 }
 async function personaColorContext(chatId, userId, suppliedConfig = null) {
-    const config = suppliedConfig || await loadConfig(chatId, userId);
+    const globalState = await loadGlobalState(userId);
+    if (globalState.preferences.prismEnabled === false)
+        return null;
+    const config = suppliedConfig || await loadConfig(chatId, userId, globalState);
     if (!usesModelTags(config.engine) || config.personaEnabled === false || config.autoUserMode === 'off')
         return null;
     const persona = await spindle.personas.getActive(userId).catch(() => null);
@@ -1935,6 +1940,9 @@ async function updateUiPreferences(payload, userId) {
         }
         if (['rounded', 'soft', 'square'].includes(payload.modalShape)) {
             globalState.preferences.modalShape = payload.modalShape;
+        }
+        if (typeof payload.prismEnabled === 'boolean') {
+            globalState.preferences.prismEnabled = payload.prismEnabled;
         }
         if (typeof payload.showSaveIndicator === 'boolean') {
             globalState.preferences.showSaveIndicator = payload.showSaveIndicator;
@@ -2450,7 +2458,12 @@ async function hydrateGeneratedMessage(payload, userId) {
     const chat = await spindle.chats.getActive(userId);
     if (!chat || (payload.chatId && String(payload.chatId) !== String(chat.id)))
         throw new Error('The active chat changed before Prism could hydrate it.');
-    const config = await loadConfig(chat.id, userId);
+    const globalState = await loadGlobalState(userId);
+    if (globalState.preferences.prismEnabled === false) {
+        const state = await buildState({ importCortex: false }, userId);
+        return { state, observations: [], pendingCount: state.pendingReviewCount || 0, skipped: 'disabled' };
+    }
+    const config = await loadConfig(chat.id, userId, globalState);
     if (config.engine !== 'hybrid')
         return { state: await buildState({ importCortex: false }, userId), observations: [], pendingCount: pendingReviewGroups(config).length, skipped: 'not-hybrid' };
     const requestedId = String(payload.messageId || '');
@@ -2972,7 +2985,10 @@ async function resolvePrismMacroContext(context) {
     if (!chatId)
         return null;
     const userId = recentUserIdsByChat.get(chatId);
-    const config = await loadConfig(chatId, userId);
+    const globalState = await loadGlobalState(userId);
+    if (globalState.preferences.prismEnabled === false)
+        return null;
+    const config = await loadConfig(chatId, userId, globalState);
     const registry = compileRegistry(config);
     const provisional = config.engine === 'hybrid' && config.hybridDiscovery !== false
         ? provisionalRegistryHints(config, registry)
@@ -3007,7 +3023,10 @@ spindle.registerInterceptor(async (messages, context) => {
     const userId = context?.userId;
     if (userId != null)
         recentUserIdsByChat.set(chatId, userId);
-    const config = await loadConfig(chatId, userId);
+    const globalState = await loadGlobalState(userId);
+    if (globalState.preferences.prismEnabled === false)
+        return messages;
+    const config = await loadConfig(chatId, userId, globalState);
     const registry = compileRegistry(config);
     const provisional = config.engine === 'hybrid' && config.hybridDiscovery !== false ? provisionalRegistryHints(config, registry) : [];
     const instruction = config.promptDelivery === 'macro' ? '' : registryInstruction(config, registry, provisional);
