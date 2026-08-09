@@ -33,9 +33,10 @@ const backendCompiled = compile('backend.ts', `${backendSource}\n;globalThis.__p
   plausibleInferredSceneName, knownSceneIdentityByName,
   extractSceneNamesFromText, hydrateGeneratedMessage, resetTemporaryEvidence,
   addSceneCharacter, resolveObservationGroup, mergeSceneCharacter, loadConfig, saveConfig,
-  enqueueConfigOperation, configOperationQueues, enqueueGlobalPreferenceOperation, globalPreferenceQueues, updateUiPreferences,
+  enqueueConfigOperation, configOperationQueues, enqueueGlobalPreferenceOperation, globalPreferenceQueues, updateOptions, updateUiPreferences,
   previewTranscriptMutation, applyTranscriptMutation, restoreTranscriptRecovery, importRegistry,
-  recentRegistrySnapshots, applyPersonaColor, applyPersonaColorToLlmContent, personaColorContext, persistPersonaColorForMessage
+  recentRegistrySnapshots, applyPersonaColor, applyPersonaColorToLlmContent, personaColorContext, persistPersonaColorForMessage,
+  locateVisibleQuote, bakeQuoteMarkup, bakeManualCorrection, saveQuoteOverride
 };`);
 
 const host = {
@@ -109,8 +110,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.2.6');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.2\.6'/);
+  assert.equal(manifest.version, '1.0.2.9');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.2\.9'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -170,13 +171,13 @@ test('horizontal layout uses tall modal proportions and a compact scene action m
   assert.match(frontendSource, /class="ldc-scene-menu-popover"/);
   assert.match(frontendSource, /Assign missing colors/);
   assert.match(frontendSource, /Regenerate generated colors/);
-  assert.match(frontendSource, /horizontalLayout\?'':`<div class="ldc-status"/);
+  assert.match(frontendSource, /horizontalLayout\?'':`<div class="ldc-status ldc-master-gated"/);
   assert.match(frontendSource, /class="ldc-horizontal-status"/);
 });
 
 
 test('horizontal density pass keeps top controls and paint actions compact', () => {
-  assert.match(frontendSource, /class="ldc-review-strip"/);
+  assert.match(frontendSource, /class="ldc-review-strip ldc-master-gated"/);
   assert.match(frontendSource, /class="ldc-top-tools"/);
   assert.match(frontendSource, /data-prism-layout=tabs\] \.ldc-top>\.ldc-engine,\.ldc-shell\[data-prism-layout=tabs\] \.ldc-top>\.ldc-top-tools\{display:none\}/);
   assert.match(frontendSource, /data-prism-layout=horizontal\] \.ldc-top\{display:grid/);
@@ -268,11 +269,110 @@ test('UI preferences bypass chat queues and persist globally', async () => {
   assert.equal(api.globalPreferenceQueues.size, 0);
 });
 
+test('master switch is global, visible, and gates the Prism workspace', async () => {
+  host.globalVars.clear();
+  api.globalPreferenceQueues.clear();
+  assert.equal(api.safePreferences({}).prismEnabled, true);
+  const preferences = await api.updateUiPreferences({ prismEnabled: false }, 'user-master');
+  assert.equal(preferences.prismEnabled, false);
+  const stored = JSON.parse(host.globalVars.get('prism_preferences_v1'));
+  assert.equal(stored.preferences.prismEnabled, false);
+  assert.equal(stored.version, 7);
+  assert.match(frontendSource, /data-role="prism-enabled"/);
+  assert.match(frontendSource, /data-prism-enabled="\$\{prismOn\}"/);
+  assert.match(frontendSource, /ldc-shell\[data-prism-enabled=false\] \.ldc-master-gated/);
+  assert.match(frontendSource, /Prism is off/);
+  assert.match(frontendSource, /inert aria-disabled="true"/);
+  host.globalVars.clear();
+});
+
+test('disabled master switch bypasses prompt, persona, and Hybrid runtime work', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.messages = [{ id: 'm-disabled', role: 'assistant', content: '<font color="#12ABEF">"Hi."</font>', swipes: ['<font color="#12ABEF">"Hi."</font>'], swipe_id: 0 }];
+  host.updates = [];
+  host.activeChat = { id: 'chat-disabled', name: 'Disabled', character_id: 'primary', metadata: {} };
+  const persona = binding('You', '#57D6C7', { kind: 'persona', targetId: 'persona-a', speakerUid: 'speaker-you' });
+  const character = binding('Primary', '#12ABEF', { targetId: 'primary', speakerUid: 'speaker-primary' });
+  host.chatVars.set('chat-disabled|lumi_dialogue_colors_v1', JSON.stringify(api.safeConfig({ engine: 'hybrid', personaEnabled: true, promptDelivery: 'interceptor', bindings: { 'persona:persona-a': persona, 'character:primary': character } })));
+  host.globalVars.set('prism_preferences_v1', JSON.stringify({ version: 7, preferences: { prismEnabled: false, preferredEngine: 'hybrid' }, library: {} }));
+  const original = [{ role: 'user', content: '"Do not color me."' }];
+  const intercepted = await host.interceptor(original, { chatId: 'chat-disabled', userId: 'user-disabled', generationId: 'g-disabled' });
+  assert.deepEqual(intercepted, original);
+  const personaChanged = await api.persistPersonaColorForMessage('chat-disabled', { id: 'u-disabled', role: 'user', content: '"Nope."', metadata: {} }, 'user-disabled');
+  assert.equal(personaChanged, false);
+  const hydrated = await api.hydrateGeneratedMessage({ chatId: 'chat-disabled', messageId: 'm-disabled' }, 'user-disabled');
+  assert.equal(hydrated.skipped, 'disabled');
+  const macroText = await host.registeredMacros.get('prismPrompt').handler({ env: { chat: { id: 'chat-disabled' } } });
+  assert.equal(macroText, '');
+  assert.match(frontendSource, /const enabled=prismEnabled\(\),list=enabled\?candidates\(\):\[\]/);
+  assert.match(frontendSource, /if\(!messageId\|\|!state\?\.ok\|\|!prismEnabled\(\)\|\|normalizeEngine/);
+  host.globalVars.clear();
+});
+
 test('persona DOM candidates use the stable speaker identity and remain paintable', () => {
   assert.match(frontendSource, /personaBinding\.speakerUid\|\|personaBinding\.targetId/);
   assert.match(frontendSource, /key:`persona:\$\{personaStableId\}`/);
   assert.match(frontendSource, /paintable:true,primary:false,tentative:false/);
   assert.doesNotMatch(frontendSource, /key:`persona:\$\{personaBinding\.targetId\}`/);
+});
+
+
+test('persona color preference becomes the default for brand-new chats', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.globalVars.set('prism_preferences_v1', JSON.stringify({
+    version: 7,
+    preferences: { personaColorsEnabled: false, preferredEngine: 'hybrid' },
+    library: {},
+  }));
+  const config = await api.loadConfig('chat-new', 'user-a');
+  assert.equal(config.personaEnabled, false);
+  assert.equal(config.personaInCast, false);
+});
+
+
+test('legacy disabled persona state seeds the new global preference once', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.globalVars.set('prism_preferences_v1', JSON.stringify({ version: 5, preferences: { preferredEngine: 'hybrid' }, library: {} }));
+  host.chatVars.set('chat-legacy|lumi_dialogue_colors_v1', JSON.stringify(api.safeConfig({ personaEnabled: false })));
+  const config = await api.loadConfig('chat-legacy', 'user-a');
+  assert.equal(config.personaEnabled, false);
+  const storedGlobal = JSON.parse(host.globalVars.get('prism_preferences_v1'));
+  assert.equal(storedGlobal.preferences.personaColorsEnabled, false);
+  assert.equal(storedGlobal.version, 7);
+});
+
+test('persona options persist current chat first and remember future-chat preference', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.activeChat = { id: 'chat-a', name: 'Persona options', character_id: 'primary', metadata: {} };
+  host.chatVars.set('chat-a|lumi_dialogue_colors_v1', JSON.stringify(api.safeConfig({ personaEnabled: true, personaInCast: false })));
+  const state = await api.updateOptions({ personaEnabled: false, personaInCast: true }, 'user-a');
+  const storedChat = JSON.parse(host.chatVars.get('chat-a|lumi_dialogue_colors_v1'));
+  const storedGlobal = JSON.parse(host.globalVars.get('prism_preferences_v1'));
+  assert.equal(storedChat.personaEnabled, false);
+  assert.equal(storedChat.personaInCast, true);
+  assert.equal(storedGlobal.preferences.personaColorsEnabled, false);
+  assert.equal(state.config.personaEnabled, false);
+  assert.equal(state.config.personaInCast, true);
+});
+
+test('persona only enters assistant speaker registry when cast mode is enabled', () => {
+  const persona = binding('You', '#53C7FF', { kind: 'persona', targetId: 'persona-a', speakerUid: 'speaker-you' });
+  const userOnly = api.compileRegistry(api.safeConfig({ personaEnabled: true, personaInCast: false, bindings: { 'persona:persona-a': persona } }));
+  assert.equal(userOnly.entries.some((entry) => entry.kind === 'persona'), false);
+  const castOnly = api.compileRegistry(api.safeConfig({ personaEnabled: false, personaInCast: true, bindings: { 'persona:persona-a': persona } }));
+  assert.equal(castOnly.entries.some((entry) => entry.kind === 'persona' && entry.name === 'You'), true);
+});
+
+test('persona cast mode is exposed in the persona UI and assistant candidate list', () => {
+  assert.match(frontendSource, /Persona is part of the cast/);
+  assert.match(frontendSource, /data-role="persona-in-cast"/);
+  assert.match(frontendSource, /state\?\.config\?\.personaInCast===true&&state\?\.persona/);
+  assert.match(frontendSource, /return\[\.\.\.confirmed,\.\.\.\(personaCandidate\?\[personaCandidate\]:\[\]\),\.\.\.tentative\]/);
+  assert.match(frontendSource, /manual recoloring/);
 });
 
 test('manual roster additions materialize immediately and remain bound atomically', async () => {
@@ -781,6 +881,95 @@ test('Prism exposes live prompt macros and custom prompt placeholders', async ()
   assert.deepEqual(after, before);
   const macroText = await host.registeredMacros.get('prismPrompt').handler({ env: { chat: { id: 'chat-macro' } } });
   assert.match(macroText, /Macro Hero: #12ABEF/);
+});
+
+
+test('manual bake preference is opt-in and exposed only as a persistence choice', async () => {
+  assert.equal(api.safePreferences({}).bakeManualCorrections, false);
+  assert.equal(api.safePreferences({ bakeManualCorrections: true }).bakeManualCorrections, true);
+  assert.match(frontendSource, /Bake manual corrections/);
+  assert.match(frontendSource, /data-role="bake-manual"/);
+  assert.match(frontendSource, /Local \/ Hybrid only/);
+  assert.match(frontendSource, /bakeManualCorrections:e\.target\.checked/);
+  assert.match(backendSource, /globalState\.preferences\.bakeManualCorrections === true && usesDomOverpass\(config\.engine\)/);
+});
+
+test('manual bake wraps the selected visible quote and handles markdown emphasis', () => {
+  const source = 'Lycaon frowned. "I *did* tell you." Hugo blinked.';
+  const baked = api.bakeQuoteMarkup(source, {
+    quote: '"I did tell you."',
+    occurrenceIndex: 0,
+    contextBefore: 'Lycaon frowned. ',
+    contextAfter: ' Hugo blinked.',
+  }, '#57D6C7');
+  assert.equal(baked.status, 'baked');
+  assert.equal(baked.action, 'wrapped-tag');
+  assert.equal(baked.content, 'Lycaon frowned. <font color="#57D6C7">"I *did* tell you."</font> Hugo blinked.');
+});
+
+test('manual bake recolors an exact wrong font tag instead of nesting another tag', () => {
+  const source = 'A <font color="#FF0000">"Wrong color."</font> B';
+  const baked = api.bakeQuoteMarkup(source, {
+    quote: '"Wrong color."', occurrenceIndex: 0, contextBefore: 'A ', contextAfter: ' B',
+  }, '#12ABEF');
+  assert.equal(baked.status, 'baked');
+  assert.equal(baked.action, 'recolored-tag');
+  assert.equal(baked.content, 'A <font color="#12ABEF">"Wrong color."</font> B');
+  assert.equal((baked.content.match(/<font\b/gi) || []).length, 1);
+});
+
+test('manual bake uses nearby context to select the right duplicate quote', () => {
+  const source = 'First: "Same." Middle. Second: "Same." End.';
+  const baked = api.bakeQuoteMarkup(source, {
+    quote: '"Same."', occurrenceIndex: 1, contextBefore: 'Middle. Second: ', contextAfter: ' End.',
+  }, '#C9832E');
+  assert.equal(baked.status, 'baked');
+  assert.equal(baked.content, 'First: "Same." Middle. Second: <font color="#C9832E">"Same."</font> End.');
+});
+
+test('manual bake mutates only the active swipe and creates a recovery backup', async () => {
+  host.chatVars.clear();
+  host.messages = [{ id: 'm-bake', role: 'assistant', content: 'unused', swipes: ['One: "Hi."', 'Two: "Hi."'], swipe_id: 1, metadata: { keep: true } }];
+  host.updates = [];
+  host.updateCalls = 0;
+  const config = api.safeConfig({ engine: 'hybrid', bindings: { 'character:test': binding('Test', '#55AAEE', { speakerUid: 'speaker-test' }) } });
+  const result = await api.bakeManualCorrection({
+    messageId: 'm-bake', swipeId: 1, speakerKey: 'character:speaker-test', kind: 'dialogue', quote: '"Hi."', occurrenceIndex: 0, contextBefore: 'Two: ', contextAfter: '',
+  }, config, { id: 'chat-a' }, 'user-bake');
+  assert.equal(result.status, 'baked');
+  assert.equal(host.messages[0].swipes[0], 'One: "Hi."');
+  assert.equal(host.messages[0].swipes[1], 'Two: <font color="#55AAEE">"Hi."</font>');
+  const recovery = JSON.parse(host.chatVars.get('chat-a|prism_transcript_recovery_v1'));
+  assert.equal(recovery.mode, 'manual-bake');
+  assert.deepEqual(recovery.messages[0].swipes, ['One: "Hi."', 'Two: "Hi."']);
+});
+
+
+test('saveQuoteOverride automatically bakes when the preference is enabled in Hybrid', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.messages = [{ id: 'm-auto-bake', role: 'assistant', content: 'Hugo said, "Persist me."', metadata: {}, swipe_id: 0 }];
+  host.updates = [];
+  host.updateCalls = 0;
+  host.activeChat = { id: 'chat-a', name: 'Bake integration', character_id: 'primary', metadata: {} };
+  const config = api.safeConfig({ engine: 'hybrid', bindings: { 'character:hugo': binding('Hugo', '#D572E4', { targetId: 'hugo', speakerUid: 'speaker-hugo' }) } });
+  host.chatVars.set('chat-a|lumi_dialogue_colors_v1', JSON.stringify(config));
+  host.globalVars.set('prism_preferences_v1', JSON.stringify({ version: 7, preferences: { preferredEngine: 'hybrid', bakeManualCorrections: true }, library: {} }));
+  const result = await api.saveQuoteOverride({
+    chatId: 'chat-a', messageId: 'm-auto-bake', swipeId: 0, contentHash: 'visible-hash', segmentKey: 'seg-1',
+    quote: '"Persist me."', speakerKey: 'character:speaker-hugo', kind: 'dialogue', existingColor: null,
+    occurrenceIndex: 0, contextBefore: 'Hugo said, ', contextAfter: '',
+  }, 'user-bake');
+  assert.equal(result.bake.status, 'baked');
+  assert.equal(host.messages[0].content, 'Hugo said, <font color="#D572E4">"Persist me."</font>');
+  const stored = JSON.parse(host.chatVars.get('chat-a|lumi_dialogue_colors_v1'));
+  assert.equal(stored.overrides['m-auto-bake:0:seg-1'].speakerKey, 'character:speaker-hugo');
+});
+
+test('master switch title and subtitle are stacked instead of colliding inline', () => {
+  assert.match(frontendSource, /\.ldc-master-text\{display:grid;gap:3px/);
+  assert.match(frontendSource, /\.ldc-master-title\{display:block/);
+  assert.match(frontendSource, /\.ldc-master-desc\{display:block/);
 });
 
 let passed = 0;

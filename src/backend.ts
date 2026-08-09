@@ -4,7 +4,7 @@ declare const spindle: import("lumiverse-spindle-types").SpindleAPI;
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const RECOVERY_VAR = 'prism_transcript_recovery_v1';
-const PRISM_VERSION = '1.0.2.6';
+const PRISM_VERSION = '1.0.2.9';
 const FAST_OPTIONAL_TIMEOUT_MS = 4500;
 const TRANSCRIPT_TIMEOUT_MS = 12000;
 const HYDRATION_FETCH_TIMEOUT_MS = 5000;
@@ -33,10 +33,11 @@ function withTimeout(promise, timeoutMs, label) {
   ]).finally(() => clearTimeout(timer));
 }
 const DEFAULT_CONFIG = Object.freeze({
-  version: 13,
+  version: 14,
   engine: 'hybrid',
   autoUserMode: 'quoted',
   personaEnabled: true,
+  personaInCast: false,
   promptCharacterColors: true,
   promptThoughtColors: false,
   promptDelivery: 'interceptor',
@@ -98,14 +99,17 @@ function usesDomOverpass(engine) {
 }
 
 const DEFAULT_PREFERENCES = Object.freeze({
+  prismEnabled: true,
   preferredEngine: 'hybrid',
   domAttributionMode: 'balanced',
   autoAssignMissing: true,
   personaMode: 'quoted',
+  personaColorsEnabled: true,
   markUncertain: true,
   thoughtDetection: 'off',
   existingStylePolicy: 'enhance',
   useExistingAsEvidence: true,
+  bakeManualCorrections: false,
   modalSize: 'auto',
   modalExpanded: false,
   modalLayout: 'auto',
@@ -114,12 +118,13 @@ const DEFAULT_PREFERENCES = Object.freeze({
   showSaveIndicator: true,
 });
 
-function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
+function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine, personaEnabled = DEFAULT_CONFIG.personaEnabled) {
   return {
     version: DEFAULT_CONFIG.version,
     engine: normalizeEngine(preferredEngine),
     autoUserMode: DEFAULT_CONFIG.autoUserMode,
-    personaEnabled: DEFAULT_CONFIG.personaEnabled,
+    personaEnabled: personaEnabled !== false,
+    personaInCast: DEFAULT_CONFIG.personaInCast,
     promptCharacterColors: DEFAULT_CONFIG.promptCharacterColors,
     promptThoughtColors: DEFAULT_CONFIG.promptThoughtColors,
     promptDelivery: DEFAULT_CONFIG.promptDelivery,
@@ -142,6 +147,7 @@ function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
 function safePreferences(raw) {
   const source = raw && typeof raw === 'object' ? raw : {};
   return {
+    prismEnabled: source.prismEnabled !== false,
     preferredEngine: normalizeEngine(source.preferredEngine),
     domAttributionMode: ['strict', 'balanced', 'aggressive'].includes(source.domAttributionMode)
       ? source.domAttributionMode
@@ -150,6 +156,7 @@ function safePreferences(raw) {
     personaMode: ['off', 'quoted', 'whole'].includes(source.personaMode)
       ? source.personaMode
       : DEFAULT_PREFERENCES.personaMode,
+    personaColorsEnabled: source.personaColorsEnabled !== false,
     markUncertain: source.markUncertain !== false,
     thoughtDetection: ['off', 'italics', 'single-quotes', 'italics-and-single-quotes'].includes(source.thoughtDetection)
       ? source.thoughtDetection
@@ -158,6 +165,7 @@ function safePreferences(raw) {
       ? source.existingStylePolicy
       : DEFAULT_PREFERENCES.existingStylePolicy,
     useExistingAsEvidence: source.useExistingAsEvidence !== false,
+    bakeManualCorrections: source.bakeManualCorrections === true,
     modalSize: ['auto', 'compact', 'large'].includes(source.modalSize)
       ? source.modalSize
       : DEFAULT_PREFERENCES.modalSize,
@@ -258,7 +266,7 @@ function safeGlobalState(raw) {
       };
     }
   }
-  return { version: 5, preferences: safePreferences(source.preferences), library };
+  return { version: 7, preferences: safePreferences(source.preferences), library };
 }
 
 function normalizeHex(value) {
@@ -514,10 +522,11 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
   }
 
   return {
-    version: 13,
+    version: 14,
     engine: normalizeEngine(raw.engine, preferredEngine),
     autoUserMode: mode,
     personaEnabled: raw.personaEnabled !== false,
+    personaInCast: raw.personaInCast === true,
     promptCharacterColors: raw.promptCharacterColors !== false,
     promptThoughtColors: raw.promptThoughtColors === true,
     promptDelivery: raw.promptDelivery === 'macro' ? 'macro' : 'interceptor',
@@ -541,10 +550,13 @@ async function loadGlobalState(userId) {
   try {
     const text = await spindle.variables.global.get(GLOBAL_PREFS_VAR, userId);
     const parsed = text ? JSON.parse(text) : null;
+    const personaPreferenceInitialized = Boolean(parsed?.preferences && Object.prototype.hasOwnProperty.call(parsed.preferences, 'personaColorsEnabled'));
     const safe = safeGlobalState(parsed);
     if (parsed && JSON.stringify(parsed) !== JSON.stringify(safe)) {
       await spindle.variables.global.set(GLOBAL_PREFS_VAR, JSON.stringify(safe), userId);
     }
+    // Transient migration hint only; saveGlobalState() intentionally strips it.
+    safe.personaPreferenceInitialized = personaPreferenceInitialized;
     return safe;
   } catch (error) {
     spindle.log.warn(`Could not read Prism preferences: ${error?.message || error}`);
@@ -558,20 +570,24 @@ async function saveGlobalState(globalState, userId) {
   return safe;
 }
 
-async function loadConfig(chatId, userId) {
-  const globalState = await loadGlobalState(userId);
+async function loadConfig(chatId, userId, suppliedGlobalState = null) {
+  const globalState = suppliedGlobalState || await loadGlobalState(userId);
   try {
     const text = await spindle.variables.chat.get(chatId, CONFIG_VAR);
-    if (!text) return cloneDefaultConfig(globalState.preferences.preferredEngine);
+    if (!text) return cloneDefaultConfig(globalState.preferences.preferredEngine, globalState.preferences.personaColorsEnabled);
     const parsed = JSON.parse(text);
     const safe = safeConfig(parsed, globalState.preferences.preferredEngine);
+    if (globalState.personaPreferenceInitialized === false && typeof parsed.personaEnabled === 'boolean') {
+      globalState.preferences.personaColorsEnabled = safe.personaEnabled;
+      await saveGlobalState(globalState, userId);
+    }
     if (JSON.stringify(parsed) !== JSON.stringify(safe)) {
       await spindle.variables.chat.set(chatId, CONFIG_VAR, JSON.stringify(safe));
     }
     return safe;
   } catch (error) {
     spindle.log.warn(`Could not read dialogue color config: ${error?.message || error}`);
-    return cloneDefaultConfig(globalState.preferences.preferredEngine);
+    return cloneDefaultConfig(globalState.preferences.preferredEngine, globalState.preferences.personaColorsEnabled);
   }
 }
 
@@ -1641,7 +1657,9 @@ function applyPersonaColorToLlmContent(content, color, mode) {
 }
 
 async function personaColorContext(chatId, userId, suppliedConfig = null) {
-  const config = suppliedConfig || await loadConfig(chatId, userId);
+  const globalState = await loadGlobalState(userId);
+  if (globalState.preferences.prismEnabled === false) return null;
+  const config = suppliedConfig || await loadConfig(chatId, userId, globalState);
   if (!usesModelTags(config.engine) || config.personaEnabled === false || config.autoUserMode === 'off') return null;
   const persona = await spindle.personas.getActive(userId).catch(() => null);
   if (!persona) return null;
@@ -1709,6 +1727,9 @@ async function saveBinding(payload, userId) {
   }
   if (typeof payload.personaEnabled === 'boolean') {
     config.personaEnabled = payload.personaEnabled;
+  }
+  if (typeof payload.personaInCast === 'boolean') {
+    config.personaInCast = payload.personaInCast;
   }
   if (typeof payload.promptCharacterColors === 'boolean') {
     config.promptCharacterColors = payload.promptCharacterColors;
@@ -1878,6 +1899,9 @@ async function updateOptions(payload, userId) {
   if (typeof payload.personaEnabled === 'boolean') {
     config.personaEnabled = payload.personaEnabled;
   }
+  if (typeof payload.personaInCast === 'boolean') {
+    config.personaInCast = payload.personaInCast;
+  }
   if (typeof payload.promptCharacterColors === 'boolean') {
     config.promptCharacterColors = payload.promptCharacterColors;
   }
@@ -1893,6 +1917,10 @@ async function updateOptions(payload, userId) {
   if (typeof payload.hybridDiscovery === 'boolean') {
     config.hybridDiscovery = payload.hybridDiscovery;
   }
+  // Make chat-local behavior authoritative immediately. Global preference writes can
+  // legitimately take longer, but a user message sent right after flipping persona
+  // colors must observe the new chat setting instead of the stale one.
+  await saveConfig(chat.id, config);
   await enqueueGlobalPreferenceOperation(userId, async () => {
     const globalState = await loadGlobalState(userId);
     if (ENGINE_VALUES.includes(payload.engine)) {
@@ -1916,12 +1944,17 @@ async function updateOptions(payload, userId) {
     if (typeof payload.useExistingAsEvidence === 'boolean') {
       globalState.preferences.useExistingAsEvidence = payload.useExistingAsEvidence;
     }
+    if (typeof payload.bakeManualCorrections === 'boolean') {
+      globalState.preferences.bakeManualCorrections = payload.bakeManualCorrections;
+    }
     if (['off', 'quoted', 'whole'].includes(payload.autoUserMode)) {
       globalState.preferences.personaMode = payload.autoUserMode;
     }
+    if (typeof payload.personaEnabled === 'boolean') {
+      globalState.preferences.personaColorsEnabled = payload.personaEnabled;
+    }
     await saveGlobalState(globalState, userId);
   });
-  await saveConfig(chat.id, config);
   return buildState({ importCortex: false }, userId);
 }
 
@@ -1942,6 +1975,9 @@ async function updateUiPreferences(payload, userId) {
     }
     if (['rounded', 'soft', 'square'].includes(payload.modalShape)) {
       globalState.preferences.modalShape = payload.modalShape;
+    }
+    if (typeof payload.prismEnabled === 'boolean') {
+      globalState.preferences.prismEnabled = payload.prismEnabled;
     }
     if (typeof payload.showSaveIndicator === 'boolean') {
       globalState.preferences.showSaveIndicator = payload.showSaveIndicator;
@@ -2065,7 +2101,7 @@ async function assignSceneColors(payload, userId) {
   }
 
   const persona = state.persona;
-  if (persona && config.personaEnabled !== false) {
+  if (persona && (config.personaEnabled !== false || config.personaInCast === true)) {
     const existing = findBinding(config, 'persona', persona.id, persona.name, []);
     if (!existing || (regenerate && existing.pinned === false && existing.source === 'generated')) {
       if (existing) {
@@ -2089,6 +2125,218 @@ async function assignSceneColors(payload, userId) {
   return { state: await buildState({ importCortex: false }, userId), assigned };
 }
 
+
+function decodeProjectionEntity(source, index) {
+  const tail = source.slice(index);
+  const named = tail.match(/^&(quot|apos|#39|amp|lt|gt);/i);
+  if (named) {
+    const key = named[1].toLocaleLowerCase();
+    const value = key === 'quot' ? '"' : (key === 'apos' || key === '#39') ? "'" : key === 'amp' ? '&' : key === 'lt' ? '<' : '>';
+    return { value, length: named[0].length };
+  }
+  const numeric = tail.match(/^&#(x[0-9a-f]+|\d+);/i);
+  if (!numeric) return null;
+  const code = numeric[1][0].toLocaleLowerCase() === 'x' ? parseInt(numeric[1].slice(1), 16) : parseInt(numeric[1], 10);
+  if (!Number.isFinite(code) || code <= 0) return null;
+  try { return { value: String.fromCodePoint(code), length: numeric[0].length }; }
+  catch { return null; }
+}
+
+function visibleSourceProjection(content, stripMarkdown = false) {
+  const source = String(content || '');
+  const chars = [];
+  const map = [];
+  for (let index = 0; index < source.length;) {
+    const rest = source.slice(index);
+    const escapedTag = rest.match(/^&lt;\/?(?:font|span|em|i|strong|b)\b[\s\S]{0,600}?&gt;/i);
+    if (escapedTag) { index += escapedTag[0].length; continue; }
+    const bbcode = rest.match(/^\[\/?color(?:\s*=\s*[^\]]+)?\]/i);
+    if (bbcode) { index += bbcode[0].length; continue; }
+    if (source[index] === '<') {
+      const end = source.indexOf('>', index + 1);
+      if (end >= 0 && end - index <= 1200) { index = end + 1; continue; }
+    }
+    const entity = source[index] === '&' ? decodeProjectionEntity(source, index) : null;
+    if (entity) {
+      for (const char of entity.value) { chars.push(char); map.push({ start: index, end: index + entity.length }); }
+      index += entity.length;
+      continue;
+    }
+    if (stripMarkdown && /[*_~`]/.test(source[index])) {
+      let end = index + 1;
+      while (end < source.length && source[end] === source[index] && end - index < 3) end += 1;
+      if (end - index <= 3) { index = end; continue; }
+    }
+    chars.push(source[index]);
+    map.push({ start: index, end: index + 1 });
+    index += 1;
+  }
+  return { text: chars.join(''), map };
+}
+
+function normalizeLocatorText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+}
+
+function normalizedProjection(projection) {
+  let text = '';
+  const map = [];
+  let pendingSpace = null;
+  for (let index = 0; index < projection.text.length; index += 1) {
+    const char = projection.text[index];
+    const sourceRange = projection.map[index];
+    if (/\s/u.test(char)) {
+      if (!pendingSpace) pendingSpace = { start: sourceRange.start, end: sourceRange.end };
+      else pendingSpace.end = sourceRange.end;
+      continue;
+    }
+    if (pendingSpace && text) { text += ' '; map.push(pendingSpace); }
+    pendingSpace = null;
+    text += char.toLocaleLowerCase();
+    map.push(sourceRange);
+  }
+  return { text, map };
+}
+
+function commonPrefixLength(left, right) {
+  const limit = Math.min(left.length, right.length);
+  let count = 0;
+  while (count < limit && left[count] === right[count]) count += 1;
+  return count;
+}
+
+function commonSuffixLength(left, right) {
+  const limit = Math.min(left.length, right.length);
+  let count = 0;
+  while (count < limit && left[left.length - 1 - count] === right[right.length - 1 - count]) count += 1;
+  return count;
+}
+
+function locateVisibleQuote(content, quote, locator = {}) {
+  const needle = normalizeLocatorText(quote);
+  if (!needle) return null;
+  const beforeNeedle = normalizeLocatorText(locator.contextBefore).slice(-100);
+  const afterNeedle = normalizeLocatorText(locator.contextAfter).slice(0, 100);
+  for (const stripMarkdown of [false, true]) {
+    const projected = normalizedProjection(visibleSourceProjection(content, stripMarkdown));
+    const candidates = [];
+    let offset = 0;
+    while (offset <= projected.text.length - needle.length) {
+      const found = projected.text.indexOf(needle, offset);
+      if (found < 0) break;
+      const before = projected.text.slice(Math.max(0, found - 100), found);
+      const after = projected.text.slice(found + needle.length, found + needle.length + 100);
+      const score = commonSuffixLength(before, beforeNeedle) + commonPrefixLength(after, afterNeedle);
+      candidates.push({ found, score });
+      offset = found + Math.max(1, needle.length);
+    }
+    if (!candidates.length) continue;
+    let chosen = null;
+    if (beforeNeedle || afterNeedle) {
+      const ranked = [...candidates].sort((a, b) => b.score - a.score || a.found - b.found);
+      if (ranked[0].score > 0 && (!ranked[1] || ranked[0].score > ranked[1].score)) chosen = ranked[0];
+    }
+    if (!chosen) {
+      const occurrenceIndex = Math.max(0, Number(locator.occurrenceIndex) || 0);
+      if (occurrenceIndex < candidates.length) chosen = candidates[occurrenceIndex];
+      else if (candidates.length === 1) chosen = candidates[0];
+    }
+    if (!chosen) return null;
+    const first = projected.map[chosen.found];
+    const last = projected.map[chosen.found + needle.length - 1];
+    if (!first || !last || last.end <= first.start) return null;
+    return { start: first.start, end: last.end, stripMarkdown };
+  }
+  return null;
+}
+
+function recolorExactEnclosingFont(content, range, quote, color) {
+  const source = String(content || '');
+  const needle = normalizeLocatorText(quote);
+  const pattern = /<font\b[^>]*\bcolor\s*=\s*["']?(#[0-9a-f]{3,6})["']?[^>]*>[\s\S]*?<\/font>/gi;
+  let match;
+  while ((match = pattern.exec(source))) {
+    const openingEndRelative = match[0].indexOf('>') + 1;
+    const closingStartRelative = match[0].toLocaleLowerCase().lastIndexOf('</font>');
+    if (openingEndRelative <= 0 || closingStartRelative < openingEndRelative) continue;
+    const innerStart = match.index + openingEndRelative;
+    const innerEnd = match.index + closingStartRelative;
+    if (range.start < innerStart || range.end > innerEnd) continue;
+    const inner = match[0].slice(openingEndRelative, closingStartRelative);
+    const projectedInner = normalizeLocatorText(visibleSourceProjection(inner, true).text);
+    if (projectedInner !== needle) continue;
+    const oldColor = normalizeHex(match[1]);
+    if (oldColor === color) return { content: source, changed: false, action: 'already-tagged' };
+    const opening = match[0].slice(0, openingEndRelative);
+    const recoloredOpening = opening.replace(/(\bcolor\s*=\s*)(["']?)(#[0-9a-f]{3,6})\2/i, (_, prefix, quoteMark) => `${prefix}${quoteMark}${color}${quoteMark}`);
+    if (recoloredOpening === opening) continue;
+    return {
+      content: source.slice(0, match.index) + recoloredOpening + match[0].slice(openingEndRelative) + source.slice(match.index + match[0].length),
+      changed: true,
+      action: 'recolored-tag',
+    };
+  }
+  return null;
+}
+
+function bakeQuoteMarkup(content, payload, color) {
+  const normalized = normalizeHex(color);
+  const source = String(content || '');
+  if (!normalized) return { content: source, changed: false, status: 'no-color' };
+  const range = locateVisibleQuote(source, payload?.quote, payload || {});
+  if (!range) return { content: source, changed: false, status: 'quote-not-found' };
+  const existing = recolorExactEnclosingFont(source, range, payload?.quote, normalized);
+  if (existing) return { ...existing, status: existing.changed ? 'baked' : 'already-baked' };
+  return {
+    content: `${source.slice(0, range.start)}<font color="${normalized}">${source.slice(range.start, range.end)}</font>${source.slice(range.end)}`,
+    changed: true,
+    action: 'wrapped-tag',
+    status: 'baked',
+  };
+}
+
+function bindingForSpeakerKey(config, speakerKey) {
+  if (!speakerKey) return null;
+  return config.bindings[speakerKey]
+    || Object.values(config.bindings || {}).find((candidate) => `${candidate.kind}:${candidate.speakerUid}` === String(speakerKey))
+    || null;
+}
+
+async function bakeManualCorrection(payload, config, chat, userId) {
+  const kind = ['dialogue', 'thought', 'ignored'].includes(payload?.kind) ? payload.kind : 'dialogue';
+  if (!payload?.speakerKey || kind === 'ignored') return { status: 'not-applicable' };
+  const binding = bindingForSpeakerKey(config, payload.speakerKey);
+  const color = bindingRegistryColor(binding);
+  if (!binding || !color) return { status: 'speaker-has-no-color' };
+  const messages = await spindle.chat.getMessages(chat.id, userId);
+  const message = (messages || []).find((item) => String(item?.id) === String(payload.messageId));
+  if (!message) return { status: 'message-not-found' };
+  const hasSwipes = Array.isArray(message.swipes) && message.swipes.length > 0;
+  const swipeId = Math.max(0, Number(payload.swipeId) || 0);
+  if (hasSwipes && swipeId >= message.swipes.length) return { status: 'swipe-not-found' };
+  const current = hasSwipes ? String(message.swipes[swipeId] || '') : String(message.content || '');
+  const baked = bakeQuoteMarkup(current, payload, color);
+  if (!baked.changed) return baked;
+  const original = {
+    ...(hasSwipes ? { swipes: message.swipes } : { content: message.content }),
+    swipe_id: message.swipe_id,
+    metadata: message.metadata || {},
+  };
+  await spindle.variables.chat.set(chat.id, RECOVERY_VAR, JSON.stringify({
+    version: 1,
+    prismVersion: PRISM_VERSION,
+    chatId: chat.id,
+    mode: 'manual-bake',
+    createdAt: Date.now(),
+    messages: [{ id: String(message.id), ...original }],
+  }));
+  const next = hasSwipes
+    ? { swipes: message.swipes.map((value, index) => index === swipeId ? baked.content : value), swipe_id: message.swipe_id, metadata: message.metadata || {} }
+    : { content: baked.content, swipe_id: message.swipe_id, metadata: message.metadata || {} };
+  await spindle.chat.updateMessage(chat.id, String(message.id), next, userId);
+  return baked;
+}
+
 async function saveQuoteOverride(payload, userId) {
   const chat = await spindle.chats.getActive(userId);
   if (!chat || (payload.chatId && String(payload.chatId) !== String(chat.id))) {
@@ -2101,6 +2349,7 @@ async function saveQuoteOverride(payload, userId) {
   const config = await loadConfig(chat.id, userId);
   const existingColor = normalizeHex(payload.existingColor);
   const speakerKey = payload.speakerKey == null ? null : String(payload.speakerKey);
+  const kind = ['dialogue', 'thought', 'ignored'].includes(payload.kind) ? payload.kind : 'dialogue';
   if (existingColor && speakerKey) {
     const binding = config.bindings[speakerKey] || Object.values(config.bindings).find((candidate) => `${candidate.kind}:${candidate.speakerUid}` === speakerKey);
     const alreadyOwned = Object.values(config.bindings).some((candidate) => (
@@ -2121,11 +2370,21 @@ async function saveQuoteOverride(payload, userId) {
     segmentKey,
     quote: String(payload.quote || '').slice(0, 1000),
     speakerKey,
-    kind: ['dialogue', 'thought', 'ignored'].includes(payload.kind) ? payload.kind : 'dialogue',
+    kind,
     updatedAt: Date.now(),
   };
   await saveConfig(chat.id, config);
-  return buildState({ importCortex: false }, userId);
+  const globalState = await loadGlobalState(userId);
+  let bake = { status: 'disabled' };
+  if (globalState.preferences.bakeManualCorrections === true && usesDomOverpass(config.engine)) {
+    try {
+      bake = await bakeManualCorrection({ ...payload, speakerKey, kind }, config, chat, userId);
+    } catch (error) {
+      bake = { status: 'error', error: String(error?.message || error).slice(0, 300) };
+      spindle.log.warn(`Manual correction was saved but could not be baked: ${error?.message || error}`);
+    }
+  }
+  return { state: await buildState({ importCortex: false }, userId), bake };
 }
 
 async function transcriptMutationPlan(chatId, userId, mode) {
@@ -2431,7 +2690,12 @@ function reconcileConfigWithMessages(config, messages) {
 async function hydrateGeneratedMessage(payload, userId) {
   const chat = await spindle.chats.getActive(userId);
   if (!chat || (payload.chatId && String(payload.chatId) !== String(chat.id))) throw new Error('The active chat changed before Prism could hydrate it.');
-  const config = await loadConfig(chat.id, userId);
+  const globalState = await loadGlobalState(userId);
+  if (globalState.preferences.prismEnabled === false) {
+    const state = await buildState({ importCortex: false }, userId);
+    return { state, observations: [], pendingCount: state.pendingReviewCount || 0, skipped: 'disabled' };
+  }
+  const config = await loadConfig(chat.id, userId, globalState);
   if (config.engine !== 'hybrid') return { state: await buildState({ importCortex: false }, userId), observations: [], pendingCount: pendingReviewGroups(config).length, skipped: 'not-hybrid' };
   const requestedId = String(payload.messageId || '');
   const messages = await messagesForHydration(chat.id, userId, requestedId);
@@ -2666,7 +2930,7 @@ function visibleRegistryBindings(config) {
   const selected = new Map();
   for (const binding of Object.values(config.bindings || {})) {
     if (!bindingRegistryColor(binding)) continue;
-    if (binding.kind === 'persona' && config.personaEnabled === false) continue;
+    if (binding.kind === 'persona' && config.personaInCast !== true) continue;
     if (binding.kind !== 'persona' && config.hiddenCharacters?.[normalizeName(binding.name)]) continue;
     const key = `${binding.kind}:${normalizeName(binding.name)}`;
     const current = selected.get(key);
@@ -2931,7 +3195,9 @@ async function resolvePrismMacroContext(context) {
   const chatId = String(context?.env?.chat?.id || '');
   if (!chatId) return null;
   const userId = recentUserIdsByChat.get(chatId);
-  const config = await loadConfig(chatId, userId);
+  const globalState = await loadGlobalState(userId);
+  if (globalState.preferences.prismEnabled === false) return null;
+  const config = await loadConfig(chatId, userId, globalState);
   const registry = compileRegistry(config);
   const provisional = config.engine === 'hybrid' && config.hybridDiscovery !== false
     ? provisionalRegistryHints(config, registry)
@@ -2967,7 +3233,9 @@ spindle.registerInterceptor(async (messages, context) => {
   if (!chatId) return messages;
   const userId = context?.userId;
   if (userId != null) recentUserIdsByChat.set(chatId, userId);
-  const config = await loadConfig(chatId, userId);
+  const globalState = await loadGlobalState(userId);
+  if (globalState.preferences.prismEnabled === false) return messages;
+  const config = await loadConfig(chatId, userId, globalState);
   const registry = compileRegistry(config);
   const provisional = config.engine === 'hybrid' && config.hybridDiscovery !== false ? provisionalRegistryHints(config, registry) : [];
   const instruction = config.promptDelivery === 'macro' ? '' : registryInstruction(config, registry, provisional);
@@ -3104,8 +3372,8 @@ spindle.onFrontendMessage(async (payload, userId) => {
         break;
       }
       case 'ldc_save_override': {
-        const state = await saveQuoteOverride(payload, userId);
-        reply('ldc_state', { state, saved: true });
+        const result = await saveQuoteOverride(payload, userId);
+        reply('ldc_state', { state: result.state, bake: result.bake, saved: true });
         break;
       }
       case 'ldc_normalize_preview':

@@ -2,6 +2,12 @@
 
 Prism gives Lumiverse scenes deterministic, reversible dialogue and thought colors without making roleplayers type formatting tags. Hybrid is the default for new installs: it emits portable `<font color>` identity tags, rehydrates the finished response, and asks only whether genuinely new tagged speakers should enter the confirmed registry.
 
+## Master switch
+
+Prism has a user-wide master switch at the top of the palette. Turning it off pauses prompt injection/macros, automatic persona coloring, DOM attribution/paint, Hybrid discovery, and post-generation hydration without deleting the saved registry, colors, or per-chat configuration. The disabled state persists across characters and chats until Prism is turned back on.
+
+Existing persistent color tags already stored in message content are left untouched; the switch prevents Prism from adding or enhancing new runtime color behavior rather than destructively rewriting chat history.
+
 ## Engines
 
 - **Local** — colors the rendered DOM only. Saved messages and model context are unchanged.
@@ -24,14 +30,25 @@ The Prompt settings include an autosaved custom instruction editor. Templates ca
 1. Open Prism from the chat toolbar.
 2. Use **Set up scene** to import Cortex/transcript colors and generate collision-safe colors for anything missing.
 3. Edit solid or two/three-stop gradient paint directly in the roster editor. The first dialogue stop is always the character’s canonical registry color.
-4. In Local or Hybrid, right-click, long-press, or keyboard-open any detected segment to correct its speaker or content type.
+4. In Local or Hybrid, right-click, long-press, or keyboard-open any detected segment to correct its speaker or content type. Enable **Bake manual corrections** under Cortex & attribution if those corrections should also be written into the stored message as portable font tags.
 5. In Hybrid, click the yellow **Awaiting review** status only when Prism finds a clearly named, genuinely new tagged speaker. Register recurring characters, keep cameos temporary, or ignore them.
 
 During generation, gradient text temporarily renders as its first canonical stop. Prism restores the full gradient only when the response completes or is cancelled, preventing streaming repaint flicker.
 
+## Persona behavior
+
+The Persona tab separates two jobs that used to overlap:
+
+- **Color persona messages** automatically colors the active persona's user-role messages. Its enabled/disabled state is remembered as the default for new chats, and existing pre-1.0.2.7 chat state seeds that preference on migration.
+- **Persona is part of the cast** is chat-local and intended for impersonation / Speak for User workflows. It lets assistant-side dialogue resolve to the active persona, includes that persona in the assistant speaker registry, and exposes the persona as a manual recoloring target.
+
+These switches are independent. Cast mode can therefore identify and color an impersonated persona in assistant output even when automatic coloring of user-role messages is disabled.
+
 ## Existing formatting
 
-Portable `<font color>`, escaped legacy tags, BBCode colors, and explicit inline colors are protected. Prism may use a uniquely matched tag as speaker evidence and may apply a reversible local solid/gradient overlay, but it does not destructively rewrite saved markup while rendering.
+Portable `<font color>`, escaped legacy tags, BBCode colors, and explicit inline colors are protected. Prism may use a uniquely matched tag as speaker evidence and may apply a reversible local solid/gradient overlay, but ordinary rendering does not destructively rewrite saved markup.
+
+**Bake manual corrections** is the explicit exception: when enabled in Local or Hybrid, a manual speaker correction writes the canonical speaker color into the active stored swipe. Prism recolors an exact existing font tag when possible or wraps only the corrected segment when markup was missing. Each successful bake creates a transcript recovery backup first.
 
 Lumi theme colors applied as presentation are not treated as legacy speaker evidence.
 

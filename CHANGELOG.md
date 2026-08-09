@@ -1,3 +1,26 @@
+## 1.0.2.9
+
+- Adds an opt-in **Bake manual corrections** preference for Local and Hybrid. Manual speaker corrections can now be written back into the active stored swipe as portable `<font color>` markup instead of living only in DOM reconstruction.
+- Recolors an exact existing `<font>` segment when the model used the wrong canonical color; otherwise wraps only the corrected visible segment in a new portable font tag.
+- Uses quote occurrence plus nearby visible context to avoid rewriting the wrong duplicate line, and leaves the normal manual override intact as attribution evidence.
+- Stores a transcript recovery backup before each successful manual bake.
+- Fixes the master-switch subtitle layout so its description sits beneath the title with actual breathing room.
+
+## 1.0.2.8
+
+- Adds a user-wide **Prism is on / Prism is off** master switch above the scene workspace.
+- Keeps the switch state across characters and chats while preserving all saved colors, bindings, and configuration.
+- Dims and locks Prism controls while disabled, while keeping navigation, window controls, and the master switch reachable.
+- Disables generation-time prompt injection/macros, automatic persona coloring, local DOM attribution/paint, Hybrid discovery, and post-generation hydration while Prism is off.
+- Shows **Prism off** in the toolbar status instead of pretending the disabled extension is merely saved.
+
+## 1.0.2.7
+
+- Remember the persona-color enabled/disabled choice as the default for new chats.
+- Save chat persona options before slower global preference writes so newly sent messages immediately observe the toggle.
+- Add a chat-local **Persona is part of the cast** mode for impersonation / Speak for User workflows.
+- Cast mode exposes the active persona to assistant-side attribution, manual recoloring, and the model speaker registry without coupling it to automatic user-message coloring.
+
 # Prism changelog
 
 ## 1.0.2.6 — safe mobile workspace and prompt controls
