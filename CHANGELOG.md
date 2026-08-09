@@ -1,3 +1,10 @@
+## 1.0.2.7
+
+- Remember the persona-color enabled/disabled choice as the default for new chats.
+- Save chat persona options before slower global preference writes so newly sent messages immediately observe the toggle.
+- Add a chat-local **Persona is part of the cast** mode for impersonation / Speak for User workflows.
+- Cast mode exposes the active persona to assistant-side attribution, manual recoloring, and the model speaker registry without coupling it to automatic user-message coloring.
+
 # Prism changelog
 
 ## 1.0.2.6 — safe mobile workspace and prompt controls

@@ -33,7 +33,7 @@ const backendCompiled = compile('backend.ts', `${backendSource}\n;globalThis.__p
   plausibleInferredSceneName, knownSceneIdentityByName,
   extractSceneNamesFromText, hydrateGeneratedMessage, resetTemporaryEvidence,
   addSceneCharacter, resolveObservationGroup, mergeSceneCharacter, loadConfig, saveConfig,
-  enqueueConfigOperation, configOperationQueues, enqueueGlobalPreferenceOperation, globalPreferenceQueues, updateUiPreferences,
+  enqueueConfigOperation, configOperationQueues, enqueueGlobalPreferenceOperation, globalPreferenceQueues, updateOptions, updateUiPreferences,
   previewTranscriptMutation, applyTranscriptMutation, restoreTranscriptRecovery, importRegistry,
   recentRegistrySnapshots, applyPersonaColor, applyPersonaColorToLlmContent, personaColorContext, persistPersonaColorForMessage
 };`);
@@ -109,8 +109,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.2.6');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.2\.6'/);
+  assert.equal(manifest.version, '1.0.2.7');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.2\.7'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -273,6 +273,64 @@ test('persona DOM candidates use the stable speaker identity and remain paintabl
   assert.match(frontendSource, /key:`persona:\$\{personaStableId\}`/);
   assert.match(frontendSource, /paintable:true,primary:false,tentative:false/);
   assert.doesNotMatch(frontendSource, /key:`persona:\$\{personaBinding\.targetId\}`/);
+});
+
+
+test('persona color preference becomes the default for brand-new chats', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.globalVars.set('prism_preferences_v1', JSON.stringify({
+    version: 6,
+    preferences: { personaColorsEnabled: false, preferredEngine: 'hybrid' },
+    library: {},
+  }));
+  const config = await api.loadConfig('chat-new', 'user-a');
+  assert.equal(config.personaEnabled, false);
+  assert.equal(config.personaInCast, false);
+});
+
+
+test('legacy disabled persona state seeds the new global preference once', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.globalVars.set('prism_preferences_v1', JSON.stringify({ version: 5, preferences: { preferredEngine: 'hybrid' }, library: {} }));
+  host.chatVars.set('chat-legacy|lumi_dialogue_colors_v1', JSON.stringify(api.safeConfig({ personaEnabled: false })));
+  const config = await api.loadConfig('chat-legacy', 'user-a');
+  assert.equal(config.personaEnabled, false);
+  const storedGlobal = JSON.parse(host.globalVars.get('prism_preferences_v1'));
+  assert.equal(storedGlobal.preferences.personaColorsEnabled, false);
+  assert.equal(storedGlobal.version, 6);
+});
+
+test('persona options persist current chat first and remember future-chat preference', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.activeChat = { id: 'chat-a', name: 'Persona options', character_id: 'primary', metadata: {} };
+  host.chatVars.set('chat-a|lumi_dialogue_colors_v1', JSON.stringify(api.safeConfig({ personaEnabled: true, personaInCast: false })));
+  const state = await api.updateOptions({ personaEnabled: false, personaInCast: true }, 'user-a');
+  const storedChat = JSON.parse(host.chatVars.get('chat-a|lumi_dialogue_colors_v1'));
+  const storedGlobal = JSON.parse(host.globalVars.get('prism_preferences_v1'));
+  assert.equal(storedChat.personaEnabled, false);
+  assert.equal(storedChat.personaInCast, true);
+  assert.equal(storedGlobal.preferences.personaColorsEnabled, false);
+  assert.equal(state.config.personaEnabled, false);
+  assert.equal(state.config.personaInCast, true);
+});
+
+test('persona only enters assistant speaker registry when cast mode is enabled', () => {
+  const persona = binding('You', '#53C7FF', { kind: 'persona', targetId: 'persona-a', speakerUid: 'speaker-you' });
+  const userOnly = api.compileRegistry(api.safeConfig({ personaEnabled: true, personaInCast: false, bindings: { 'persona:persona-a': persona } }));
+  assert.equal(userOnly.entries.some((entry) => entry.kind === 'persona'), false);
+  const castOnly = api.compileRegistry(api.safeConfig({ personaEnabled: false, personaInCast: true, bindings: { 'persona:persona-a': persona } }));
+  assert.equal(castOnly.entries.some((entry) => entry.kind === 'persona' && entry.name === 'You'), true);
+});
+
+test('persona cast mode is exposed in the persona UI and assistant candidate list', () => {
+  assert.match(frontendSource, /Persona is part of the cast/);
+  assert.match(frontendSource, /data-role="persona-in-cast"/);
+  assert.match(frontendSource, /state\?\.config\?\.personaInCast===true&&state\?\.persona/);
+  assert.match(frontendSource, /return\[\.\.\.confirmed,\.\.\.\(personaCandidate\?\[personaCandidate\]:\[\]\),\.\.\.tentative\]/);
+  assert.match(frontendSource, /manual recoloring/);
 });
 
 test('manual roster additions materialize immediately and remain bound atomically', async () => {

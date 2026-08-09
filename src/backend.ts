@@ -4,7 +4,7 @@ declare const spindle: import("lumiverse-spindle-types").SpindleAPI;
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const RECOVERY_VAR = 'prism_transcript_recovery_v1';
-const PRISM_VERSION = '1.0.2.6';
+const PRISM_VERSION = '1.0.2.7';
 const FAST_OPTIONAL_TIMEOUT_MS = 4500;
 const TRANSCRIPT_TIMEOUT_MS = 12000;
 const HYDRATION_FETCH_TIMEOUT_MS = 5000;
@@ -33,10 +33,11 @@ function withTimeout(promise, timeoutMs, label) {
   ]).finally(() => clearTimeout(timer));
 }
 const DEFAULT_CONFIG = Object.freeze({
-  version: 13,
+  version: 14,
   engine: 'hybrid',
   autoUserMode: 'quoted',
   personaEnabled: true,
+  personaInCast: false,
   promptCharacterColors: true,
   promptThoughtColors: false,
   promptDelivery: 'interceptor',
@@ -102,6 +103,7 @@ const DEFAULT_PREFERENCES = Object.freeze({
   domAttributionMode: 'balanced',
   autoAssignMissing: true,
   personaMode: 'quoted',
+  personaColorsEnabled: true,
   markUncertain: true,
   thoughtDetection: 'off',
   existingStylePolicy: 'enhance',
@@ -114,12 +116,13 @@ const DEFAULT_PREFERENCES = Object.freeze({
   showSaveIndicator: true,
 });
 
-function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine) {
+function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine, personaEnabled = DEFAULT_CONFIG.personaEnabled) {
   return {
     version: DEFAULT_CONFIG.version,
     engine: normalizeEngine(preferredEngine),
     autoUserMode: DEFAULT_CONFIG.autoUserMode,
-    personaEnabled: DEFAULT_CONFIG.personaEnabled,
+    personaEnabled: personaEnabled !== false,
+    personaInCast: DEFAULT_CONFIG.personaInCast,
     promptCharacterColors: DEFAULT_CONFIG.promptCharacterColors,
     promptThoughtColors: DEFAULT_CONFIG.promptThoughtColors,
     promptDelivery: DEFAULT_CONFIG.promptDelivery,
@@ -150,6 +153,7 @@ function safePreferences(raw) {
     personaMode: ['off', 'quoted', 'whole'].includes(source.personaMode)
       ? source.personaMode
       : DEFAULT_PREFERENCES.personaMode,
+    personaColorsEnabled: source.personaColorsEnabled !== false,
     markUncertain: source.markUncertain !== false,
     thoughtDetection: ['off', 'italics', 'single-quotes', 'italics-and-single-quotes'].includes(source.thoughtDetection)
       ? source.thoughtDetection
@@ -258,7 +262,7 @@ function safeGlobalState(raw) {
       };
     }
   }
-  return { version: 5, preferences: safePreferences(source.preferences), library };
+  return { version: 6, preferences: safePreferences(source.preferences), library };
 }
 
 function normalizeHex(value) {
@@ -514,10 +518,11 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
   }
 
   return {
-    version: 13,
+    version: 14,
     engine: normalizeEngine(raw.engine, preferredEngine),
     autoUserMode: mode,
     personaEnabled: raw.personaEnabled !== false,
+    personaInCast: raw.personaInCast === true,
     promptCharacterColors: raw.promptCharacterColors !== false,
     promptThoughtColors: raw.promptThoughtColors === true,
     promptDelivery: raw.promptDelivery === 'macro' ? 'macro' : 'interceptor',
@@ -541,10 +546,13 @@ async function loadGlobalState(userId) {
   try {
     const text = await spindle.variables.global.get(GLOBAL_PREFS_VAR, userId);
     const parsed = text ? JSON.parse(text) : null;
+    const personaPreferenceInitialized = Boolean(parsed?.preferences && Object.prototype.hasOwnProperty.call(parsed.preferences, 'personaColorsEnabled'));
     const safe = safeGlobalState(parsed);
     if (parsed && JSON.stringify(parsed) !== JSON.stringify(safe)) {
       await spindle.variables.global.set(GLOBAL_PREFS_VAR, JSON.stringify(safe), userId);
     }
+    // Transient migration hint only; saveGlobalState() intentionally strips it.
+    safe.personaPreferenceInitialized = personaPreferenceInitialized;
     return safe;
   } catch (error) {
     spindle.log.warn(`Could not read Prism preferences: ${error?.message || error}`);
@@ -562,16 +570,20 @@ async function loadConfig(chatId, userId) {
   const globalState = await loadGlobalState(userId);
   try {
     const text = await spindle.variables.chat.get(chatId, CONFIG_VAR);
-    if (!text) return cloneDefaultConfig(globalState.preferences.preferredEngine);
+    if (!text) return cloneDefaultConfig(globalState.preferences.preferredEngine, globalState.preferences.personaColorsEnabled);
     const parsed = JSON.parse(text);
     const safe = safeConfig(parsed, globalState.preferences.preferredEngine);
+    if (globalState.personaPreferenceInitialized === false && typeof parsed.personaEnabled === 'boolean') {
+      globalState.preferences.personaColorsEnabled = safe.personaEnabled;
+      await saveGlobalState(globalState, userId);
+    }
     if (JSON.stringify(parsed) !== JSON.stringify(safe)) {
       await spindle.variables.chat.set(chatId, CONFIG_VAR, JSON.stringify(safe));
     }
     return safe;
   } catch (error) {
     spindle.log.warn(`Could not read dialogue color config: ${error?.message || error}`);
-    return cloneDefaultConfig(globalState.preferences.preferredEngine);
+    return cloneDefaultConfig(globalState.preferences.preferredEngine, globalState.preferences.personaColorsEnabled);
   }
 }
 
@@ -1710,6 +1722,9 @@ async function saveBinding(payload, userId) {
   if (typeof payload.personaEnabled === 'boolean') {
     config.personaEnabled = payload.personaEnabled;
   }
+  if (typeof payload.personaInCast === 'boolean') {
+    config.personaInCast = payload.personaInCast;
+  }
   if (typeof payload.promptCharacterColors === 'boolean') {
     config.promptCharacterColors = payload.promptCharacterColors;
   }
@@ -1878,6 +1893,9 @@ async function updateOptions(payload, userId) {
   if (typeof payload.personaEnabled === 'boolean') {
     config.personaEnabled = payload.personaEnabled;
   }
+  if (typeof payload.personaInCast === 'boolean') {
+    config.personaInCast = payload.personaInCast;
+  }
   if (typeof payload.promptCharacterColors === 'boolean') {
     config.promptCharacterColors = payload.promptCharacterColors;
   }
@@ -1893,6 +1911,10 @@ async function updateOptions(payload, userId) {
   if (typeof payload.hybridDiscovery === 'boolean') {
     config.hybridDiscovery = payload.hybridDiscovery;
   }
+  // Make chat-local behavior authoritative immediately. Global preference writes can
+  // legitimately take longer, but a user message sent right after flipping persona
+  // colors must observe the new chat setting instead of the stale one.
+  await saveConfig(chat.id, config);
   await enqueueGlobalPreferenceOperation(userId, async () => {
     const globalState = await loadGlobalState(userId);
     if (ENGINE_VALUES.includes(payload.engine)) {
@@ -1919,9 +1941,11 @@ async function updateOptions(payload, userId) {
     if (['off', 'quoted', 'whole'].includes(payload.autoUserMode)) {
       globalState.preferences.personaMode = payload.autoUserMode;
     }
+    if (typeof payload.personaEnabled === 'boolean') {
+      globalState.preferences.personaColorsEnabled = payload.personaEnabled;
+    }
     await saveGlobalState(globalState, userId);
   });
-  await saveConfig(chat.id, config);
   return buildState({ importCortex: false }, userId);
 }
 
@@ -2065,7 +2089,7 @@ async function assignSceneColors(payload, userId) {
   }
 
   const persona = state.persona;
-  if (persona && config.personaEnabled !== false) {
+  if (persona && (config.personaEnabled !== false || config.personaInCast === true)) {
     const existing = findBinding(config, 'persona', persona.id, persona.name, []);
     if (!existing || (regenerate && existing.pinned === false && existing.source === 'generated')) {
       if (existing) {
@@ -2666,7 +2690,7 @@ function visibleRegistryBindings(config) {
   const selected = new Map();
   for (const binding of Object.values(config.bindings || {})) {
     if (!bindingRegistryColor(binding)) continue;
-    if (binding.kind === 'persona' && config.personaEnabled === false) continue;
+    if (binding.kind === 'persona' && config.personaInCast !== true) continue;
     if (binding.kind !== 'persona' && config.hiddenCharacters?.[normalizeName(binding.name)]) continue;
     const key = `${binding.kind}:${normalizeName(binding.name)}`;
     const current = selected.get(key);

@@ -29,6 +29,15 @@ The Prompt settings include an autosaved custom instruction editor. Templates ca
 
 During generation, gradient text temporarily renders as its first canonical stop. Prism restores the full gradient only when the response completes or is cancelled, preventing streaming repaint flicker.
 
+## Persona behavior
+
+The Persona tab separates two jobs that used to overlap:
+
+- **Color persona messages** automatically colors the active persona's user-role messages. Its enabled/disabled state is remembered as the default for new chats, and existing pre-1.0.2.7 chat state seeds that preference on migration.
+- **Persona is part of the cast** is chat-local and intended for impersonation / Speak for User workflows. It lets assistant-side dialogue resolve to the active persona, includes that persona in the assistant speaker registry, and exposes the persona as a manual recoloring target.
+
+These switches are independent. Cast mode can therefore identify and color an impersonated persona in assistant output even when automatic coloring of user-role messages is disabled.
+
 ## Existing formatting
 
 Portable `<font color>`, escaped legacy tags, BBCode colors, and explicit inline colors are protected. Prism may use a uniquely matched tag as speaker evidence and may apply a reversible local solid/gradient overlay, but it does not destructively rewrite saved markup while rendering.
