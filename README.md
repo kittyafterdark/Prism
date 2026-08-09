@@ -30,7 +30,7 @@ The Prompt settings include an autosaved custom instruction editor. Templates ca
 1. Open Prism from the chat toolbar.
 2. Use **Set up scene** to import Cortex/transcript colors and generate collision-safe colors for anything missing.
 3. Edit solid or two/three-stop gradient paint directly in the roster editor. The first dialogue stop is always the character’s canonical registry color.
-4. In Local or Hybrid, right-click, long-press, or keyboard-open any detected segment to correct its speaker or content type.
+4. In Local or Hybrid, right-click, long-press, or keyboard-open any detected segment to correct its speaker or content type. Enable **Bake manual corrections** under Cortex & attribution if those corrections should also be written into the stored message as portable font tags.
 5. In Hybrid, click the yellow **Awaiting review** status only when Prism finds a clearly named, genuinely new tagged speaker. Register recurring characters, keep cameos temporary, or ignore them.
 
 During generation, gradient text temporarily renders as its first canonical stop. Prism restores the full gradient only when the response completes or is cancelled, preventing streaming repaint flicker.
@@ -46,7 +46,9 @@ These switches are independent. Cast mode can therefore identify and color an im
 
 ## Existing formatting
 
-Portable `<font color>`, escaped legacy tags, BBCode colors, and explicit inline colors are protected. Prism may use a uniquely matched tag as speaker evidence and may apply a reversible local solid/gradient overlay, but it does not destructively rewrite saved markup while rendering.
+Portable `<font color>`, escaped legacy tags, BBCode colors, and explicit inline colors are protected. Prism may use a uniquely matched tag as speaker evidence and may apply a reversible local solid/gradient overlay, but ordinary rendering does not destructively rewrite saved markup.
+
+**Bake manual corrections** is the explicit exception: when enabled in Local or Hybrid, a manual speaker correction writes the canonical speaker color into the active stored swipe. Prism recolors an exact existing font tag when possible or wraps only the corrected segment when markup was missing. Each successful bake creates a transcript recovery backup first.
 
 Lumi theme colors applied as presentation are not treated as legacy speaker evidence.
 

@@ -35,7 +35,8 @@ const backendCompiled = compile('backend.ts', `${backendSource}\n;globalThis.__p
   addSceneCharacter, resolveObservationGroup, mergeSceneCharacter, loadConfig, saveConfig,
   enqueueConfigOperation, configOperationQueues, enqueueGlobalPreferenceOperation, globalPreferenceQueues, updateOptions, updateUiPreferences,
   previewTranscriptMutation, applyTranscriptMutation, restoreTranscriptRecovery, importRegistry,
-  recentRegistrySnapshots, applyPersonaColor, applyPersonaColorToLlmContent, personaColorContext, persistPersonaColorForMessage
+  recentRegistrySnapshots, applyPersonaColor, applyPersonaColorToLlmContent, personaColorContext, persistPersonaColorForMessage,
+  locateVisibleQuote, bakeQuoteMarkup, bakeManualCorrection, saveQuoteOverride
 };`);
 
 const host = {
@@ -109,8 +110,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.2.8');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.2\.8'/);
+  assert.equal(manifest.version, '1.0.2.9');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.2\.9'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -880,6 +881,95 @@ test('Prism exposes live prompt macros and custom prompt placeholders', async ()
   assert.deepEqual(after, before);
   const macroText = await host.registeredMacros.get('prismPrompt').handler({ env: { chat: { id: 'chat-macro' } } });
   assert.match(macroText, /Macro Hero: #12ABEF/);
+});
+
+
+test('manual bake preference is opt-in and exposed only as a persistence choice', async () => {
+  assert.equal(api.safePreferences({}).bakeManualCorrections, false);
+  assert.equal(api.safePreferences({ bakeManualCorrections: true }).bakeManualCorrections, true);
+  assert.match(frontendSource, /Bake manual corrections/);
+  assert.match(frontendSource, /data-role="bake-manual"/);
+  assert.match(frontendSource, /Local \/ Hybrid only/);
+  assert.match(frontendSource, /bakeManualCorrections:e\.target\.checked/);
+  assert.match(backendSource, /globalState\.preferences\.bakeManualCorrections === true && usesDomOverpass\(config\.engine\)/);
+});
+
+test('manual bake wraps the selected visible quote and handles markdown emphasis', () => {
+  const source = 'Lycaon frowned. "I *did* tell you." Hugo blinked.';
+  const baked = api.bakeQuoteMarkup(source, {
+    quote: '"I did tell you."',
+    occurrenceIndex: 0,
+    contextBefore: 'Lycaon frowned. ',
+    contextAfter: ' Hugo blinked.',
+  }, '#57D6C7');
+  assert.equal(baked.status, 'baked');
+  assert.equal(baked.action, 'wrapped-tag');
+  assert.equal(baked.content, 'Lycaon frowned. <font color="#57D6C7">"I *did* tell you."</font> Hugo blinked.');
+});
+
+test('manual bake recolors an exact wrong font tag instead of nesting another tag', () => {
+  const source = 'A <font color="#FF0000">"Wrong color."</font> B';
+  const baked = api.bakeQuoteMarkup(source, {
+    quote: '"Wrong color."', occurrenceIndex: 0, contextBefore: 'A ', contextAfter: ' B',
+  }, '#12ABEF');
+  assert.equal(baked.status, 'baked');
+  assert.equal(baked.action, 'recolored-tag');
+  assert.equal(baked.content, 'A <font color="#12ABEF">"Wrong color."</font> B');
+  assert.equal((baked.content.match(/<font\b/gi) || []).length, 1);
+});
+
+test('manual bake uses nearby context to select the right duplicate quote', () => {
+  const source = 'First: "Same." Middle. Second: "Same." End.';
+  const baked = api.bakeQuoteMarkup(source, {
+    quote: '"Same."', occurrenceIndex: 1, contextBefore: 'Middle. Second: ', contextAfter: ' End.',
+  }, '#C9832E');
+  assert.equal(baked.status, 'baked');
+  assert.equal(baked.content, 'First: "Same." Middle. Second: <font color="#C9832E">"Same."</font> End.');
+});
+
+test('manual bake mutates only the active swipe and creates a recovery backup', async () => {
+  host.chatVars.clear();
+  host.messages = [{ id: 'm-bake', role: 'assistant', content: 'unused', swipes: ['One: "Hi."', 'Two: "Hi."'], swipe_id: 1, metadata: { keep: true } }];
+  host.updates = [];
+  host.updateCalls = 0;
+  const config = api.safeConfig({ engine: 'hybrid', bindings: { 'character:test': binding('Test', '#55AAEE', { speakerUid: 'speaker-test' }) } });
+  const result = await api.bakeManualCorrection({
+    messageId: 'm-bake', swipeId: 1, speakerKey: 'character:speaker-test', kind: 'dialogue', quote: '"Hi."', occurrenceIndex: 0, contextBefore: 'Two: ', contextAfter: '',
+  }, config, { id: 'chat-a' }, 'user-bake');
+  assert.equal(result.status, 'baked');
+  assert.equal(host.messages[0].swipes[0], 'One: "Hi."');
+  assert.equal(host.messages[0].swipes[1], 'Two: <font color="#55AAEE">"Hi."</font>');
+  const recovery = JSON.parse(host.chatVars.get('chat-a|prism_transcript_recovery_v1'));
+  assert.equal(recovery.mode, 'manual-bake');
+  assert.deepEqual(recovery.messages[0].swipes, ['One: "Hi."', 'Two: "Hi."']);
+});
+
+
+test('saveQuoteOverride automatically bakes when the preference is enabled in Hybrid', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.messages = [{ id: 'm-auto-bake', role: 'assistant', content: 'Hugo said, "Persist me."', metadata: {}, swipe_id: 0 }];
+  host.updates = [];
+  host.updateCalls = 0;
+  host.activeChat = { id: 'chat-a', name: 'Bake integration', character_id: 'primary', metadata: {} };
+  const config = api.safeConfig({ engine: 'hybrid', bindings: { 'character:hugo': binding('Hugo', '#D572E4', { targetId: 'hugo', speakerUid: 'speaker-hugo' }) } });
+  host.chatVars.set('chat-a|lumi_dialogue_colors_v1', JSON.stringify(config));
+  host.globalVars.set('prism_preferences_v1', JSON.stringify({ version: 7, preferences: { preferredEngine: 'hybrid', bakeManualCorrections: true }, library: {} }));
+  const result = await api.saveQuoteOverride({
+    chatId: 'chat-a', messageId: 'm-auto-bake', swipeId: 0, contentHash: 'visible-hash', segmentKey: 'seg-1',
+    quote: '"Persist me."', speakerKey: 'character:speaker-hugo', kind: 'dialogue', existingColor: null,
+    occurrenceIndex: 0, contextBefore: 'Hugo said, ', contextAfter: '',
+  }, 'user-bake');
+  assert.equal(result.bake.status, 'baked');
+  assert.equal(host.messages[0].content, 'Hugo said, <font color="#D572E4">"Persist me."</font>');
+  const stored = JSON.parse(host.chatVars.get('chat-a|lumi_dialogue_colors_v1'));
+  assert.equal(stored.overrides['m-auto-bake:0:seg-1'].speakerKey, 'character:speaker-hugo');
+});
+
+test('master switch title and subtitle are stacked instead of colliding inline', () => {
+  assert.match(frontendSource, /\.ldc-master-text\{display:grid;gap:3px/);
+  assert.match(frontendSource, /\.ldc-master-title\{display:block/);
+  assert.match(frontendSource, /\.ldc-master-desc\{display:block/);
 });
 
 let passed = 0;

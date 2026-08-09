@@ -1,3 +1,11 @@
+## 1.0.2.9
+
+- Adds an opt-in **Bake manual corrections** preference for Local and Hybrid. Manual speaker corrections can now be written back into the active stored swipe as portable `<font color>` markup instead of living only in DOM reconstruction.
+- Recolors an exact existing `<font>` segment when the model used the wrong canonical color; otherwise wraps only the corrected visible segment in a new portable font tag.
+- Uses quote occurrence plus nearby visible context to avoid rewriting the wrong duplicate line, and leaves the normal manual override intact as attribution evidence.
+- Stores a transcript recovery backup before each successful manual bake.
+- Fixes the master-switch subtitle layout so its description sits beneath the title with actual breathing room.
+
 ## 1.0.2.8
 
 - Adds a user-wide **Prism is on / Prism is off** master switch above the scene workspace.
