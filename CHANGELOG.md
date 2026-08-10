@@ -1,3 +1,10 @@
+## 1.0.2.10
+
+- Makes manual Bake tolerant of Lumi-normalized color markup: exact `<span style="color: …">` segments are now recolored in place instead of treated as unrelated markup.
+- Canonicalizes smart/straight quotes, dash variants, non-breaking/zero-width spacing, NFKC forms, and common HTML entities while locating the stored dialogue segment.
+- If the frontend swipe hint is stale or absent, Bake safely retries the message's active stored swipe before giving up, then rekeys the manual override to the resolved swipe.
+- Adds regression coverage for Lumi-style span normalization and active-swipe fallback.
+
 ## 1.0.2.9
 
 - Adds an opt-in **Bake manual corrections** preference for Local and Hybrid. Manual speaker corrections can now be written back into the active stored swipe as portable `<font color>` markup instead of living only in DOM reconstruction.

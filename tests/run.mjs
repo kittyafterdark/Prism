@@ -110,8 +110,8 @@ function binding(name, color, extra = {}) {
 }
 
 test('manifest and frontend generation lifecycle are release-ready', () => {
-  assert.equal(manifest.version, '1.0.2.9');
-  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.2\.9'/);
+  assert.equal(manifest.version, '1.0.2.10');
+  assert.match(backendSource, /const PRISM_VERSION = '1\.0\.2\.10'/);
   assert.ok(manifest.permissions.includes('generation'));
   for (const event of ['GENERATION_STARTED', 'STREAM_TOKEN_RECEIVED', 'GENERATION_ENDED', 'GENERATION_STOPPED', 'MESSAGE_EDITED', 'USER_MESSAGE_RENDERED']) assert.ok(frontendSource.includes(`'${event}'`));
   assert.ok(frontendSource.includes('[data-prism-streaming="true"] .ldc-prism-paint[data-prism-paint="gradient"]'));
@@ -964,6 +964,70 @@ test('saveQuoteOverride automatically bakes when the preference is enabled in Hy
   assert.equal(host.messages[0].content, 'Hugo said, <font color="#D572E4">"Persist me."</font>');
   const stored = JSON.parse(host.chatVars.get('chat-a|lumi_dialogue_colors_v1'));
   assert.equal(stored.overrides['m-auto-bake:0:seg-1'].speakerKey, 'character:speaker-hugo');
+});
+
+
+test('manual bake recolors Lumi-normalized span markup in place', () => {
+  const source = 'A <span class="legacy-color" style="font-weight: 600; color: #ff0000">“Wrong color.”</span> B';
+  const baked = api.bakeQuoteMarkup(source, {
+    quote: '"Wrong color."', occurrenceIndex: 0, contextBefore: 'A ', contextAfter: ' B',
+  }, '#12ABEF');
+  assert.equal(baked.status, 'baked');
+  assert.equal(baked.action, 'recolored-span');
+  assert.match(baked.content, /style="font-weight: 600; color: #12ABEF"/);
+  assert.equal((baked.content.match(/<font\b/gi) || []).length, 0);
+});
+
+test('manual bake canonicalizes HTML entities and punctuation variants while locating', () => {
+  const source = 'Hugo&nbsp;said&mdash;&nbsp;&ldquo;Don&rsquo;t panic.&rdquo;';
+  const baked = api.bakeQuoteMarkup(source, {
+    quote: '“Don’t panic.”', occurrenceIndex: 0, contextBefore: 'Hugo said— ', contextAfter: '',
+  }, '#D572E4');
+  assert.equal(baked.status, 'baked');
+  assert.match(baked.content, /<font color="#D572E4">&ldquo;Don&rsquo;t panic\.&rdquo;<\/font>/);
+});
+
+test('manual bake falls back to the active stored swipe when the frontend swipe hint is stale', async () => {
+  host.chatVars.clear();
+  host.messages = [{ id: 'm-stale-swipe', role: 'assistant', content: 'unused', swipes: ['Old swipe: "Nope."', 'Current swipe: "Bake me."'], swipe_id: 1, metadata: {} }];
+  host.updates = [];
+  host.updateCalls = 0;
+  const config = api.safeConfig({ engine: 'hybrid', bindings: { 'character:test': binding('Test', '#55AAEE', { speakerUid: 'speaker-test' }) } });
+  const result = await api.bakeManualCorrection({
+    messageId: 'm-stale-swipe', swipeId: 0, speakerKey: 'character:speaker-test', kind: 'dialogue', quote: '"Bake me."',
+    occurrenceIndex: 0, contextBefore: 'Current swipe: ', contextAfter: '',
+  }, config, { id: 'chat-a' }, 'user-bake');
+  assert.equal(result.status, 'baked');
+  assert.equal(result.resolvedSwipeId, 1);
+  assert.equal(host.messages[0].swipes[0], 'Old swipe: "Nope."');
+  assert.equal(host.messages[0].swipes[1], 'Current swipe: <font color="#55AAEE">"Bake me."</font>');
+});
+
+
+test('saveQuoteOverride rekeys a stale swipe hint after a successful active-swipe bake', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.messages = [{
+    id: 'm-rekey-bake', role: 'assistant', content: 'unused',
+    swipes: ['Old swipe: "Not this."', 'Current: <span style="color: #ff0000">“Bake this.”</span>'], swipe_id: 1, metadata: {},
+  }];
+  host.updates = [];
+  host.updateCalls = 0;
+  host.activeChat = { id: 'chat-a', name: 'Bake rekey', character_id: 'primary', metadata: {} };
+  const config = api.safeConfig({ engine: 'hybrid', bindings: { 'character:hugo': binding('Hugo', '#D572E4', { targetId: 'hugo', speakerUid: 'speaker-hugo' }) } });
+  host.chatVars.set('chat-a|lumi_dialogue_colors_v1', JSON.stringify(config));
+  host.globalVars.set('prism_preferences_v1', JSON.stringify({ version: 7, preferences: { preferredEngine: 'hybrid', bakeManualCorrections: true }, library: {} }));
+  const result = await api.saveQuoteOverride({
+    chatId: 'chat-a', messageId: 'm-rekey-bake', swipeId: 0, contentHash: 'visible-hash', segmentKey: 'seg-rekey',
+    quote: '"Bake this."', speakerKey: 'character:speaker-hugo', kind: 'dialogue', existingColor: '#FF0000',
+    occurrenceIndex: 0, contextBefore: 'Current: ', contextAfter: '',
+  }, 'user-bake');
+  assert.equal(result.bake.status, 'baked');
+  assert.equal(result.bake.resolvedSwipeId, 1);
+  assert.match(host.messages[0].swipes[1], /<span style="color: #D572E4">“Bake this\.”<\/span>/);
+  const stored = JSON.parse(host.chatVars.get('chat-a|lumi_dialogue_colors_v1'));
+  assert.equal(stored.overrides['m-rekey-bake:0:seg-rekey'], undefined);
+  assert.equal(stored.overrides['m-rekey-bake:1:seg-rekey'].speakerKey, 'character:speaker-hugo');
 });
 
 test('master switch title and subtitle are stacked instead of colliding inline', () => {

@@ -4,7 +4,7 @@ declare const spindle: import("lumiverse-spindle-types").SpindleAPI;
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const RECOVERY_VAR = 'prism_transcript_recovery_v1';
-const PRISM_VERSION = '1.0.2.9';
+const PRISM_VERSION = '1.0.2.10';
 const FAST_OPTIONAL_TIMEOUT_MS = 4500;
 const TRANSCRIPT_TIMEOUT_MS = 12000;
 const HYDRATION_FETCH_TIMEOUT_MS = 5000;
@@ -2128,11 +2128,14 @@ async function assignSceneColors(payload, userId) {
 
 function decodeProjectionEntity(source, index) {
   const tail = source.slice(index);
-  const named = tail.match(/^&(quot|apos|#39|amp|lt|gt);/i);
+  const named = tail.match(/^&(quot|apos|#39|amp|lt|gt|nbsp|ldquo|rdquo|lsquo|rsquo|ndash|mdash|hellip);/i);
   if (named) {
     const key = named[1].toLocaleLowerCase();
-    const value = key === 'quot' ? '"' : (key === 'apos' || key === '#39') ? "'" : key === 'amp' ? '&' : key === 'lt' ? '<' : '>';
-    return { value, length: named[0].length };
+    const values = {
+      quot: '"', apos: "'", '#39': "'", amp: '&', lt: '<', gt: '>', nbsp: ' ',
+      ldquo: '“', rdquo: '”', lsquo: '‘', rsquo: '’', ndash: '–', mdash: '—', hellip: '…',
+    };
+    return { value: values[key] || '', length: named[0].length };
   }
   const numeric = tail.match(/^&#(x[0-9a-f]+|\d+);/i);
   if (!numeric) return null;
@@ -2174,8 +2177,17 @@ function visibleSourceProjection(content, stripMarkdown = false) {
   return { text: chars.join(''), map };
 }
 
+function canonicalLocatorChunk(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .replace(/[“”„‟]/g, '"')
+    .replace(/[‘’‚‛]/g, "'")
+    .replace(/[‐‑‒–—―]/g, '-')
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+}
+
 function normalizeLocatorText(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+  return canonicalLocatorChunk(value).replace(/\s+/g, ' ').trim().toLocaleLowerCase();
 }
 
 function normalizedProjection(projection) {
@@ -2183,17 +2195,19 @@ function normalizedProjection(projection) {
   const map = [];
   let pendingSpace = null;
   for (let index = 0; index < projection.text.length; index += 1) {
-    const char = projection.text[index];
     const sourceRange = projection.map[index];
-    if (/\s/u.test(char)) {
-      if (!pendingSpace) pendingSpace = { start: sourceRange.start, end: sourceRange.end };
-      else pendingSpace.end = sourceRange.end;
-      continue;
+    const chunk = canonicalLocatorChunk(projection.text[index]);
+    for (const char of chunk) {
+      if (/\s/u.test(char)) {
+        if (!pendingSpace) pendingSpace = { start: sourceRange.start, end: sourceRange.end };
+        else pendingSpace.end = sourceRange.end;
+        continue;
+      }
+      if (pendingSpace && text) { text += ' '; map.push(pendingSpace); }
+      pendingSpace = null;
+      text += char.toLocaleLowerCase();
+      map.push(sourceRange);
     }
-    if (pendingSpace && text) { text += ' '; map.push(pendingSpace); }
-    pendingSpace = null;
-    text += char.toLocaleLowerCase();
-    map.push(sourceRange);
   }
   return { text, map };
 }
@@ -2250,14 +2264,15 @@ function locateVisibleQuote(content, quote, locator = {}) {
   return null;
 }
 
-function recolorExactEnclosingFont(content, range, quote, color) {
+function recolorExactEnclosingColorTag(content, range, quote, color) {
   const source = String(content || '');
   const needle = normalizeLocatorText(quote);
-  const pattern = /<font\b[^>]*\bcolor\s*=\s*["']?(#[0-9a-f]{3,6})["']?[^>]*>[\s\S]*?<\/font>/gi;
+  const pattern = /<(font|span)\b[^>]*>[\s\S]*?<\/\1>/gi;
   let match;
   while ((match = pattern.exec(source))) {
+    const tagName = String(match[1] || '').toLocaleLowerCase();
     const openingEndRelative = match[0].indexOf('>') + 1;
-    const closingStartRelative = match[0].toLocaleLowerCase().lastIndexOf('</font>');
+    const closingStartRelative = match[0].toLocaleLowerCase().lastIndexOf(`</${tagName}>`);
     if (openingEndRelative <= 0 || closingStartRelative < openingEndRelative) continue;
     const innerStart = match.index + openingEndRelative;
     const innerEnd = match.index + closingStartRelative;
@@ -2265,15 +2280,30 @@ function recolorExactEnclosingFont(content, range, quote, color) {
     const inner = match[0].slice(openingEndRelative, closingStartRelative);
     const projectedInner = normalizeLocatorText(visibleSourceProjection(inner, true).text);
     if (projectedInner !== needle) continue;
-    const oldColor = normalizeHex(match[1]);
-    if (oldColor === color) return { content: source, changed: false, action: 'already-tagged' };
     const opening = match[0].slice(0, openingEndRelative);
-    const recoloredOpening = opening.replace(/(\bcolor\s*=\s*)(["']?)(#[0-9a-f]{3,6})\2/i, (_, prefix, quoteMark) => `${prefix}${quoteMark}${color}${quoteMark}`);
+    let recoloredOpening = opening;
+    let currentColor = null;
+    if (tagName === 'font') {
+      const colorMatch = opening.match(/\bcolor\s*=\s*(["']?)(#[0-9a-f]{3,6})\1/i);
+      if (!colorMatch) continue;
+      currentColor = normalizeHex(colorMatch[2]);
+      recoloredOpening = opening.replace(/(\bcolor\s*=\s*)(["']?)(#[0-9a-f]{3,6})\2/i, (_, prefix, quoteMark) => `${prefix}${quoteMark}${color}${quoteMark}`);
+    } else {
+      const styleMatch = opening.match(/\bstyle\s*=\s*(["'])([\s\S]*?)\1/i);
+      if (!styleMatch) continue;
+      const style = styleMatch[2];
+      const colorDecl = style.match(/(^|;)\s*color\s*:\s*([^;]+)/i);
+      if (!colorDecl) continue;
+      currentColor = normalizeHex(String(colorDecl[2] || '').trim());
+      const nextStyle = style.replace(/(^|;)(\s*color\s*:\s*)([^;]+)/i, (_, lead, prefix) => `${lead}${prefix}${color}`);
+      recoloredOpening = opening.replace(styleMatch[0], styleMatch[0].replace(style, nextStyle));
+    }
+    if (currentColor === color) return { content: source, changed: false, action: 'already-tagged' };
     if (recoloredOpening === opening) continue;
     return {
       content: source.slice(0, match.index) + recoloredOpening + match[0].slice(openingEndRelative) + source.slice(match.index + match[0].length),
       changed: true,
-      action: 'recolored-tag',
+      action: tagName === 'span' ? 'recolored-span' : 'recolored-tag',
     };
   }
   return null;
@@ -2285,7 +2315,7 @@ function bakeQuoteMarkup(content, payload, color) {
   if (!normalized) return { content: source, changed: false, status: 'no-color' };
   const range = locateVisibleQuote(source, payload?.quote, payload || {});
   if (!range) return { content: source, changed: false, status: 'quote-not-found' };
-  const existing = recolorExactEnclosingFont(source, range, payload?.quote, normalized);
+  const existing = recolorExactEnclosingColorTag(source, range, payload?.quote, normalized);
   if (existing) return { ...existing, status: existing.changed ? 'baked' : 'already-baked' };
   return {
     content: `${source.slice(0, range.start)}<font color="${normalized}">${source.slice(range.start, range.end)}</font>${source.slice(range.end)}`,
@@ -2312,11 +2342,24 @@ async function bakeManualCorrection(payload, config, chat, userId) {
   const message = (messages || []).find((item) => String(item?.id) === String(payload.messageId));
   if (!message) return { status: 'message-not-found' };
   const hasSwipes = Array.isArray(message.swipes) && message.swipes.length > 0;
-  const swipeId = Math.max(0, Number(payload.swipeId) || 0);
-  if (hasSwipes && swipeId >= message.swipes.length) return { status: 'swipe-not-found' };
-  const current = hasSwipes ? String(message.swipes[swipeId] || '') : String(message.content || '');
-  const baked = bakeQuoteMarkup(current, payload, color);
-  if (!baked.changed) return baked;
+  const requestedSwipeId = Math.max(0, Number(payload.swipeId) || 0);
+  if (hasSwipes && requestedSwipeId >= message.swipes.length) return { status: 'swipe-not-found' };
+  let swipeId = requestedSwipeId;
+  let current = hasSwipes ? String(message.swipes[swipeId] || '') : String(message.content || '');
+  let baked = bakeQuoteMarkup(current, payload, color);
+  if (hasSwipes && baked.status === 'quote-not-found') {
+    const activeSwipeId = Math.max(0, Math.min(Number(message.swipe_id) || 0, message.swipes.length - 1));
+    if (activeSwipeId !== swipeId) {
+      const activeContent = String(message.swipes[activeSwipeId] || '');
+      const activeBake = bakeQuoteMarkup(activeContent, payload, color);
+      if (activeBake.status !== 'quote-not-found') {
+        swipeId = activeSwipeId;
+        current = activeContent;
+        baked = activeBake;
+      }
+    }
+  }
+  if (!baked.changed) return { ...baked, resolvedSwipeId: swipeId };
   const original = {
     ...(hasSwipes ? { swipes: message.swipes } : { content: message.content }),
     swipe_id: message.swipe_id,
@@ -2334,7 +2377,7 @@ async function bakeManualCorrection(payload, config, chat, userId) {
     ? { swipes: message.swipes.map((value, index) => index === swipeId ? baked.content : value), swipe_id: message.swipe_id, metadata: message.metadata || {} }
     : { content: baked.content, swipe_id: message.swipe_id, metadata: message.metadata || {} };
   await spindle.chat.updateMessage(chat.id, String(message.id), next, userId);
-  return baked;
+  return { ...baked, resolvedSwipeId: swipeId };
 }
 
 async function saveQuoteOverride(payload, userId) {
@@ -2379,6 +2422,18 @@ async function saveQuoteOverride(payload, userId) {
   if (globalState.preferences.bakeManualCorrections === true && usesDomOverpass(config.engine)) {
     try {
       bake = await bakeManualCorrection({ ...payload, speakerKey, kind }, config, chat, userId);
+      const resolvedSwipeId = Number.isFinite(Number(bake?.resolvedSwipeId)) ? Math.max(0, Number(bake.resolvedSwipeId)) : Math.max(0, Number(payload.swipeId) || 0);
+      const requestedSwipeId = Math.max(0, Number(payload.swipeId) || 0);
+      if (resolvedSwipeId !== requestedSwipeId) {
+        const previousKey = `${messageId}:${requestedSwipeId}:${segmentKey}`;
+        const resolvedKey = `${messageId}:${resolvedSwipeId}:${segmentKey}`;
+        const savedOverride = config.overrides[previousKey];
+        if (savedOverride) {
+          delete config.overrides[previousKey];
+          config.overrides[resolvedKey] = { ...savedOverride, swipeId: resolvedSwipeId, updatedAt: Date.now() };
+          await saveConfig(chat.id, config);
+        }
+      }
     } catch (error) {
       bake = { status: 'error', error: String(error?.message || error).slice(0, 300) };
       spindle.log.warn(`Manual correction was saved but could not be baked: ${error?.message || error}`);
