@@ -1,7 +1,8 @@
+"use strict";
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const RECOVERY_VAR = 'prism_transcript_recovery_v1';
-const PRISM_VERSION = '1.0.2.9';
+const PRISM_VERSION = '1.0.2.10';
 const FAST_OPTIONAL_TIMEOUT_MS = 4500;
 const TRANSCRIPT_TIMEOUT_MS = 12000;
 const HYDRATION_FETCH_TIMEOUT_MS = 5000;
@@ -183,7 +184,7 @@ function safePaint(raw, fallbackColor) {
         return {
             mode: 'gradient',
             stops,
-            angle: Math.max(0, Math.min(360, Number(raw.angle) || 90)),
+            angle: Math.max(0, Math.min(360, Number.isFinite(Number(raw.angle)) ? Number(raw.angle) : 90)),
             anchor,
         };
     }
@@ -1011,6 +1012,8 @@ function mergeSceneCharacter(characters, candidate) {
     }
     existing.entityId = existing.entityId || candidate.entityId || null;
     existing.characterId = existing.characterId || candidate.characterId || null;
+    if (candidate.source === 'manual-roster' && identityMatch)
+        existing.name = candidate.name;
     existing.aliases = uniqueStrings([...(existing.aliases || []), ...(candidate.aliases || [])])
         .filter((alias) => normalizeName(alias) !== normalizeName(existing.name));
     existing.status = existing.status || candidate.status || 'active';
@@ -1837,6 +1840,40 @@ async function addSceneCharacter(payload, userId) {
     }
     return { state, addedCharacterId: String(added.id), addedCharacterName: added.name };
 }
+async function renameSceneCharacter(payload, userId) {
+    const chat = await spindle.chats.getActive(userId);
+    if (!chat || (payload.chatId && String(payload.chatId) !== String(chat.id))) {
+        throw new Error('The active chat changed. Reopen Prism and try again.');
+    }
+    const name = cleanSceneName(payload.name);
+    if (!name)
+        throw new Error('Enter a short character name without markup.');
+    const state = await buildState({ importCortex: false }, userId);
+    const character = state.characters.find((item) => String(item.id) === String(payload.characterId));
+    if (!character)
+        throw new Error('That character is no longer in the scene roster.');
+    if (state.characters.some((item) => item !== character && [item.name, ...(item.aliases || [])].map(normalizeName).includes(normalizeName(name)))) {
+        throw new Error('Another scene character already uses that name or alias.');
+    }
+    const config = await loadConfig(chat.id, userId);
+    const binding = findBinding(config, 'character', character.id, character.name, character.aliases);
+    if (Object.values(config.bindings).some((item) => item !== binding && [item.name, ...(item.aliases || [])].map(normalizeName).includes(normalizeName(name)))) {
+        throw new Error('Another saved speaker already uses that name or alias.');
+    }
+    const aliases = uniqueStrings([...(character.aliases || []), ...(binding?.aliases || []), character.name])
+        .filter((alias) => normalizeName(alias) !== normalizeName(name));
+    // Keep the target and speaker IDs so paints, history, and overrides remain attached.
+    config.manualCharacters[character.id] = { id: String(character.id), name, aliases, source: 'manual-roster' };
+    if (normalizeName(character.name) !== normalizeName(name))
+        config.hiddenCharacters[normalizeName(character.name)] = true;
+    delete config.hiddenCharacters[normalizeName(name)];
+    if (binding) {
+        binding.name = name;
+        binding.aliases = aliases;
+    }
+    await saveConfig(chat.id, config);
+    return buildState({ importCortex: false }, userId);
+}
 async function removeSceneCharacter(payload, userId) {
     const chat = await spindle.chats.getActive(userId);
     if (!chat || (payload.chatId && String(payload.chatId) !== String(chat.id))) {
@@ -2003,7 +2040,7 @@ async function importRegistry(payload, userId) {
         const targetId = String(existing?.targetId || (kind === 'persona'
             ? `persona-import:${hashString(normalizeName(name)).toString(36)}`
             : `manual:${hashString(normalizeName(name)).toString(36)}`));
-        const channels = safeChannels(existing?.channels, color);
+        const channels = safeChannels(raw?.channels || existing?.channels, color);
         channels.dialogue.paint.stops[0] = color;
         channels.dialogue.paint.anchor = color;
         channels.thought.paint.anchor = color;
@@ -3395,6 +3432,11 @@ spindle.onFrontendMessage(async (payload, userId) => {
                 }
                 case 'ldc_save_binding': {
                     const state = await saveBinding(payload, userId);
+                    reply('ldc_state', { state, saved: true });
+                    break;
+                }
+                case 'ldc_rename_character': {
+                    const state = await renameSceneCharacter(payload, userId);
                     reply('ldc_state', { state, saved: true });
                     break;
                 }

@@ -35,6 +35,10 @@ The Prompt settings include an autosaved custom instruction editor. Templates ca
 
 During generation, gradient text temporarily renders as its first canonical stop. Prism restores the full gradient only when the response completes or is cancelled, preventing streaming repaint flicker.
 
+Use **Character name → Save name** in a character's Identity editor to correct a scene roster name without recreating the character. This affects the current chat and preserves their colors and manual speaker corrections. The old spelling stays as an alias for existing dialogue.
+
+**Copy registry JSON** in Cortex & attribution settings includes dialogue and thought paints, including gradients and thought linking. **Import registry JSON** restores those settings; older exports containing only canonical colors still work.
+
 ## Persona behavior
 
 The Persona tab separates two jobs that used to overlap:

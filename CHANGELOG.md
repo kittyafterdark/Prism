@@ -1,3 +1,9 @@
+## 1.0.2.10
+
+- Adds a **Character name** field and **Save name** action in the character Identity editor. Renaming keeps stable speaker IDs, saved paint, and manual attribution; the previous spelling remains an alias for existing dialogue.
+- Includes dialogue and thought paint settings in **Copy registry JSON** and restores them on import, including gradient stops, angles, enabled states, and thought linking. Older exports remain compatible.
+- Preserves zero-degree gradient angles and restores focused automated verification for roster renaming and registry export/import.
+
 ## 1.0.2.9
 
 - Adds an opt-in **Bake manual corrections** preference for Local and Hybrid. Manual speaker corrections can now be written back into the active stored swipe as portable `<font color>` markup instead of living only in DOM reconstruction.
