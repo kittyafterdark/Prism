@@ -1,3 +1,8 @@
+## Unreleased
+
+- Adds a manual persona save button in desktop and accessibility layouts, including when the save indicator is hidden.
+- Saves current paint before applying persona options, preventing option changes from discarding pending color edits.
+
 ## 1.0.2.10
 
 - Adds a **Character name** field and **Save name** action in the character Identity editor. Renaming keeps stable speaker IDs, saved paint, and manual attribution; the previous spelling remains an alias for existing dialogue.

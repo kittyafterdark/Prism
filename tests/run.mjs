@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
 import ts from 'typescript';
+import './persona-save.mjs';
 
 const backend = await fs.readFile(new URL('../src/backend.ts', import.meta.url), 'utf8');
 const frontend = await fs.readFile(new URL('../src/frontend.ts', import.meta.url), 'utf8');
