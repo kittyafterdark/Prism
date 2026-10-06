@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Adds mobile two-tap recoloring: tap once to highlight a segment, then again to open the menu. Scrolling, dragging, or tapping elsewhere clears the highlight; native text selection is suppressed on mobile Prism segments.
 - Aligns the Prism toolbar button and saved/sync indicator to the right edge beside the native chat controls.
 - Adds a manual persona save button in desktop and accessibility layouts, including when the save indicator is hidden.
 - Saves current paint before applying persona options, preventing option changes from discarding pending color edits.

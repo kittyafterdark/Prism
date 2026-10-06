@@ -24,7 +24,7 @@ body .ldc-toolbar-save-state[data-prism-save-status=off] i,body .ldc-savebar [da
 .ldc-settings{padding:18px 20px;min-height:320px}.ldc-add-person{box-sizing:border-box;width:100%;min-height:238px;padding:18px 20px}.ldc-add-person .ldc-heading{margin-bottom:16px}.ldc-add-person .ldc-actions{margin-top:15px}.ldc-settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ldc-card{padding:12px;border:1px solid var(--lumiverse-border);border-radius:12px;background:var(--lumiverse-fill-subtle)}.ldc-card h4{margin:0 0 5px}.ldc-card p{color:var(--lumiverse-text-dim);font-size:9.5px;line-height:1.45}.ldc-status{display:flex;justify-content:space-between;padding:10px 11px;color:var(--lumiverse-text-dim);font-size:9px}.ldc-loading{display:grid;place-items:center;min-height:380px}.ldc-error{margin:16px;padding:16px;border:1px solid var(--lumiverse-danger);border-radius:12px;color:var(--lumiverse-danger)}
 .ldc-dom-dialogue,.ldc-inline-color{color:var(--ldc-color)!important}.ldc-dom-dialogue{cursor:context-menu}.ldc-dom-dialogue[data-prism-confidence-level=low]{text-decoration-line:underline;text-decoration-style:dotted;text-decoration-color:color-mix(in srgb,currentColor 55%,transparent);text-underline-offset:.18em}.ldc-dom-whole,.ldc-dom-whole *:not(a):not(button){color:var(--ldc-color)!important}@media(max-width:620px){.ldc-main{grid-template-columns:minmax(132px,155px) minmax(0,1fr)}.ldc-panel{padding:15px 12px}.ldc-side{padding:10px 7px}.ldc-person{padding:7px 6px}.ldc-person-source,.ldc-engine-copy{display:none}.ldc-settings-grid{grid-template-columns:1fr}}
 .ldc-tab{border-radius:0;border-bottom:2px solid transparent}.ldc-tab[data-active=true]{border-bottom-color:var(--lumiverse-primary);background:transparent}.ldc-heading h3{font-size:14px}
-.ldc-channel-tabs,.ldc-mode-tabs{display:flex;gap:5px;margin-bottom:12px}.ldc-channel-tabs button,.ldc-mode-tabs button{flex:1;border:1px solid var(--lumiverse-border);border-radius:9px;padding:7px;background:var(--lumiverse-fill-subtle);color:var(--lumiverse-text-muted);font-size:9px;font-weight:800;cursor:pointer}.ldc-channel-tabs button[data-active=true],.ldc-mode-tabs button[data-active=true]{border-color:var(--lumiverse-primary);background:var(--psoft);color:var(--lumiverse-primary)}.ldc-paint-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.ldc-advanced{margin-top:10px;padding-top:10px;border-top:1px solid var(--lumiverse-border)}.ldc-preview-line{display:block;margin-top:5px}.ldc-prism-paint{color:var(--ldc-color,var(--ldc-fallback))!important}.ldc-dom-dialogue,.ldc-dom-thought{cursor:context-menu}.ldc-dom-thought{font-style:italic}.ldc-prism-unpainted{color:inherit!important;background-image:none!important;-webkit-text-fill-color:currentColor!important;text-decoration-line:underline;text-decoration-style:dotted;text-decoration-color:transparent;text-underline-offset:.18em}.ldc-prism-unpainted[data-prism-confidence-level=low]{text-decoration-color:color-mix(in srgb,currentColor 22%,transparent)}.ldc-prism-unpainted:hover,.ldc-prism-unpainted:focus-visible,.ldc-prism-reviewing{border-radius:.25em;background:color-mix(in srgb,var(--lumiverse-primary) 10%,transparent);text-decoration-color:color-mix(in srgb,var(--lumiverse-primary) 65%,transparent);outline:none}@supports ((background-clip:text) or (-webkit-background-clip:text)){.ldc-prism-paint[data-prism-paint=gradient]{background-image:var(--ldc-gradient)!important;background-position:center!important;background-repeat:no-repeat!important;background-size:100% 100%!important;background-color:transparent!important;background-clip:text!important;-webkit-background-clip:text!important;color:transparent!important;-webkit-text-fill-color:transparent!important}.ldc-dom-whole.ldc-prism-paint[data-prism-paint=gradient] *{background-image:var(--ldc-gradient)!important;background-clip:text!important;-webkit-background-clip:text!important;color:transparent!important;-webkit-text-fill-color:transparent!important}.ldc-prism-paint[data-prism-paint=gradient]::selection{color:HighlightText!important;-webkit-text-fill-color:HighlightText;background:Highlight}}
+.ldc-channel-tabs,.ldc-mode-tabs{display:flex;gap:5px;margin-bottom:12px}.ldc-channel-tabs button,.ldc-mode-tabs button{flex:1;border:1px solid var(--lumiverse-border);border-radius:9px;padding:7px;background:var(--lumiverse-fill-subtle);color:var(--lumiverse-text-muted);font-size:9px;font-weight:800;cursor:pointer}.ldc-channel-tabs button[data-active=true],.ldc-mode-tabs button[data-active=true]{border-color:var(--lumiverse-primary);background:var(--psoft);color:var(--lumiverse-primary)}.ldc-paint-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.ldc-advanced{margin-top:10px;padding-top:10px;border-top:1px solid var(--lumiverse-border)}.ldc-preview-line{display:block;margin-top:5px}.ldc-prism-paint{color:var(--ldc-color,var(--ldc-fallback))!important}.ldc-dom-dialogue,.ldc-dom-thought{cursor:context-menu}.ldc-prism-tap-selected{outline:2px solid var(--lumiverse-primary);outline-offset:2px;border-radius:.25em}@media(pointer:coarse){.ldc-prism-segment{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}}.ldc-dom-thought{font-style:italic}.ldc-prism-unpainted{color:inherit!important;background-image:none!important;-webkit-text-fill-color:currentColor!important;text-decoration-line:underline;text-decoration-style:dotted;text-decoration-color:transparent;text-underline-offset:.18em}.ldc-prism-unpainted[data-prism-confidence-level=low]{text-decoration-color:color-mix(in srgb,currentColor 22%,transparent)}.ldc-prism-unpainted:hover,.ldc-prism-unpainted:focus-visible,.ldc-prism-reviewing{border-radius:.25em;background:color-mix(in srgb,var(--lumiverse-primary) 10%,transparent);text-decoration-color:color-mix(in srgb,var(--lumiverse-primary) 65%,transparent);outline:none}@supports ((background-clip:text) or (-webkit-background-clip:text)){.ldc-prism-paint[data-prism-paint=gradient]{background-image:var(--ldc-gradient)!important;background-position:center!important;background-repeat:no-repeat!important;background-size:100% 100%!important;background-color:transparent!important;background-clip:text!important;-webkit-background-clip:text!important;color:transparent!important;-webkit-text-fill-color:transparent!important}.ldc-dom-whole.ldc-prism-paint[data-prism-paint=gradient] *{background-image:var(--ldc-gradient)!important;background-clip:text!important;-webkit-background-clip:text!important;color:transparent!important;-webkit-text-fill-color:transparent!important}.ldc-prism-paint[data-prism-paint=gradient]::selection{color:HighlightText!important;-webkit-text-fill-color:HighlightText;background:Highlight}}
 .ldc-shell{--prism-line:color-mix(in srgb,var(--lumiverse-primary) 24%,var(--lumiverse-border));position:relative;min-height:500px;border:1px solid var(--prism-line);border-radius:16px;background:radial-gradient(circle at 72% -20%,color-mix(in srgb,#6ee7ff 8%,transparent),transparent 38%),radial-gradient(circle at 15% 110%,color-mix(in srgb,var(--lumiverse-primary) 10%,transparent),transparent 42%),var(--lumiverse-bg-elevated);box-shadow:0 24px 70px rgba(0,0,0,.42),inset 0 1px rgba(255,255,255,.045)}.ldc-shell::before{content:"";position:absolute;z-index:8;inset:0 0 auto;height:2px;pointer-events:none;background:linear-gradient(90deg,transparent,#c37cff,#64d9ff,#8cffbd,transparent);opacity:.72}.ldc-main-wrap{position:relative;display:flex;flex:1;min-height:0}.ldc-main{width:100%;margin-top:10px}.ldc-panel{position:relative;min-height:0;max-height:470px;padding:0;overflow:auto;background:color-mix(in srgb,var(--lumiverse-bg-elevated) 88%,transparent)}
 .ldc-editor-head{position:sticky;top:0;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--lumiverse-border);background:color-mix(in srgb,var(--lumiverse-bg-elevated) 88%,transparent);backdrop-filter:blur(18px)}.ldc-editor-head h3{margin:0;font-size:14px}.ldc-preview{margin:15px 18px;padding:15px;border:1px solid var(--prism-line);border-radius:14px;background:linear-gradient(145deg,color-mix(in srgb,var(--lumiverse-primary) 9%,transparent),transparent 62%);font-size:11px;line-height:1.65}.ldc-preview-line{display:block;margin-top:3px}.ldc-preview [data-prism-paint]{color:var(--ldc-color,var(--ldc-fallback))!important}.ldc-editor-controls{padding:0 18px 18px}.ldc-editor-switch{display:flex;align-items:center;justify-content:space-between;gap:14px}.ldc-channel-tabs{display:flex;gap:5px;margin:0}.ldc-channel-tabs button{min-width:78px}.ldc-mode-select{display:flex;align-items:center;gap:8px;color:var(--lumiverse-text-dim);font-size:9px;font-weight:800}.ldc-mode-select .ldc-select{width:92px;height:31px}.ldc-enable{display:flex;align-items:center;gap:7px;margin:12px 0 9px;color:var(--lumiverse-text-muted);font-size:10px}.ldc-thought-link{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 9px;padding:8px 10px;border:1px solid var(--lumiverse-border);border-radius:10px;background:var(--lumiverse-fill-subtle);color:var(--lumiverse-text-muted);font-size:9px}.ldc-thought-link label{display:flex;align-items:center;gap:7px;cursor:pointer}.ldc-thought-link span:last-child{color:var(--lumiverse-text-dim);font-size:8px}.ldc-editor-controls[data-thought-linked=true] .ldc-gradient-editor,.ldc-editor-controls[data-thought-linked=true] .ldc-hex-row,.ldc-editor-controls[data-thought-linked=true] .ldc-direction,.ldc-editor-controls[data-thought-linked=true] .ldc-mode-select{opacity:.72}.ldc-gradient-editor{display:grid;grid-template-columns:auto minmax(100px,1fr) auto;align-items:center;gap:10px;padding:13px;border:1px solid var(--lumiverse-border);border-radius:13px;background:var(--lumiverse-fill-subtle)}.ldc-stop{position:relative;display:block;width:31px;height:31px;cursor:pointer}.ldc-stop input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}.ldc-stop span{display:block;width:31px;height:31px;border:2px solid color-mix(in srgb,#fff 35%,var(--lumiverse-border));border-radius:10px;background:var(--stop);box-shadow:0 5px 14px color-mix(in srgb,var(--stop) 28%,transparent)}.ldc-gradient-rail{height:11px;border-radius:999px;background:var(--editor-gradient);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14),0 0 18px color-mix(in srgb,var(--lumiverse-primary) 15%,transparent)}.ldc-hex-row{display:grid;grid-template-columns:1fr;gap:10px;margin-top:8px}.ldc-hex-row[data-gradient=true]{grid-template-columns:1fr 1fr}.ldc-hex-row .ldc-input{height:34px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.ldc-direction{display:flex;align-items:end;justify-content:space-between;gap:10px;margin-top:9px}.ldc-direction label{display:flex;align-items:center;gap:8px;color:var(--lumiverse-text-dim);font-size:9px;font-weight:800}.ldc-direction .ldc-input{width:76px;height:34px}.ldc-details{margin-top:14px;border-top:1px solid var(--lumiverse-border)}.ldc-details summary{padding:13px 0;color:var(--lumiverse-text-muted);font-size:9px;font-weight:800;letter-spacing:.04em;cursor:pointer}.ldc-details[open] summary{color:var(--lumiverse-text)}.ldc-savebar{position:sticky;bottom:0;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 18px;border-top:1px solid var(--lumiverse-border);background:color-mix(in srgb,var(--lumiverse-bg-elevated) 91%,transparent);backdrop-filter:blur(18px);color:var(--lumiverse-text-dim);font-size:9px}.ldc-savebar [data-save-status=error]{color:var(--lumiverse-danger)}.ldc-review{border:1px solid color-mix(in srgb,var(--lumiverse-primary) 40%,var(--lumiverse-border));border-radius:999px;padding:5px 8px;background:var(--psoft);color:var(--lumiverse-primary);font-size:8.5px;font-weight:800;cursor:pointer}
 .ldc-settings{position:absolute;z-index:7;top:0;right:0;bottom:0;width:min(520px,86%);min-height:0;padding:18px 20px;overflow:auto;border-left:1px solid var(--prism-line);background:color-mix(in srgb,var(--lumiverse-bg-elevated) 96%,transparent);box-shadow:-24px 0 60px rgba(0,0,0,.38);backdrop-filter:blur(22px)}
@@ -964,7 +964,8 @@ export function setup(ctx) {
     }
     function rememberClass(element) { if (element.dataset.prismOriginalClass == null)
         element.dataset.prismOriginalClass = element.hasAttribute('class') ? element.getAttribute('class') : '\u0000'; }
-    function cleanupPaint(element) { const painted = element.classList.contains('ldc-prism-paint'), segment = element.classList.contains('ldc-prism-segment'); element.classList.remove('ldc-prism-paint', 'ldc-prism-segment'); for (const key of ['prismPaint', 'prismSpeaker', 'prismKind', 'prismSource', 'prismConfidence', 'prismConfidenceLevel', 'prismNeedsColor', 'prismUnresolvedReason', 'prismHybridDeferred', 'prismMessageId', 'prismSegmentId'])
+    function cleanupPaint(element) { if (touchSelectedSegment === element)
+        clearTouchSegment(); const painted = element.classList.contains('ldc-prism-paint'), segment = element.classList.contains('ldc-prism-segment'); element.classList.remove('ldc-prism-paint', 'ldc-prism-segment'); for (const key of ['prismPaint', 'prismSpeaker', 'prismKind', 'prismSource', 'prismConfidence', 'prismConfidenceLevel', 'prismNeedsColor', 'prismUnresolvedReason', 'prismHybridDeferred', 'prismMessageId', 'prismSegmentId'])
         delete element.dataset[key]; if (painted) {
         for (const [property, key] of [['--ldc-color', 'prismOriginalLdcColor'], ['--ldc-fallback', 'prismOriginalLdcFallback'], ['--ldc-gradient', 'prismOriginalLdcGradient']]) {
             const value = element.dataset[key];
@@ -986,7 +987,7 @@ export function setup(ctx) {
             element.setAttribute('tabindex', tabindex);
         delete element.dataset.prismOriginalTitle;
         delete element.dataset.prismOriginalTabindex;
-        element.oncontextmenu = element.onkeydown = element.onpointerdown = element.onpointerup = element.onpointercancel = element.onpointerleave = null;
+        element.oncontextmenu = element.onkeydown = element.onpointerdown = element.onpointermove = element.onpointerup = element.onpointercancel = element.onpointerleave = null;
     } if (painted || segment) {
         const originalClass = element.dataset.prismOriginalClass;
         if (originalClass === '\u0000')
@@ -1250,6 +1251,54 @@ export function setup(ctx) {
             throw error;
         }
     }
+    let touchSelectedSegment = null;
+    function clearTouchSegment() { touchSelectedSegment?.classList.remove('ldc-prism-tap-selected'); touchSelectedSegment = null; }
+    function clearTouchSegmentOutside(event) { if (touchSelectedSegment && !touchSelectedSegment.contains(event.target))
+        clearTouchSegment(); }
+    function bindSegmentGestures(span, info, list) {
+        let tap = null;
+        const open = event => { clearTimeout(longTimer); clearTouchSegment(); teach(event, info(), list); };
+        span.oncontextmenu = event => { if (event.pointerType === 'touch' || (!event.pointerType && window.matchMedia?.('(pointer: coarse)').matches)) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+        } open(event); };
+        span.onkeydown = event => { if (event.key === 'Enter' || event.key === ' ')
+            open(event); };
+        span.onpointerdown = event => {
+            clearTimeout(longTimer);
+            tap = null;
+            if (event.isPrimary === false || event.button !== 0 || event.target.closest('a,button,input,select,textarea'))
+                return;
+            if (event.pointerType === 'touch') {
+                tap = { id: event.pointerId, x: event.clientX, y: event.clientY, at: Date.now() };
+                return;
+            }
+            longTimer = setTimeout(() => open(event), 560);
+        };
+        span.onpointermove = event => { if (tap && event.pointerId === tap.id && Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > 12) {
+            tap = null;
+            clearTouchSegment();
+        } };
+        span.onpointerup = event => {
+            clearTimeout(longTimer);
+            const completed = tap;
+            tap = null;
+            if (!completed || event.pointerId !== completed.id || Date.now() - completed.at > 500 || Math.hypot(event.clientX - completed.x, event.clientY - completed.y) > 12)
+                return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (touchSelectedSegment === span) {
+                open(event);
+                return;
+            }
+            clearTouchSegment();
+            touchSelectedSegment = span;
+            span.classList.add('ldc-prism-tap-selected');
+        };
+        span.onpointercancel = () => { tap = null; clearTimeout(longTimer); clearTouchSegment(); };
+        span.onpointerleave = () => { tap = null; clearTimeout(longTimer); };
+    }
     function decorate(span, detail, list) {
         const assignableList = list.filter(candidate => !candidate.tentative), a = detail.attribution, colorOwners = detail.existingColor ? assignableList.filter(c => [c.color, bindingRegistryColor(c.binding), c.binding?.channels?.dialogue?.paint?.anchor, ...(c.binding?.previousColors || [])].map(normalizeHex).filter(Boolean).includes(normalizeHex(detail.existingColor))).length : 0, reason = detail.hybridDeferred ? 'hybrid-low-confidence' : a.speaker?.tentative ? 'tentative-speaker' : a.speaker && !a.speaker.paintable ? 'speaker-known-no-color' : !a.speaker && detail.existingColor ? (colorOwners > 1 ? 'ambiguous-color' : 'speaker-not-found') : !a.speaker ? 'no-dialogue-seed' : null;
         rememberClass(span);
@@ -1276,11 +1325,7 @@ export function setup(ctx) {
             span.dataset.prismConfidenceLevel = 'low';
         span.title = detail.hybridDeferred ? `Hybrid left this unpainted: ${a.speaker?.name || 'speaker'} was only ${Math.round(a.confidence * 100)}% certain. Right-click to confirm.` : a.speaker?.tentative ? `${a.speaker.name} · observed by Hybrid, awaiting approval` : a.speaker ? `${a.speaker.name} · ${a.speaker.paintable ? `assigned from ${evidenceLabel(a.source)} · ${Math.round(a.confidence * 100)}%` : 'identified, but no color is assigned yet'}` : (detail.existingColor ? `Existing ${detail.existingColor} · ${colorOwners > 1 ? 'claimed by multiple speakers' : 'speaker unknown'}` : 'Prism could not identify this speaker');
         const info = () => ({ ...detail, rect: span.getBoundingClientRect() });
-        span.oncontextmenu = e => teach(e, info(), assignableList);
-        span.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ')
-            teach(e, info(), assignableList); };
-        span.onpointerdown = e => { clearTimeout(longTimer); longTimer = setTimeout(() => teach(e, info(), assignableList), 560); };
-        span.onpointerup = span.onpointercancel = span.onpointerleave = () => clearTimeout(longTimer);
+        bindSegmentGestures(span, info, assignableList);
     }
     function buildDomUnits(root, existingByElement) {
         const units = [], blockIds = new Map();
@@ -1687,6 +1732,8 @@ export function setup(ctx) {
     }
     const onViewportChange = () => { if (modal?.root?.classList.contains('ldc-fullscreen-root') || modal?.isSafePortal)
         applyModalPresentation(resolvedModalLayout(), modalDimensions()); };
+    document.addEventListener('pointerdown', clearTouchSegmentOutside, true);
+    document.addEventListener('scroll', clearTouchSegment, true);
     window.addEventListener('resize', onViewportChange, { passive: true });
     window.visualViewport?.addEventListener('resize', onViewportChange, { passive: true });
     window.visualViewport?.addEventListener('scroll', onViewportChange, { passive: true });
@@ -1712,6 +1759,9 @@ export function setup(ctx) {
             if (content)
                 clearRoot(content);
         }
+        clearTouchSegment();
+        document.removeEventListener('pointerdown', clearTouchSegmentOutside, true);
+        document.removeEventListener('scroll', clearTouchSegment, true);
         window.removeEventListener('resize', onViewportChange);
         window.visualViewport?.removeEventListener('resize', onViewportChange);
         window.visualViewport?.removeEventListener('scroll', onViewportChange);

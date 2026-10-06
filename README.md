@@ -30,7 +30,7 @@ The Prompt settings include an autosaved custom instruction editor. Templates ca
 1. Open Prism from the chat toolbar.
 2. Use **Set up scene** to import Cortex/transcript colors and generate collision-safe colors for anything missing.
 3. Edit solid or two/three-stop gradient paint directly in the roster editor. The first dialogue stop is always the character’s canonical registry color.
-4. In Local or Hybrid, right-click, long-press, or keyboard-open any detected segment to correct its speaker or content type. Enable **Bake manual corrections** under Cortex & attribution if those corrections should also be written into the stored message as portable font tags.
+4. In Local or Hybrid, right-click or keyboard-open any detected segment; on mobile, tap once to highlight it and tap the same segment again to open its recolor menu to correct its speaker or content type. Enable **Bake manual corrections** under Cortex & attribution if those corrections should also be written into the stored message as portable font tags.
 5. In Hybrid, click the yellow **Awaiting review** status only when Prism finds a clearly named, genuinely new tagged speaker. Register recurring characters, keep cameos temporary, or ignore them.
 
 During generation, gradient text temporarily renders as its first canonical stop. Prism restores the full gradient only when the response completes or is cancelled, preventing streaming repaint flicker.

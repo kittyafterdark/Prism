@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import vm from 'node:vm';
 import ts from 'typescript';
 import './persona-save.mjs';
+import './segment-gestures.mjs';
 
 const backend = await fs.readFile(new URL('../src/backend.ts', import.meta.url), 'utf8');
 const frontend = await fs.readFile(new URL('../src/frontend.ts', import.meta.url), 'utf8');
