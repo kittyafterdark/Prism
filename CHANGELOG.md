@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Adds an explicit fullscreen **Restore window** action that exits accessibility mode, rebuilds the modal host when layouts change, and follows visual viewport size and offsets without oversized minimum dimensions.
 - Adds mobile two-tap recoloring: tap once to highlight a segment, then again to open the menu. Scrolling, dragging, or tapping elsewhere clears the highlight; native text selection is suppressed on mobile Prism segments.
 - Aligns the Prism toolbar button and saved/sync indicator to the right edge beside the native chat controls.
 - Adds a manual persona save button in desktop and accessibility layouts, including when the save indicator is hidden.
