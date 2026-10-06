@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Aligns the Prism toolbar button and saved/sync indicator to the right edge beside the native chat controls.
 - Adds a manual persona save button in desktop and accessibility layouts, including when the save indicator is hidden.
 - Saves current paint before applying persona options, preventing option changes from discarding pending color edits.
 
