@@ -16,6 +16,8 @@ Existing persistent color tags already stored in message content are left untouc
 
 Existing engine choices survive migration. Hybrid is the default only for a fresh configuration.
 
+Choose the engine under **Settings → Look & feel → Coloring engine**. The **Characters** and **Persona** buttons only switch the editor workspace.
+
 ## Prompt delivery
 
 Prism can deliver its live registry automatically or expose it to a preset:

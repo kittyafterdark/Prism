@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Fixes color-edit preview errors caused by the stylesheet constant shadowing the browser’s CSS.escape API.
+- Honors sub-1× Lumiverse scale and canonical safe-top spacing, moves chat engines into Settings, styles identity disclosures and wrapping status text, and simplifies the persona editor to colors → save → options without a duplicate persona rail.
 - Adds an explicit fullscreen **Restore window** action that exits accessibility mode, rebuilds the modal host when layouts change, and follows visual viewport size and offsets without oversized minimum dimensions.
 - Adds mobile two-tap recoloring: tap once to highlight a segment, then again to open the menu. Scrolling, dragging, or tapping elsewhere clears the highlight; native text selection is suppressed on mobile Prism segments.
 - Aligns the Prism toolbar button and saved/sync indicator to the right edge beside the native chat controls.

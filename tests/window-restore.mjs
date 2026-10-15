@@ -12,6 +12,7 @@ let prefs={modalSize:'auto',modalExpanded:false,modalLayout:'accessibility'},pat
 const window={innerWidth:1280,innerHeight:800,visualViewport:{width:390,height:180,offsetTop:250,offsetLeft:24}};
 const document={documentElement:{clientWidth:1280,clientHeight:800}};
 function uiPreferences(){return prefs}
+function detectedUiScale(){return 1}
 function resolvedModalLayout(){return prefs.modalLayout==='accessibility'?'tabs':prefs.modalLayout==='auto'?'tabs':prefs.modalLayout}
 async function saveUiPreferences(patch){patches.push(patch);Object.assign(prefs,patch)}
 async function reopenPalette(){reopens++}

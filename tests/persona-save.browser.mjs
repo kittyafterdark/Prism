@@ -11,9 +11,9 @@ try {
     const page = await browser.newPage({ viewport: { width, height } });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    await page.setContent(`<style>:root{--lumiverse-primary:#b58cff;--lumiverse-text:#eee;--lumiverse-text-dim:#bbb;--lumiverse-text-muted:#ccc;--lumiverse-border:#444;--lumiverse-fill-subtle:#222;--lumiverse-bg:#111}body{margin:0;background:#111}.ldc-shell{height:100vh}.ldc-panel{overflow:auto;padding:16px}${fixtureCss}</style><div class="ldc-shell" data-prism-layout="${layout}"><div class="ldc-panel" id="root"></div></div>`);
+    await page.setContent(`<style>:root{--lumiverse-primary:#b58cff;--lumiverse-text:#eee;--lumiverse-text-dim:#bbb;--lumiverse-text-muted:#ccc;--lumiverse-border:#444;--lumiverse-fill-subtle:#222;--lumiverse-bg:#111}body{margin:0;background:#111}.ldc-shell{height:100vh}.ldc-panel{overflow:auto;padding:16px}${fixtureCss}</style><div class="ldc-shell" data-prism-tab="persona" data-prism-layout="${layout}"><div class="ldc-main-wrap"><div class="ldc-main"><section class="ldc-panel" id="root"></section></div></div></div>`);
     await page.addScriptTag({ content: `${fixtureSource}\nlayout='${layout}';showIndicator=false;render();` });
-    const save = page.getByRole('button', { name: 'Save persona colors and options now' });
+    const save = page.getByRole('button', { name: 'Save persona colors', exact: true });
     assert.equal(await save.count(), 1);
     assert.equal(await save.isVisible(), true);
     await page.locator('[data-role=hex]').fill('#AA3300');
