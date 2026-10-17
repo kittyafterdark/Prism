@@ -97,6 +97,7 @@ const DEFAULT_PREFERENCES = Object.freeze({
     personaMode: 'quoted',
     personaColorsEnabled: true,
     markUncertain: true,
+    mobileDoubleTap: true,
     thoughtDetection: 'off',
     existingStylePolicy: 'enhance',
     useExistingAsEvidence: true,
@@ -147,6 +148,7 @@ function safePreferences(raw) {
             : DEFAULT_PREFERENCES.personaMode,
         personaColorsEnabled: source.personaColorsEnabled !== false,
         markUncertain: source.markUncertain !== false,
+        mobileDoubleTap: source.mobileDoubleTap !== false,
         thoughtDetection: ['off', 'italics', 'single-quotes', 'italics-and-single-quotes'].includes(source.thoughtDetection)
             ? source.thoughtDetection
             : DEFAULT_PREFERENCES.thoughtDetection,
@@ -1985,6 +1987,9 @@ async function updateUiPreferences(payload, userId) {
         }
         if (typeof payload.prismEnabled === 'boolean') {
             globalState.preferences.prismEnabled = payload.prismEnabled;
+        }
+        if (typeof payload.mobileDoubleTap === 'boolean') {
+            globalState.preferences.mobileDoubleTap = payload.mobileDoubleTap;
         }
         if (typeof payload.showSaveIndicator === 'boolean') {
             globalState.preferences.showSaveIndicator = payload.showSaveIndicator;

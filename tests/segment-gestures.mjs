@@ -7,10 +7,11 @@ const source=await fs.readFile(new URL('../src/frontend.ts',import.meta.url),'ut
 const ast=ts.createSourceFile('frontend.ts',source,ts.ScriptTarget.Latest,true),functions=new Map();
 function visit(node){if(ts.isFunctionDeclaration(node)&&node.name)functions.set(node.name.text,node.getText(ast));ts.forEachChild(node,visit)}
 visit(ast);
-export const gestureSource=['clearTouchSegment','clearTouchSegmentOutside','bindSegmentGestures'].map(name=>functions.get(name)).join('\n');
+export const gestureSource=['clearTouchSegment','clearTouchSegmentOutside','mobileDoubleTapEnabled','bindSegmentGestures'].map(name=>functions.get(name)).join('\n');
 const context=vm.createContext({Math});
 vm.runInContext(`
 let touchSelectedSegment=null,longTimer,clock=0,opened=[],timer=null;
+let state={preferences:{}},uiPreferenceCache=null;
 const Date={now:()=>clock},window={matchMedia:()=>({matches:false})};
 function setTimeout(callback){timer=callback;return 1}
 function clearTimeout(){timer=null}
@@ -55,6 +56,18 @@ run('first.onpointerdown(event(first,"mouse"));timer()');
 assert.equal(run('opened.length'),4);
 run('const linked=event({closest:()=>({})});first.onpointerdown(linked);first.onpointerup(linked)');
 assert.equal(run('opened.length'),4);
+// Missing preferences retain the default-on gesture; opting out leaves taps alone.
+assert.equal(run('mobileDoubleTapEnabled()'),true);
+run('state.preferences.mobileDoubleTap=false;tap(first);tap(first)');
+assert.equal(run('first.classes.size'),0);
+assert.equal(run('opened.length'),4);
+run('first.onpointerdown(event(first));timer();first.onpointerup(event(first))');
+assert.equal(run('opened.length'),5);
+run('first.oncontextmenu(event(first))');
+assert.equal(run('opened.length'),6);
+run('state.preferences.mobileDoubleTap=true;first.onpointerdown(event(first));state.preferences.mobileDoubleTap=false;first.onpointerup(event(first))');
+assert.equal(run('first.classes.size'),0);
+run('state.preferences.mobileDoubleTap=true');
 // Detaching/repainting a selected segment clears highlight and all gesture hooks.
 context.rememberClass=()=>{};
 vm.runInContext(functions.get('cleanupPaint'),context);

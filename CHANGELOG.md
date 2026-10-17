@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Adds an enabled-by-default **Enable mobile double-tap** preference under Look & feel. Opting out restores long-press access and native text selection, and the choice persists across chats.
 - Fixes color-edit preview errors caused by the stylesheet constant shadowing the browser’s CSS.escape API.
 - Honors sub-1× Lumiverse scale and canonical safe-top spacing, moves chat engines into Settings, styles identity disclosures and wrapping status text, and simplifies the persona editor to colors → save → options without a duplicate persona rail.
 - Adds an explicit fullscreen **Restore window** action that exits accessibility mode, rebuilds the modal host when layouts change, and follows visual viewport size and offsets without oversized minimum dimensions.

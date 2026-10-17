@@ -59,6 +59,13 @@ try{
     await page.getByText('Identity and attribution',{exact:true}).first().press('Enter');
     assert.equal(await page.locator('details.ldc-details').getAttribute('open'),'');
     await page.getByRole('button',{name:'Settings',exact:true}).click();
+    const mobileGesture=page.getByRole('checkbox',{name:'Enable mobile double-tap',exact:true});
+    assert.equal(await mobileGesture.isChecked(),true);
+    await mobileGesture.uncheck();
+    await page.waitForFunction(()=>window.fixture.state.preferences.mobileDoubleTap===false);
+    await page.getByRole('button',{name:'Persona',exact:true}).click();
+    await page.getByRole('button',{name:'Settings',exact:true}).click();
+    assert.equal(await mobileGesture.isChecked(),false);
     const engines=page.getByRole('group',{name:'Coloring engine',exact:true});
     assert.equal(await engines.count(),1);
     await engines.getByRole('button',{name:'Local',exact:true}).click();
@@ -91,6 +98,11 @@ try{
     await page.evaluate(()=>window.fixture.open());
     await page.getByRole('button',{name:'Persona',exact:true}).click();
     assert.equal(await page.locator('[data-role=hex]').inputValue(),'#667788');
+    await page.getByRole('button',{name:'Settings',exact:true}).click();
+    assert.equal(await mobileGesture.isChecked(),false);
+    await mobileGesture.focus();
+    await mobileGesture.press('Space');
+    await page.waitForFunction(()=>window.fixture.state.preferences.mobileDoubleTap===true);
     assert.deepEqual(errors,[]);
     if(process.env.PRISM_SCREENSHOT_DIR){await fs.mkdir(process.env.PRISM_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:`${process.env.PRISM_SCREENSHOT_DIR}/prism-${width}-${scale}.png`})}
     console.log(`Passed complete Prism workspace at ${width}x${height}, scale ${scale}, safe top ${notch}: hierarchy, save, keyboard disclosure, engines, footer, layout remount, unload/reload, navigation.`);
