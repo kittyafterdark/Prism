@@ -25,7 +25,7 @@ Prism can deliver its live registry automatically or expose it to a preset:
 - **Automatic** appends the compiled Prism instruction through the generation interceptor.
 - **Preset macro** disables that automatic append. Place `{{prismPrompt}}` wherever the full instruction belongs in the preset, or use `{{prismHexes}}` for only the current confirmed and provisional speaker-to-hex rows.
 
-The Prompt settings include an autosaved custom instruction editor. Templates can use `{{prismRegistry}}`, `{{prismHexes}}`, `{{prismProvisional}}`, and `{{prismPalette}}`; Prism appends essential registry data when a custom template omits it.
+Under **Settings → Prompt**, **Active prompt** shows the current editable instruction template, including Prism’s built-in instructions when no custom prompt is saved. Use **Save prompt** or Ctrl/⌘+Enter to save changes for this chat; **Use built-in prompt** restores the default. The **Resolved prompt preview** shows the current compiled text with live registry data. Templates support `{{prismRegistry}}`, `{{prismHexes}}`, `{{prismProvisional}}`, `{{prismPalette}}`, `{{prismRevision}}`, and `{{prismThoughts}}`; Prism appends essential registry data when a custom template omits it.
 
 ## Everyday workflow
 

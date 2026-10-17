@@ -8,7 +8,12 @@ import ts from 'typescript';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
 const source=await fs.readFile(new URL('../src/frontend.ts',import.meta.url),'utf8');
 const frontend=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace('export function setup','function setup');
+const backendSource=await fs.readFile(new URL('../src/backend.ts',import.meta.url),'utf8');
+const backend=ts.transpileModule(backendSource.slice(0,backendSource.indexOf('spindle.registerMacro(')),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 const host=`
+const compileFixturePrompt=(()=>{${backend}
+  return state=>{const config=safeConfig({...cloneDefaultConfig(state.config.engine),...state.config});config.promptCharacterColors=usesModelTags(config.engine);return promptEditorState(config,compileRegistry(config),state.preferences.prismEnabled!==false)};
+})();
 let backendListener,openAction;const events=new Map(),requests=[];
 const binding={kind:'character',name:'Gabrielle',targetId:'character',speakerUid:'prism-speaker-test',color:'#87B3CF',source:'library'};
 let fixtureState={ok:true,chat:{id:'chat',name:'A deliberately long scene title to verify the footer stays contained at every viewport and UI scale'},characters:[{id:'character',name:'Gabrielle',aliases:[],status:'active',binding}],persona:{id:'persona',name:'Kitty',title:'Active persona',binding:{...binding,kind:'persona',name:'Kitty',targetId:'persona',speakerUid:'prism-speaker-persona'}},config:{engine:'hybrid',autoUserMode:'quoted',personaEnabled:true,personaInCast:false,bindings:{character:binding},overrides:{}},preferences:{modalLayout:'split',modalSize:'auto',modalScale:1,showSaveIndicator:true,prismEnabled:true},registry:{entries:[],conflicts:[]},cortexAvailable:true,pendingReviewCount:0};
@@ -17,7 +22,7 @@ const ctx={
   dom:{addStyle(css){const el=document.createElement('style');el.textContent=css;document.head.append(el);return()=>el.remove()},listMessageElements:()=>[],inject(target,html){const el=document.createElement('div');el.innerHTML=html;target.append(el);injections.add(el);return el},uninject(el){el.remove();injections.delete(el)},cleanup(){for(const el of injections)el.remove()}},
   events:{on(name,fn){events.set(name,fn);return()=>events.delete(name)}},
   onBackendMessage(fn){backendListener=fn;return()=>backendListener=null},
-  sendToBackend(payload){requests.push(payload);setTimeout(()=>{if(!backendListener)return;if(payload.type==='ldc_update_ui_preferences')Object.assign(fixtureState.preferences,payload);if(payload.type==='ldc_update_options')Object.assign(fixtureState.config,payload);if(payload.type==='ldc_save_binding'){const target=payload.kind==='persona'?fixtureState.persona:fixtureState.characters[0];target.binding={...target.binding,...payload}}backendListener({requestId:payload.requestId,type:'ldc_state',state:structuredClone(fixtureState),preferences:structuredClone(fixtureState.preferences)})},2)},
+  sendToBackend(payload){requests.push(payload);setTimeout(()=>{if(!backendListener)return;if(payload.type==='ldc_update_ui_preferences')Object.assign(fixtureState.preferences,payload);if(payload.type==='ldc_update_options')Object.assign(fixtureState.config,payload);if(payload.type==='ldc_save_binding'){const target=payload.kind==='persona'?fixtureState.persona:fixtureState.characters[0];target.binding={...target.binding,...payload}}fixtureState.prompt=compileFixturePrompt(fixtureState);backendListener({requestId:payload.requestId,type:'ldc_state',state:structuredClone(fixtureState),preferences:structuredClone(fixtureState.preferences)})},2)},
   ui:{registerInputBarAction(){return {onClick(fn){openAction=fn;return()=>openAction=null},destroy(){}}},showConfirm:async options=>{throw Error(options.message)},showModal(options){const backdrop=document.createElement('div'),card=document.createElement('section'),head=document.createElement('header'),root=document.createElement('div');backdrop.className='host-backdrop';card.className='host-card';card.setAttribute('role','dialog');card.setAttribute('aria-label','Prism');card.style.width=Math.min(options.width,innerWidth/Number(getComputedStyle(document.documentElement).getPropertyValue('--lumiverse-ui-scale'))-40)+'px';card.style.maxHeight=options.maxHeight+'px';head.innerHTML='<strong>Prism</strong><button aria-label="Close Prism">×</button>';root.className='host-body';card.append(head,root);backdrop.append(card);document.body.append(backdrop);const callbacks=new Set();let closed=false;const handle={root,dismiss(){if(closed)return;closed=true;backdrop.remove();callbacks.forEach(fn=>fn())},onDismiss(fn){callbacks.add(fn);return()=>callbacks.delete(fn)}};head.querySelector('button').onclick=handle.dismiss;return handle}}
 };
 ${frontend}
@@ -59,6 +64,33 @@ try{
     await page.getByText('Identity and attribution',{exact:true}).first().press('Enter');
     assert.equal(await page.locator('details.ldc-details').getAttribute('open'),'');
     await page.getByRole('button',{name:'Settings',exact:true}).click();
+    await page.getByRole('button',{name:'Prompt',exact:true}).click();
+    const promptEditor=page.getByRole('textbox',{name:'Prompt instructions',exact:true});
+    const builtIn=await promptEditor.inputValue();
+    assert.ok(builtIn.includes('Wrap each complete spoken segment'));
+    assert.ok(builtIn.includes('{{prismRegistry}}'));
+    await page.getByRole('button',{name:'Save prompt',exact:true}).click();
+    await page.waitForFunction(()=>window.fixture.state.config.promptTemplate==='');
+    const custom=builtIn+'\nKeep dialogue succinct.';
+    await promptEditor.fill(custom);
+    await page.getByRole('button',{name:'Look & feel',exact:true}).click();
+    await page.getByRole('button',{name:'Prompt',exact:true}).click();
+    assert.equal(await promptEditor.inputValue(),custom);
+    await promptEditor.press('Control+Enter');
+    await page.waitForFunction(()=>window.fixture.state.config.promptTemplate?.includes('Keep dialogue succinct.'));
+    await page.waitForFunction(()=>document.activeElement?.getAttribute('data-role')==='prompt-template');
+    await page.getByText('Resolved prompt preview',{exact:true}).click();
+    const resolved=page.getByRole('textbox',{name:'Resolved Prism prompt',exact:true});
+    assert.equal(await resolved.getAttribute('readonly'),'');
+    assert.ok((await resolved.inputValue()).includes('Gabrielle'));
+    assert.ok((await resolved.inputValue()).includes('Keep dialogue succinct.'));
+    await page.getByRole('button',{name:'Use built-in prompt',exact:true}).click();
+    await page.waitForFunction(()=>window.fixture.state.config.promptTemplate==='');
+    assert.equal(await promptEditor.inputValue(),builtIn);
+    await promptEditor.fill(custom);
+    await page.getByRole('button',{name:'Save prompt',exact:true}).click();
+    await page.waitForFunction(()=>window.fixture.state.config.promptTemplate?.includes('Keep dialogue succinct.'));
+    await page.getByRole('button',{name:'Look & feel',exact:true}).click();
     const mobileGesture=page.getByRole('checkbox',{name:'Enable mobile double-tap',exact:true});
     assert.equal(await mobileGesture.isChecked(),true);
     await mobileGesture.uncheck();
@@ -103,6 +135,12 @@ try{
     await mobileGesture.focus();
     await mobileGesture.press('Space');
     await page.waitForFunction(()=>window.fixture.state.preferences.mobileDoubleTap===true);
+    await page.getByRole('button',{name:'Prompt',exact:true}).click();
+    assert.ok((await promptEditor.inputValue()).includes('Keep dialogue succinct.'));
+    await promptEditor.fill('Unsaved draft for the previous chat');
+    await page.evaluate(()=>window.fixture.switchChat());
+    await page.getByRole('button',{name:'Settings',exact:true}).click();
+    assert.equal(await promptEditor.inputValue(),custom);
     assert.deepEqual(errors,[]);
     if(process.env.PRISM_SCREENSHOT_DIR){await fs.mkdir(process.env.PRISM_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:`${process.env.PRISM_SCREENSHOT_DIR}/prism-${width}-${scale}.png`})}
     console.log(`Passed complete Prism workspace at ${width}x${height}, scale ${scale}, safe top ${notch}: hierarchy, save, keyboard disclosure, engines, footer, layout remount, unload/reload, navigation.`);

@@ -5,6 +5,7 @@ import ts from 'typescript';
 import './persona-save.mjs';
 import './segment-gestures.mjs';
 import './window-restore.mjs';
+import './prompts.mjs';
 
 const backend = await fs.readFile(new URL('../src/backend.ts', import.meta.url), 'utf8');
 const frontend = await fs.readFile(new URL('../src/frontend.ts', import.meta.url), 'utf8');
@@ -123,4 +124,11 @@ assert.equal((await run(`updateUiPreferences({mobileDoubleTap:false}, 'user')`))
 assert.equal((await run(`loadGlobalState('user')`)).preferences.mobileDoubleTap,false);
 assert.equal((await run(`updateUiPreferences({mobileDoubleTap:'invalid'}, 'user')`)).mobileDoubleTap,false);
 assert.equal((await run(`updateUiPreferences({mobileDoubleTap:true}, 'user')`)).mobileDoubleTap,true);
+await run(`updateOptions({engine:'hybrid',promptTemplate:'Custom dialogue instruction {{prismRegistry}}'}, 'user')`);
+assert.equal(run('testConfig.promptTemplate'),'Custom dialogue instruction {{prismRegistry}}');
+const promptState=await run('realBuildState({importCortex:false}, "user")');
+assert.equal(promptState.prompt.template,'Custom dialogue instruction {{prismRegistry}}');
+assert.ok(promptState.prompt.active.includes('Custom dialogue instruction'));
+await run(`updateOptions({promptTemplate:''}, 'user')`);
+assert.equal(run('testConfig.promptTemplate'),'');
 console.log('Passed roster rename, validation, stable identity, gradient export/import, legacy compatibility, and mobile gesture preference persistence.');

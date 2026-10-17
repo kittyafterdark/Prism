@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Shows the built-in or custom prompt in an editable **Active prompt** box under Prompt settings, with explicit saving, keyboard saving, reset, and a resolved live-data preview.
 - Adds an enabled-by-default **Enable mobile double-tap** preference under Look & feel. Opting out restores long-press access and native text selection, and the choice persists across chats.
 - Fixes color-edit preview errors caused by the stylesheet constant shadowing the browser’s CSS.escape API.
 - Honors sub-1× Lumiverse scale and canonical safe-top spacing, moves chat engines into Settings, styles identity disclosures and wrapping status text, and simplifies the persona editor to colors → save → options without a duplicate persona rail.
