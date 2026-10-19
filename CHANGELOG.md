@@ -13,6 +13,10 @@
 
 ## 1.0.2.10
 
+- Makes manual Bake tolerant of Lumi-normalized color markup: exact `<span style="color: …">` segments are now recolored in place instead of treated as unrelated markup.
+- Canonicalizes smart/straight quotes, dash variants, non-breaking/zero-width spacing, NFKC forms, and common HTML entities while locating the stored dialogue segment.
+- If the frontend swipe hint is stale or absent, Bake safely retries the message's active stored swipe before giving up, then rekeys the manual override to the resolved swipe.
+- Adds regression coverage for Lumi-style span normalization and active-swipe fallback.
 - Adds a **Character name** field and **Save name** action in the character Identity editor. Renaming keeps stable speaker IDs, saved paint, and manual attribution; the previous spelling remains an alias for existing dialogue.
 - Includes dialogue and thought paint settings in **Copy registry JSON** and restores them on import, including gradient stops, angles, enabled states, and thought linking. Older exports remain compatible.
 - Preserves zero-degree gradient angles and restores focused automated verification for roster renaming and registry export/import.

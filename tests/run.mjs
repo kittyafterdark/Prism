@@ -7,6 +7,7 @@ import './segment-gestures.mjs';
 import './window-restore.mjs';
 import './prompts.mjs';
 import './startup.mjs';
+import './manual-bake.mjs';
 
 const backend = await fs.readFile(new URL('../src/backend.ts', import.meta.url), 'utf8');
 const frontend = await fs.readFile(new URL('../src/frontend.ts', import.meta.url), 'utf8');
