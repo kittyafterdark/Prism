@@ -265,11 +265,50 @@ function engineDescription(value){return({dom:'Visual only · heuristic paint',h
 export function setup(ctx: SpindleFrontendContext){
   const removeStyle=ctx.dom.addStyle(CSS),pending=new Map(),signatures=new Map(),dirty=new Set(),hydratingMessages=new Set(),activeGenerationIds=new Set(),streamingMessageIds=new Set(),messageRoles=new Map();
   let modal=null,modalHostHandle=null,fullscreenOverlay=null,addModal=null,importModal=null,state=null,uiPreferenceCache=null,activeTab='character',activeChannel='dialogue',activeEditorPage='paint',settingsSection='look',promptDraft=null,selectedId=null,sideScroll=0,sideScrollLeft=0,panelScroll=0,settingsOpen=false,reviewOpen=false,busy=false,saveStatus='saved',hydrationStatus='idle',pendingReviewCount=0,reviewIndex=0,toolbarInjection=null,refreshTimer=0,saveTimer=0,longTimer=0,editorPageTimer=0,applying=false,revision=0,saveGeneration=0,saveQueue=Promise.resolve(),stateLoadPromise=null,lastRoundtripMs=0,lastBackendError='',themeColorCache=null,themeColorSignature='';
-  const request=(type,data={},timeoutMs=15000)=>new Promise((resolve,reject)=>{const requestId=uid(),startedAt=performance.now(),timer=setTimeout(()=>{pending.delete(requestId);lastBackendError=`${type} timed out`;reject(new Error(`Prism's backend did not answer ${type} within ${Math.round(timeoutMs/1000)} seconds.`))},timeoutMs);pending.set(requestId,{resolve,reject,timer,startedAt,type});ctx.sendToBackend({type,requestId,...data})});
-  const loadState=(sync=false)=>{if(stateLoadPromise)return stateLoadPromise;stateLoadPromise=request('ldc_load_state',{importCortex:sync,scanTranscript:sync},sync?60000:15000).finally(()=>{stateLoadPromise=null});return stateLoadPromise};
-  const unsubBackend=ctx.onBackendMessage(payload=>{const task=pending.get(payload?.requestId);if(!task)return;clearTimeout(task.timer);pending.delete(payload.requestId);lastRoundtripMs=Math.max(0,Math.round(performance.now()-task.startedAt));if(payload.type==='ldc_error'){lastBackendError=payload.error||'Unknown error';task.reject(new Error(lastBackendError))}else{lastBackendError='';task.resolve(payload)}});
+  let disposed=false,stateLoadGeneration=0;
+  const retryWaits=new Map();
+  const cancelled=()=>Object.assign(new Error('Prism request cancelled.'),{name:'AbortError'});
+  const request=(type,data={},timeoutMs=15000)=>new Promise((resolve,reject)=>{
+    if(disposed){reject(cancelled());return}
+    const requestId=uid(),startedAt=performance.now(),timer=setTimeout(()=>{
+      pending.delete(requestId);lastBackendError=`${type} timed out`;
+      reject(Object.assign(new Error(`Prism's backend did not answer ${type} within ${Math.round(timeoutMs/1000)} seconds.`),{retryable:true}));
+    },timeoutMs);
+    pending.set(requestId,{resolve,reject,timer,startedAt,type});
+    try{ctx.sendToBackend({type,requestId,...data})}catch(error){
+      clearTimeout(timer);pending.delete(requestId);reject(error);
+    }
+  });
+  function cancelStateLoad(){
+    stateLoadGeneration++;stateLoadPromise=null;
+    for(const [timer,reject]of retryWaits){clearTimeout(timer);reject(cancelled())}retryWaits.clear();
+    for(const [id,task]of pending)if(task.type==='ldc_load_state'){clearTimeout(task.timer);pending.delete(id);task.reject(cancelled())}
+  }
+  const loadState=(sync=false)=>{
+    if(disposed)return Promise.reject(cancelled());
+    if(stateLoadPromise)return stateLoadPromise;
+    const generation=stateLoadGeneration;
+    const load=async()=>{
+      for(let attempt=0;;attempt++){
+        if(disposed||generation!==stateLoadGeneration)throw cancelled();
+        try{
+          const response=await request('ldc_load_state',{importCortex:sync,scanTranscript:sync},sync?60000:15000);
+          if(disposed||generation!==stateLoadGeneration)throw cancelled();
+          return response;
+        }catch(error){
+          // Only retry unanswered state reads, never mutations or backend errors.
+          if(disposed||generation!==stateLoadGeneration)throw cancelled();
+          if(sync||!error?.retryable||attempt>=2)throw error;
+          await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{retryWaits.delete(timer);resolve()},attempt===0?500:1500);retryWaits.set(timer,reject)});
+        }
+      }
+    };
+    const promise=load().finally(()=>{if(stateLoadPromise===promise)stateLoadPromise=null});
+    stateLoadPromise=promise;return promise;
+  };
+  const unsubBackend=ctx.onBackendMessage(payload=>{if(disposed)return;const task=pending.get(payload?.requestId);if(!task)return;clearTimeout(task.timer);pending.delete(payload.requestId);lastRoundtripMs=Math.max(0,Math.round(performance.now()-task.startedAt));if(payload.type==='ldc_error'){lastBackendError=payload.error||'Unknown error';task.reject(new Error(lastBackendError))}else{lastBackendError='';task.resolve(payload)}});
   function characterStateKey(character){return String(character?.binding?.speakerUid||`name:${String(character?.name||'').trim().toLowerCase()}`)}
-  function acceptState(next){const previous=state?.ok?state:null,selected=previous?.characters?.find(character=>String(character.id)===String(selectedId))||null,selectedKey=characterStateKey(selected);if(previous&&next?.ok&&Array.isArray(next.characters)){const order=new Map(previous.characters.map((character,index)=>[characterStateKey(character),index]));next.characters=next.characters.map((character,index)=>({character,index})).sort((left,right)=>{const leftRank=order.has(characterStateKey(left.character))?order.get(characterStateKey(left.character)):Number.MAX_SAFE_INTEGER,rightRank=order.has(characterStateKey(right.character))?order.get(characterStateKey(right.character)):Number.MAX_SAFE_INTEGER;return leftRank-rightRank||left.index-right.index}).map(item=>item.character);const replacement=next.characters.find(character=>characterStateKey(character)===selectedKey);if(replacement)selectedId=replacement.id}state=next;if(next?.preferences)uiPreferenceCache={...(uiPreferenceCache||{}),...next.preferences};pendingReviewCount=Math.max(0,Number(next?.pendingReviewCount)||0);if(pendingReviewCount>0&&hydrationStatus!=='error')hydrationStatus='awaiting';else if(hydrationStatus==='awaiting')hydrationStatus='idle';revision++;signatures.clear();schedule(true);rebuildToolbar();refreshPrismStatus()}
+  function acceptState(next){if(disposed)return;const previous=state?.ok?state:null,selected=previous?.characters?.find(character=>String(character.id)===String(selectedId))||null,selectedKey=characterStateKey(selected);if(previous&&next?.ok&&Array.isArray(next.characters)){const order=new Map(previous.characters.map((character,index)=>[characterStateKey(character),index]));next.characters=next.characters.map((character,index)=>({character,index})).sort((left,right)=>{const leftRank=order.has(characterStateKey(left.character))?order.get(characterStateKey(left.character)):Number.MAX_SAFE_INTEGER,rightRank=order.has(characterStateKey(right.character))?order.get(characterStateKey(right.character)):Number.MAX_SAFE_INTEGER;return leftRank-rightRank||left.index-right.index}).map(item=>item.character);const replacement=next.characters.find(character=>characterStateKey(character)===selectedKey);if(replacement)selectedId=replacement.id}state=next;if(next?.preferences)uiPreferenceCache={...(uiPreferenceCache||{}),...next.preferences};pendingReviewCount=Math.max(0,Number(next?.pendingReviewCount)||0);if(pendingReviewCount>0&&hydrationStatus!=='error')hydrationStatus='awaiting';else if(hydrationStatus==='awaiting')hydrationStatus='idle';revision++;signatures.clear();schedule(true);rebuildToolbar();refreshPrismStatus()}
   function uiPreferences(){const preferences=state?.preferences||uiPreferenceCache||{},rawLayout=preferences.modalLayout==='tabs'?'horizontal':preferences.modalLayout;return{modalSize:['auto','compact','large'].includes(preferences.modalSize)?preferences.modalSize:'auto',modalExpanded:preferences.modalExpanded===true,modalLayout:['auto','split','horizontal','accessibility'].includes(rawLayout)?rawLayout:'auto',modalScale:[.7,.8,.9,1,1.1,1.25].includes(Number(preferences.modalScale))?Number(preferences.modalScale):1,modalShape:['rounded','soft','square'].includes(preferences.modalShape)?preferences.modalShape:'rounded',showSaveIndicator:preferences.showSaveIndicator!==false}}
   function prismEnabled(){const preferences=state?.preferences||uiPreferenceCache||{};return preferences.prismEnabled!==false}
   function acceptUiPreferences(preferences){uiPreferenceCache={...(uiPreferenceCache||{}),...(preferences||{})};if(state)state.preferences={...(state.preferences||{}),...(preferences||{})}}
@@ -360,11 +399,11 @@ export function setup(ctx: SpindleFrontendContext){
   function missingCount(){return(state?.characters||[]).filter(c=>!bindingRegistryColor(c.binding)).length+((state?.config?.personaEnabled!==false||state?.config?.personaInCast===true)&&state?.persona&&!bindingRegistryColor(state.persona.binding)?1:0)}
   function setBusy(value){busy=value;modal?.root.querySelectorAll('button,input,select,textarea').forEach(el=>{el.disabled=value})}
   function visiblePrismStatus(){if(saveStatus==='error'||hydrationStatus==='error')return{state:'error',label:'Prism error'};if(saveStatus==='saving'||saveStatus==='pending'||hydrationStatus==='syncing')return{state:'syncing',label:'Syncing…'};if(!prismEnabled())return{state:'off',label:'Prism off'};if(pendingReviewCount>0)return{state:'awaiting',label:`Awaiting review · ${pendingReviewCount}`};return{state:'saved',label:'Saved'}}
-  function refreshPrismStatus(){const visible=visiblePrismStatus();document.querySelectorAll('[data-prism-save-status],.ldc-shell [data-save-status]').forEach(node=>{node.dataset.prismSaveStatus=visible.state;if(node instanceof HTMLButtonElement)node.setAttribute('aria-label',visible.label);const label=node.querySelector('[data-prism-save-label]');if(label)label.textContent=visible.label;else node.textContent=visible.label})}
+  function refreshPrismStatus(){if(disposed)return;const visible=visiblePrismStatus();document.querySelectorAll('[data-prism-save-status],.ldc-shell [data-save-status]').forEach(node=>{node.dataset.prismSaveStatus=visible.state;if(node instanceof HTMLButtonElement)node.setAttribute('aria-label',visible.label);const label=node.querySelector('[data-prism-save-label]');if(label)label.textContent=visible.label;else node.textContent=visible.label})}
   function saveStatusLabel(){return visiblePrismStatus().label}
   function setSaveStatus(value){saveStatus=value;refreshPrismStatus()}
   function setHydrationStatus(value){hydrationStatus=value;refreshPrismStatus()}
-  async function perform(task){if(busy)return;setBusy(true);try{await task()}catch(error){if(saveStatus==='saving'||saveStatus==='pending')setSaveStatus('error');await ctx.ui.showConfirm({title:'Prism',message:error?.message||String(error),confirmLabel:'Okay',cancelLabel:'Close',variant:'warning'})}finally{setBusy(false)}}
+  async function perform(task){if(disposed||busy)return;setBusy(true);try{await task()}catch(error){if(disposed||error?.name==='AbortError')return;if(saveStatus==='saving'||saveStatus==='pending')setSaveStatus('error');await ctx.ui.showConfirm({title:'Prism',message:error?.message||String(error),confirmLabel:'Okay',cancelLabel:'Close',variant:'warning'})}finally{setBusy(false)}}
 
   function reviewPanel(){
     const groups=state?.reviewGroups||[];
@@ -435,7 +474,7 @@ export function setup(ctx: SpindleFrontendContext){
   }
   function centerActiveRoster(roster,smooth=false){const active=roster?.querySelector('.ldc-person[data-active=true]');if(!active)return;const rosterRect=roster.getBoundingClientRect(),activeRect=active.getBoundingClientRect(),target=roster.scrollLeft+(activeRect.left-rosterRect.left)-(roster.clientWidth-activeRect.width)/2,max=Math.max(0,roster.scrollWidth-roster.clientWidth);roster.scrollTo({left:Math.max(0,Math.min(max,target)),behavior:smooth?'smooth':'auto'})}
   function render(){
-    if(!modal)return;const oldSide=modal.root.querySelector('.ldc-side'),oldLayout=modal.root.querySelector('.ldc-shell')?.dataset.prismLayout,oldScroller=modal.root.querySelector(oldLayout==='tabs'?'.ldc-main-wrap':'.ldc-panel');if(oldSide&&activeTab==='character')sideScroll=oldSide.scrollTop;if(oldScroller)panelScroll=oldScroller.scrollTop;
+    if(disposed||!modal)return;const oldSide=modal.root.querySelector('.ldc-side'),oldLayout=modal.root.querySelector('.ldc-shell')?.dataset.prismLayout,oldScroller=modal.root.querySelector(oldLayout==='tabs'?'.ldc-main-wrap':'.ldc-panel');if(oldSide&&activeTab==='character')sideScroll=oldSide.scrollTop;if(oldScroller)panelScroll=oldScroller.scrollTop;
     if(!state){modal.root.innerHTML='<div class="ldc-loading">Reading the scene registry…</div>';return}
     if(!state.ok){modal.root.innerHTML=`<div class="ldc-error">${esc(state.error||'Could not load this chat.')}</div>`;return}
     if(!selectedId&&state.characters?.length)selectedId=state.characters[0].id;
@@ -463,7 +502,7 @@ export function setup(ctx: SpindleFrontendContext){
   function syncSidebarSwatch(target,paint){if(!modal||!target)return;const p=safePaint(paint,target?.binding?.color),swatch=modal.root.querySelector(`[data-inline-swatch="${window.CSS.escape(String(target.id))}"]`),picker=modal.root.querySelector(`[data-inline-color="${window.CSS.escape(String(target.id))}"]`);if(swatch){swatch.style.setProperty('--swatch',p.stops[0]);swatch.style.setProperty('--swatch-paint',paintBackground(p,p.stops[0]))}if(picker)picker.value=p.stops[0]}
   function markThoughtCustomized(){if(activeChannel!=='thought'||!modal)return;const toggle=modal.root.querySelector('[data-role=thought-linked]');if(toggle?.checked){toggle.checked=false;const controls=modal.root.querySelector('.ldc-editor-controls');if(controls)controls.dataset.thoughtLinked='false';const copy=modal.root.querySelector('.ldc-thought-link span:last-child');if(copy)copy.textContent='Custom thought paint'}}
   function updateEditorPreview(){if(!modal)return;const target=activeTab==='persona'?state?.persona:current(),read=readEditorChannels(target);if(!read)return;const lines={dialogue:modal.root.querySelector('.ldc-preview-dialogue'),thought:modal.root.querySelector('.ldc-preview-thought')};for(const kind of ['dialogue','thought']){const line=lines[kind],paint=read.channels[kind].paint,gradient=paint.mode==='gradient'&&paint.stops.length>=2,value=gradient?`linear-gradient(${paint.angle}deg,${paint.stops.join(', ')})`:paint.stops[0];if(line){line.dataset.prismPaint=gradient?'gradient':'solid';line.style.setProperty('--ldc-fallback',paint.anchor);line.style.setProperty('--ldc-color',paint.stops[0]);if(gradient){line.style.removeProperty('color');line.style.setProperty('--ldc-gradient',value)}else{line.style.removeProperty('--ldc-gradient');line.style.setProperty('color',paint.stops[0],'important')}}}const paint=read.channels[activeChannel].paint,gradient=paint.mode==='gradient'&&paint.stops.length>=2,value=gradient?`linear-gradient(${paint.angle}deg,${paint.stops.join(', ')})`:paint.stops[0],editor=modal.root.querySelector('.ldc-gradient-editor');if(editor){editor.style.setProperty('--editor-gradient',value);editor.style.setProperty('--editor-solid',paint.stops[0])}modal.root.querySelectorAll('.ldc-stop span').forEach((stop,index)=>stop.style.setProperty('--stop',paint.stops[index]||paint.stops[0]));syncSidebarSwatch(target,read.channels.dialogue.paint);const canonicalReadout=modal.root.querySelector('[data-role=canonical-readout]');if(canonicalReadout)canonicalReadout.value=read.color}
-  function queueEditorSave(immediate=false){clearTimeout(saveTimer);const generation=++saveGeneration;setSaveStatus('pending');saveTimer=setTimeout(()=>{saveQueue=saveQueue.catch(()=>{}).then(async()=>{if(generation!==saveGeneration)return;setSaveStatus('saving');try{await saveEditor(activeTab==='persona'?'persona':'character',false);if(generation===saveGeneration)setSaveStatus('saved')}catch(error){if(generation===saveGeneration)setSaveStatus('error');await ctx.ui.showConfirm({title:'Prism',message:error?.message||String(error),confirmLabel:'Okay',cancelLabel:'Close',variant:'warning'})}})},immediate?0:450)}
+  function queueEditorSave(immediate=false){clearTimeout(saveTimer);const generation=++saveGeneration;setSaveStatus('pending');saveTimer=setTimeout(()=>{saveQueue=saveQueue.catch(()=>{}).then(async()=>{if(generation!==saveGeneration)return;setSaveStatus('saving');try{await saveEditor(activeTab==='persona'?'persona':'character',false);if(generation===saveGeneration)setSaveStatus('saved')}catch(error){if(generation===saveGeneration)setSaveStatus('error');if(disposed||error?.name==='AbortError')return;await ctx.ui.showConfirm({title:'Prism',message:error?.message||String(error),confirmLabel:'Okay',cancelLabel:'Close',variant:'warning'})}})},immediate?0:450)}
   async function saveEditorNow(){clearTimeout(saveTimer);const generation=++saveGeneration,kind=activeTab==='persona'?'persona':'character',personaOptions=kind==='persona'&&modal?{chatId:state.chat.id,engine:state.config.engine,personaEnabled:modal.root.querySelector('[data-role=persona-enabled]')?.checked??state.config.personaEnabled,personaInCast:modal.root.querySelector('[data-role=persona-in-cast]')?.checked??state.config.personaInCast,autoUserMode:modal.root.querySelector('[data-role=auto-mode]')?.value??state.config.autoUserMode}:null;setSaveStatus('saving');await saveQueue.catch(()=>{});await saveEditor(kind,false);if(personaOptions){const response=await request('ldc_update_options',personaOptions);acceptState(response.state)}if(generation===saveGeneration)setSaveStatus('saved')}
   function navigateEditor(action){clearTimeout(saveTimer);const pendingSave=saveStatus==='pending';++saveGeneration;if(pendingSave)perform(async()=>{setSaveStatus('saving');await saveQueue.catch(()=>{});await saveEditor(activeTab==='persona'?'persona':'character',false);action();saveStatus='saved';render()});else{action();saveStatus='saved';render()}}
   function unresolvedSegments(){return[...new Set(document.querySelectorAll('.ldc-prism-segment[data-prism-kind="dialogue"][data-prism-speaker=""],.ldc-prism-segment[data-prism-kind="dialogue"][data-prism-needs-color=true],.ldc-prism-segment[data-prism-kind="dialogue"][data-prism-hybrid-deferred=true]'))].filter(element=>element.isConnected)}
@@ -677,7 +716,7 @@ export function setup(ctx: SpindleFrontendContext){
   function colorThoughts(root,mc,list){const mode=state?.preferences?.thoughtDetection||'off';if(mode==='off')return;const contentHash=hashText(root.textContent||''),italics=mode==='italics'||mode==='italics-and-single-quotes',singles=mode==='single-quotes'||mode==='italics-and-single-quotes';if(italics)for(const element of root.querySelectorAll('em,i')){if(element.closest('code,pre,textarea,script,style,font,.ldc-inline-color')||element.querySelector('font,.ldc-inline-color,.ldc-prism-segment')||element.classList.contains('ldc-prism-segment'))continue;const quote=element.textContent||'';if(!quote.trim()||/[“”"]/.test(quote)||structured(quote))continue;const segmentKey=hashText(['thought',quote.trim().toLowerCase(),String([...root.querySelectorAll('em,i')].indexOf(element))].join('\u241F')),override=overrideFor(mc.messageId,mc.swipeId,contentHash,segmentKey),kind=override?.kind||'thought',attribution=override?{speaker:override.speakerKey==null?null:list.find(c=>c.key===override.speakerKey)||null,confidence:1,source:'manual'}:conservativeThoughtAttribution(element,mc,list),channel=attribution.speaker?.channels?.[kind];if(kind!=='ignored'&&channel?.enabled)applyPaint(element,channel.paint);else element.classList.add('ldc-prism-unpainted');decorate(element,{messageId:mc.messageId,swipeId:mc.swipeId,segmentKey,contentHash,quote,attribution,kind},list)}if(singles){const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode(node){return!node.data.trim()||node.parentElement?.closest('code,pre,textarea,script,style,font,em,i,.ldc-inline-color,.ldc-prism-segment')||structured(logicalBlock(node,root)?.textContent)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT}}),nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);for(let n=nodes.length-1;n>=0;n--)for(const match of [...nodes[n].data.matchAll(/‘[^’\n]+’|(?<![\p{L}\p{N}])'[^'\n]{2,}'(?![\p{L}\p{N}])/gu)].reverse()){const quote=match[0],segmentKey=hashText(['single-thought',quote.trim().toLowerCase(),match.index].join('\u241F')),override=overrideFor(mc.messageId,mc.swipeId,contentHash,segmentKey),probe=document.createElement('span');probe.textContent=quote;nodes[n].parentElement?.appendChild(probe);const attribution=override?{speaker:override.speakerKey==null?null:list.find(c=>c.key===override.speakerKey)||null,confidence:1,source:'manual'}:conservativeThoughtAttribution(probe,mc,list),kind=override?.kind||'thought',channel=attribution.speaker?.channels?.[kind];probe.remove();const middle=nodes[n].splitText(match.index);middle.splitText(quote.length);const span=document.createElement('span');span.className='ldc-dom-thought';middle.replaceWith(span);span.appendChild(middle);if(channel?.enabled&&kind!=='ignored')applyPaint(span,channel.paint);else span.classList.add('ldc-prism-unpainted');decorate(span,{messageId:mc.messageId,swipeId:mc.swipeId,segmentKey,contentHash,quote,attribution,kind},list)}}}
 
   function processMounted(force=false){
-    if(applying)return;applying=true;observer.disconnect();
+    if(disposed||applying)return;applying=true;observer.disconnect();
     try{
       const enabled=prismEnabled(),list=enabled?candidates():[],personaBinding=enabled&&state?.config?.personaEnabled!==false?state?.persona?.binding:null,personaColor=bindingRegistryColor(personaBinding);
       for(const{messageId,element}of ctx.dom.listMessageElements()){
@@ -695,7 +734,7 @@ export function setup(ctx: SpindleFrontendContext){
       }
     }finally{applying=false;observe()}
   }
-  function schedule(immediate=false){clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>processMounted(false),immediate?0:70)}
+  function schedule(immediate=false){if(disposed)return;clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>processMounted(false),immediate?0:70)}
   function markLatest(){const id=ctx.messages.getLatestMessageId();if(id)dirty.add(id);schedule()}
   function markMessageEvent(payload={}){const message=payload?.message||null,id=String(message?.id||payload?.messageId||ctx.messages.getLatestMessageId()||''),role=String(message?.role||'');if(id&&role)messageRoles.set(id,role);if(id)dirty.add(id);schedule(true)}
   function markUserRendered(payload={}){const id=String(payload?.messageId||'');if(id){messageRoles.set(id,'user');dirty.add(id)}schedule(true)}
@@ -715,6 +754,7 @@ export function setup(ctx: SpindleFrontendContext){
   function clearToolbar(){if(toolbarInjection?.isConnected)ctx.dom.uninject(toolbarInjection);toolbarInjection=null;document.querySelector('.ldc-toolbar-host')?.remove()}
   function rebuildToolbar(){clearToolbar();ensureToolbar()}
   function ensureToolbar(){
+    if(disposed)return;
     const toolbar=document.querySelector('[class*="chatToolbar"]');if(!toolbar||toolbar.querySelector('[data-prism-toolbar-button]'))return;
     if(toolbarInjection?.isConnected)ctx.dom.uninject(toolbarInjection);
     const status=uiPreferences().showSaveIndicator?`<button type="button" class="ldc-toolbar-save-state" data-prism-save-status="${saveStatus}" aria-live="polite" aria-label="${saveStatusLabel(saveStatus)}"><i></i><span data-prism-save-label>${saveStatusLabel(saveStatus)}</span></button>`:'';
@@ -723,8 +763,9 @@ export function setup(ctx: SpindleFrontendContext){
   }
   const observer=new MutationObserver(records=>{if(records.every(record=>record.target instanceof Element&&record.target.closest('.ldc-toolbar-host,.ldc-shell')))return;ensureToolbar();schedule()});
   function observationRoot(){return document.querySelector('[class*="chatColumnInner"]')||document.querySelector('[class*="chatColumn"]')||document.body}
-  function observe(){const root=observationRoot();if(root){observer.disconnect();observer.observe(root,{childList:true,subtree:true})}}
+  function observe(){if(disposed)return;const root=observationRoot();if(root){observer.disconnect();observer.observe(root,{childList:true,subtree:true})}}
   async function openPalette(resetScroll=true){
+    if(disposed)return;
     if(modal){const previous=modal;previous.dismiss();if(modal===previous)modal=null}
     releaseFullscreenOverlay();
     if(resetScroll){sideScroll=0;sideScrollLeft=0;panelScroll=0}
@@ -751,7 +792,7 @@ export function setup(ctx: SpindleFrontendContext){
     applyModalPresentation(layout,dimensions);
     render();
     if(state?.ok)return;
-    try{const r=await loadState(false);acceptState(r.state);if(!selectedId)selectedId=state?.characters?.[0]?.id||null;render()}catch(error){state={ok:false,error:error?.message||String(error)};render()}
+    try{const r=await loadState(false);acceptState(r.state);if(!selectedId)selectedId=state?.characters?.[0]?.id||null;render()}catch(error){if(disposed||error?.name==='AbortError')return;state={ok:false,error:error?.message||String(error)};render()}
   }
   async function closePalette(){clearTimeout(saveTimer);const shouldSave=saveStatus==='pending';++saveGeneration;if(shouldSave&&modal&&state?.ok){setSaveStatus('saving');await saveQueue.catch(()=>{});await saveEditor(activeTab==='persona'?'persona':'character',false);setSaveStatus('saved')}const handle=modal;handle?.dismiss();releaseFullscreenOverlay();if(modal===handle)modal=null;modalHostHandle=null}
   async function togglePrismWindow(){const ui=uiPreferences(),fullscreen=resolvedModalLayout()==='tabs';await saveUiPreferences(fullscreen?{modalExpanded:false,modalLayout:'horizontal'}:{modalExpanded:!ui.modalExpanded});await reopenPalette()}
@@ -760,7 +801,7 @@ export function setup(ctx: SpindleFrontendContext){
   async function openReviewInbox(){reviewOpen=true;settingsOpen=false;if(!modal)await openPalette();else render()}
   async function reload(show=false,sync=false){
     if(show&&modal){state=null;render()}
-    try{const r=await loadState(sync);acceptState(r.state);if(!selectedId||!state?.characters?.some(x=>String(x.id)===String(selectedId)))selectedId=state?.characters?.[0]?.id||null;if(modal)render()}catch(error){state={ok:false,error:error?.message||String(error)};if(modal)render()}
+    try{const r=await loadState(sync);acceptState(r.state);if(!selectedId||!state?.characters?.some(x=>String(x.id)===String(selectedId)))selectedId=state?.characters?.[0]?.id||null;if(modal)render()}catch(error){if(disposed||error?.name==='AbortError')return;state={ok:false,error:error?.message||String(error)};if(modal)render()}
   }
 
   const onViewportChange=()=>{if(!modal)return;const layout=resolvedModalLayout();if((layout==='tabs')!==(modal.root===fullscreenOverlay)){perform(reopenPalette);return}if(modal.root===fullscreenOverlay||modal.isSafePortal)applyModalPresentation(layout,modalDimensions())};
@@ -769,12 +810,13 @@ export function setup(ctx: SpindleFrontendContext){
   ensureToolbar();observe();
   const action=ctx.ui.registerInputBarAction({id:'open-dialogue-colors',label:'Prism',iconSvg:PRISM_ICON,enabled:true});
   const clearAllStreaming=()=>{activeGenerationIds.clear();streamingMessageIds.clear();document.querySelectorAll('[data-prism-streaming]').forEach(element=>delete element.dataset.prismStreaming)};
-  const unsubAction=action.onClick(openMainPalette),unsubChat=ctx.events.on('CHAT_SWITCHED',()=>{state=null;promptDraft=null;reviewOpen=false;settingsOpen=false;hydratingMessages.clear();messageRoles.clear();clearAllStreaming();themeColorCache=null;themeColorSignature='';setHydrationStatus('idle');signatures.clear();dirty.clear();ensureToolbar();observe();reload(true)}),unsubMessage=ctx.events.on('MESSAGE_SENT',markMessageEvent),unsubMessageEdited=ctx.events.on('MESSAGE_EDITED',markMessageEvent),unsubUserRendered=ctx.events.on('USER_MESSAGE_RENDERED',markUserRendered),unsubGenerationStart=ctx.events.on('GENERATION_STARTED',markStreaming),unsubStream=ctx.events.on('STREAM_TOKEN_RECEIVED',markStreaming),unsubGeneration=ctx.events.on('GENERATION_ENDED',hydrateLatest),unsubGenerationStop=ctx.events.on('GENERATION_STOPPED',payload=>{clearStreaming(payload);markLatest()});
+  const unsubAction=action.onClick(openMainPalette),unsubChat=ctx.events.on('CHAT_SWITCHED',()=>{cancelStateLoad();state=null;promptDraft=null;reviewOpen=false;settingsOpen=false;hydratingMessages.clear();messageRoles.clear();clearAllStreaming();themeColorCache=null;themeColorSignature='';setHydrationStatus('idle');signatures.clear();dirty.clear();ensureToolbar();observe();reload(true)}),unsubMessage=ctx.events.on('MESSAGE_SENT',markMessageEvent),unsubMessageEdited=ctx.events.on('MESSAGE_EDITED',markMessageEvent),unsubUserRendered=ctx.events.on('USER_MESSAGE_RENDERED',markUserRendered),unsubGenerationStart=ctx.events.on('GENERATION_STARTED',markStreaming),unsubStream=ctx.events.on('STREAM_TOKEN_RECEIVED',markStreaming),unsubGeneration=ctx.events.on('GENERATION_ENDED',hydrateLatest),unsubGenerationStop=ctx.events.on('GENERATION_STOPPED',payload=>{clearStreaming(payload);markLatest()});
   reload();
   return()=>{
-    for(const task of pending.values()){clearTimeout(task.timer);task.reject(new Error('Extension unloaded.'))}pending.clear();clearTimeout(refreshTimer);clearTimeout(saveTimer);clearTimeout(longTimer);clearTimeout(editorPageTimer);observer.disconnect();
+    if(disposed)return;disposed=true;++saveGeneration;cancelStateLoad();
+    for(const task of pending.values()){clearTimeout(task.timer);task.reject(cancelled())}pending.clear();clearTimeout(refreshTimer);clearTimeout(saveTimer);clearTimeout(longTimer);clearTimeout(editorPageTimer);observer.disconnect();
     for(const{element}of ctx.dom.listMessageElements()){const content=element.querySelector('[data-component=MessageContent]');if(content)clearRoot(content)}
     clearTouchSegment();document.removeEventListener('pointerdown',clearTouchSegmentOutside,true);document.removeEventListener('scroll',clearTouchSegment,true);
-    window.removeEventListener('resize',onViewportChange);window.visualViewport?.removeEventListener('resize',onViewportChange);window.visualViewport?.removeEventListener('scroll',onViewportChange);clearAllStreaming();addModal?.dismiss();importModal?.dismiss();modal?.dismiss();releaseFullscreenOverlay();unsubChat();unsubMessage();unsubMessageEdited();unsubUserRendered();unsubGenerationStart();unsubStream();unsubGeneration();unsubGenerationStop();unsubAction();action.destroy();if(toolbarInjection)ctx.dom.uninject(toolbarInjection);unsubBackend();removeStyle();ctx.dom.cleanup()
+    window.removeEventListener('resize',onViewportChange);window.visualViewport?.removeEventListener('resize',onViewportChange);window.visualViewport?.removeEventListener('scroll',onViewportChange);clearAllStreaming();addModal?.dismiss();importModal?.dismiss();modal?.dismiss();modal=null;releaseFullscreenOverlay();unsubChat();unsubMessage();unsubMessageEdited();unsubUserRendered();unsubGenerationStart();unsubStream();unsubGeneration();unsubGenerationStop();unsubAction();action.destroy();if(toolbarInjection)ctx.dom.uninject(toolbarInjection);unsubBackend();removeStyle();ctx.dom.cleanup()
   }
 }

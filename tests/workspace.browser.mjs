@@ -14,7 +14,7 @@ const host=`
 const compileFixturePrompt=(()=>{${backend}
   return state=>{const config=safeConfig({...cloneDefaultConfig(state.config.engine),...state.config});config.promptCharacterColors=usesModelTags(config.engine);return promptEditorState(config,compileRegistry(config),state.preferences.prismEnabled!==false)};
 })();
-let backendListener,openAction;const events=new Map(),requests=[];
+let backendListener,openAction;const events=new Map(),requests=[],transport={drop:0};
 const binding={kind:'character',name:'Gabrielle',targetId:'character',speakerUid:'prism-speaker-test',color:'#87B3CF',source:'library'};
 let fixtureState={ok:true,chat:{id:'chat',name:'A deliberately long scene title to verify the footer stays contained at every viewport and UI scale'},characters:[{id:'character',name:'Gabrielle',aliases:[],status:'active',binding}],persona:{id:'persona',name:'Kitty',title:'Active persona',binding:{...binding,kind:'persona',name:'Kitty',targetId:'persona',speakerUid:'prism-speaker-persona'}},config:{engine:'hybrid',autoUserMode:'quoted',personaEnabled:true,personaInCast:false,bindings:{character:binding},overrides:{}},preferences:{modalLayout:'split',modalSize:'auto',modalScale:1,showSaveIndicator:true,prismEnabled:true},registry:{entries:[],conflicts:[]},cortexAvailable:true,pendingReviewCount:0};
 const injections=new Set();
@@ -22,11 +22,11 @@ const ctx={
   dom:{addStyle(css){const el=document.createElement('style');el.textContent=css;document.head.append(el);return()=>el.remove()},listMessageElements:()=>[],inject(target,html){const el=document.createElement('div');el.innerHTML=html;target.append(el);injections.add(el);return el},uninject(el){el.remove();injections.delete(el)},cleanup(){for(const el of injections)el.remove()}},
   events:{on(name,fn){events.set(name,fn);return()=>events.delete(name)}},
   onBackendMessage(fn){backendListener=fn;return()=>backendListener=null},
-  sendToBackend(payload){requests.push(payload);setTimeout(()=>{if(!backendListener)return;if(payload.type==='ldc_update_ui_preferences')Object.assign(fixtureState.preferences,payload);if(payload.type==='ldc_update_options')Object.assign(fixtureState.config,payload);if(payload.type==='ldc_save_binding'){const target=payload.kind==='persona'?fixtureState.persona:fixtureState.characters[0];target.binding={...target.binding,...payload}}fixtureState.prompt=compileFixturePrompt(fixtureState);backendListener({requestId:payload.requestId,type:'ldc_state',state:structuredClone(fixtureState),preferences:structuredClone(fixtureState.preferences)})},2)},
+  sendToBackend(payload){requests.push(payload);if(transport.drop>0){transport.drop--;return}setTimeout(()=>{if(!backendListener)return;if(payload.type==='ldc_update_ui_preferences')Object.assign(fixtureState.preferences,payload);if(payload.type==='ldc_update_options')Object.assign(fixtureState.config,payload);if(payload.type==='ldc_save_binding'){const target=payload.kind==='persona'?fixtureState.persona:fixtureState.characters[0];target.binding={...target.binding,...payload}}fixtureState.prompt=compileFixturePrompt(fixtureState);backendListener({requestId:payload.requestId,type:'ldc_state',state:structuredClone(fixtureState),preferences:structuredClone(fixtureState.preferences)})},2)},
   ui:{registerInputBarAction(){return {onClick(fn){openAction=fn;return()=>openAction=null},destroy(){}}},showConfirm:async options=>{throw Error(options.message)},showModal(options){const backdrop=document.createElement('div'),card=document.createElement('section'),head=document.createElement('header'),root=document.createElement('div');backdrop.className='host-backdrop';card.className='host-card';card.setAttribute('role','dialog');card.setAttribute('aria-label','Prism');card.style.width=Math.min(options.width,innerWidth/Number(getComputedStyle(document.documentElement).getPropertyValue('--lumiverse-ui-scale'))-40)+'px';card.style.maxHeight=options.maxHeight+'px';head.innerHTML='<strong>Prism</strong><button aria-label="Close Prism">×</button>';root.className='host-body';card.append(head,root);backdrop.append(card);document.body.append(backdrop);const callbacks=new Set();let closed=false;const handle={root,dismiss(){if(closed)return;closed=true;backdrop.remove();callbacks.forEach(fn=>fn())},onDismiss(fn){callbacks.add(fn);return()=>callbacks.delete(fn)}};head.querySelector('button').onclick=handle.dismiss;return handle}}
 };
 ${frontend}
-window.fixture={requests,events,get state(){return fixtureState},open:()=>openAction(),unload:null,load(){this.unload=setup(ctx)},switchChat(){fixtureState.chat.id='second-chat';events.get('CHAT_SWITCHED')?.()}};
+window.fixture={requests,events,transport,get state(){return fixtureState},open:()=>openAction(),unload:null,load(){this.unload=setup(ctx)},switchChat(){fixtureState.chat.id='second-chat';events.get('CHAT_SWITCHED')?.()}};
 window.fixture.load();
 `;
 const browser=await chromium.launch({headless:true});
@@ -39,6 +39,26 @@ try{
     await page.addScriptTag({content:host});
     assert.deepEqual(errors,[]);
     await page.waitForSelector('[data-prism-toolbar-button]');
+    if(scale===1&&(width===1280||width===390)){
+      await page.clock.install();
+      await page.clock.pauseAt(new Date(Date.now()+1000));
+      await page.evaluate(()=>{window.fixture.unload();window.fixture.transport.drop=1;window.fixture.load();void window.fixture.open()});
+      await page.clock.runFor(15600);
+      await page.getByRole('button',{name:'Settings',exact:true}).click();
+      await page.getByRole('button',{name:'Prompt',exact:true}).click();
+      await page.getByRole('textbox',{name:'Prompt instructions',exact:true}).waitFor();
+      const sent=await page.evaluate(()=>{
+        window.fixture.unload();window.fixture.transport.drop=1;window.fixture.load();void window.fixture.open();window.fixture.unload();
+        return window.fixture.requests.length;
+      });
+      await page.clock.runFor(60000);
+      assert.equal(await page.evaluate(()=>window.fixture.requests.length),sent,'Unloaded instance sends no retry');
+      assert.equal(await page.locator('.ldc-shell,[data-prism-toolbar-button]').count(),0,'Unload leaves no resurrected controls');
+      await page.evaluate(()=>window.fixture.load());
+      await page.clock.runFor(100);
+      await page.clock.resume();
+      console.log(`Passed lost startup reply, settings recovery, unload during load, and restart at ${width}x${height}.`);
+    }
     await page.evaluate(()=>window.fixture.open());
     await page.getByRole('button',{name:'Persona',exact:true}).click();
     await page.getByRole('button',{name:'Save persona colors',exact:true}).waitFor();

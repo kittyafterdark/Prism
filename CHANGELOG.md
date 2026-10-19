@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Recovers unanswered startup state loads with bounded retries, cancels stale loads on chat changes, and prevents pending work from restarting Prism after unload.
 - Shows the built-in or custom prompt in an editable **Active prompt** box under Prompt settings, with explicit saving, keyboard saving, reset, and a resolved live-data preview.
 - Adds an enabled-by-default **Enable mobile double-tap** preference under Look & feel. Opting out restores long-press access and native text selection, and the choice persists across chats.
 - Fixes color-edit preview errors caused by the stylesheet constant shadowing the browser’s CSS.escape API.

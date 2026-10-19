@@ -263,10 +263,77 @@ function engineDescription(value) { return ({ dom: 'Visual only · heuristic pai
 export function setup(ctx) {
     const removeStyle = ctx.dom.addStyle(CSS), pending = new Map(), signatures = new Map(), dirty = new Set(), hydratingMessages = new Set(), activeGenerationIds = new Set(), streamingMessageIds = new Set(), messageRoles = new Map();
     let modal = null, modalHostHandle = null, fullscreenOverlay = null, addModal = null, importModal = null, state = null, uiPreferenceCache = null, activeTab = 'character', activeChannel = 'dialogue', activeEditorPage = 'paint', settingsSection = 'look', promptDraft = null, selectedId = null, sideScroll = 0, sideScrollLeft = 0, panelScroll = 0, settingsOpen = false, reviewOpen = false, busy = false, saveStatus = 'saved', hydrationStatus = 'idle', pendingReviewCount = 0, reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, saveTimer = 0, longTimer = 0, editorPageTimer = 0, applying = false, revision = 0, saveGeneration = 0, saveQueue = Promise.resolve(), stateLoadPromise = null, lastRoundtripMs = 0, lastBackendError = '', themeColorCache = null, themeColorSignature = '';
-    const request = (type, data = {}, timeoutMs = 15000) => new Promise((resolve, reject) => { const requestId = uid(), startedAt = performance.now(), timer = setTimeout(() => { pending.delete(requestId); lastBackendError = `${type} timed out`; reject(new Error(`Prism's backend did not answer ${type} within ${Math.round(timeoutMs / 1000)} seconds.`)); }, timeoutMs); pending.set(requestId, { resolve, reject, timer, startedAt, type }); ctx.sendToBackend({ type, requestId, ...data }); });
-    const loadState = (sync = false) => { if (stateLoadPromise)
-        return stateLoadPromise; stateLoadPromise = request('ldc_load_state', { importCortex: sync, scanTranscript: sync }, sync ? 60000 : 15000).finally(() => { stateLoadPromise = null; }); return stateLoadPromise; };
-    const unsubBackend = ctx.onBackendMessage(payload => { const task = pending.get(payload?.requestId); if (!task)
+    let disposed = false, stateLoadGeneration = 0;
+    const retryWaits = new Map();
+    const cancelled = () => Object.assign(new Error('Prism request cancelled.'), { name: 'AbortError' });
+    const request = (type, data = {}, timeoutMs = 15000) => new Promise((resolve, reject) => {
+        if (disposed) {
+            reject(cancelled());
+            return;
+        }
+        const requestId = uid(), startedAt = performance.now(), timer = setTimeout(() => {
+            pending.delete(requestId);
+            lastBackendError = `${type} timed out`;
+            reject(Object.assign(new Error(`Prism's backend did not answer ${type} within ${Math.round(timeoutMs / 1000)} seconds.`), { retryable: true }));
+        }, timeoutMs);
+        pending.set(requestId, { resolve, reject, timer, startedAt, type });
+        try {
+            ctx.sendToBackend({ type, requestId, ...data });
+        }
+        catch (error) {
+            clearTimeout(timer);
+            pending.delete(requestId);
+            reject(error);
+        }
+    });
+    function cancelStateLoad() {
+        stateLoadGeneration++;
+        stateLoadPromise = null;
+        for (const [timer, reject] of retryWaits) {
+            clearTimeout(timer);
+            reject(cancelled());
+        }
+        retryWaits.clear();
+        for (const [id, task] of pending)
+            if (task.type === 'ldc_load_state') {
+                clearTimeout(task.timer);
+                pending.delete(id);
+                task.reject(cancelled());
+            }
+    }
+    const loadState = (sync = false) => {
+        if (disposed)
+            return Promise.reject(cancelled());
+        if (stateLoadPromise)
+            return stateLoadPromise;
+        const generation = stateLoadGeneration;
+        const load = async () => {
+            for (let attempt = 0;; attempt++) {
+                if (disposed || generation !== stateLoadGeneration)
+                    throw cancelled();
+                try {
+                    const response = await request('ldc_load_state', { importCortex: sync, scanTranscript: sync }, sync ? 60000 : 15000);
+                    if (disposed || generation !== stateLoadGeneration)
+                        throw cancelled();
+                    return response;
+                }
+                catch (error) {
+                    // Only retry unanswered state reads, never mutations or backend errors.
+                    if (disposed || generation !== stateLoadGeneration)
+                        throw cancelled();
+                    if (sync || !error?.retryable || attempt >= 2)
+                        throw error;
+                    await new Promise((resolve, reject) => { const timer = setTimeout(() => { retryWaits.delete(timer); resolve(); }, attempt === 0 ? 500 : 1500); retryWaits.set(timer, reject); });
+                }
+            }
+        };
+        const promise = load().finally(() => { if (stateLoadPromise === promise)
+            stateLoadPromise = null; });
+        stateLoadPromise = promise;
+        return promise;
+    };
+    const unsubBackend = ctx.onBackendMessage(payload => { if (disposed)
+        return; const task = pending.get(payload?.requestId); if (!task)
         return; clearTimeout(task.timer); pending.delete(payload.requestId); lastRoundtripMs = Math.max(0, Math.round(performance.now() - task.startedAt)); if (payload.type === 'ldc_error') {
         lastBackendError = payload.error || 'Unknown error';
         task.reject(new Error(lastBackendError));
@@ -276,7 +343,8 @@ export function setup(ctx) {
         task.resolve(payload);
     } });
     function characterStateKey(character) { return String(character?.binding?.speakerUid || `name:${String(character?.name || '').trim().toLowerCase()}`); }
-    function acceptState(next) { const previous = state?.ok ? state : null, selected = previous?.characters?.find(character => String(character.id) === String(selectedId)) || null, selectedKey = characterStateKey(selected); if (previous && next?.ok && Array.isArray(next.characters)) {
+    function acceptState(next) { if (disposed)
+        return; const previous = state?.ok ? state : null, selected = previous?.characters?.find(character => String(character.id) === String(selectedId)) || null, selectedKey = characterStateKey(selected); if (previous && next?.ok && Array.isArray(next.characters)) {
         const order = new Map(previous.characters.map((character, index) => [characterStateKey(character), index]));
         next.characters = next.characters.map((character, index) => ({ character, index })).sort((left, right) => { const leftRank = order.has(characterStateKey(left.character)) ? order.get(characterStateKey(left.character)) : Number.MAX_SAFE_INTEGER, rightRank = order.has(characterStateKey(right.character)) ? order.get(characterStateKey(right.character)) : Number.MAX_SAFE_INTEGER; return leftRank - rightRank || left.index - right.index; }).map(item => item.character);
         const replacement = next.characters.find(character => characterStateKey(character) === selectedKey);
@@ -518,7 +586,8 @@ export function setup(ctx) {
         return { state: 'syncing', label: 'Syncing…' }; if (!prismEnabled())
         return { state: 'off', label: 'Prism off' }; if (pendingReviewCount > 0)
         return { state: 'awaiting', label: `Awaiting review · ${pendingReviewCount}` }; return { state: 'saved', label: 'Saved' }; }
-    function refreshPrismStatus() { const visible = visiblePrismStatus(); document.querySelectorAll('[data-prism-save-status],.ldc-shell [data-save-status]').forEach(node => { node.dataset.prismSaveStatus = visible.state; if (node instanceof HTMLButtonElement)
+    function refreshPrismStatus() { if (disposed)
+        return; const visible = visiblePrismStatus(); document.querySelectorAll('[data-prism-save-status],.ldc-shell [data-save-status]').forEach(node => { node.dataset.prismSaveStatus = visible.state; if (node instanceof HTMLButtonElement)
         node.setAttribute('aria-label', visible.label); const label = node.querySelector('[data-prism-save-label]'); if (label)
         label.textContent = visible.label;
     else
@@ -526,11 +595,13 @@ export function setup(ctx) {
     function saveStatusLabel() { return visiblePrismStatus().label; }
     function setSaveStatus(value) { saveStatus = value; refreshPrismStatus(); }
     function setHydrationStatus(value) { hydrationStatus = value; refreshPrismStatus(); }
-    async function perform(task) { if (busy)
+    async function perform(task) { if (disposed || busy)
         return; setBusy(true); try {
         await task();
     }
     catch (error) {
+        if (disposed || error?.name === 'AbortError')
+            return;
         if (saveStatus === 'saving' || saveStatus === 'pending')
             setSaveStatus('error');
         await ctx.ui.showConfirm({ title: 'Prism', message: error?.message || String(error), confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'warning' });
@@ -640,7 +711,7 @@ export function setup(ctx) {
     function centerActiveRoster(roster, smooth = false) { const active = roster?.querySelector('.ldc-person[data-active=true]'); if (!active)
         return; const rosterRect = roster.getBoundingClientRect(), activeRect = active.getBoundingClientRect(), target = roster.scrollLeft + (activeRect.left - rosterRect.left) - (roster.clientWidth - activeRect.width) / 2, max = Math.max(0, roster.scrollWidth - roster.clientWidth); roster.scrollTo({ left: Math.max(0, Math.min(max, target)), behavior: smooth ? 'smooth' : 'auto' }); }
     function render() {
-        if (!modal)
+        if (disposed || !modal)
             return;
         const oldSide = modal.root.querySelector('.ldc-side'), oldLayout = modal.root.querySelector('.ldc-shell')?.dataset.prismLayout, oldScroller = modal.root.querySelector(oldLayout === 'tabs' ? '.ldc-main-wrap' : '.ldc-panel');
         if (oldSide && activeTab === 'character')
@@ -812,6 +883,8 @@ export function setup(ctx) {
     catch (error) {
         if (generation === saveGeneration)
             setSaveStatus('error');
+        if (disposed || error?.name === 'AbortError')
+            return;
         await ctx.ui.showConfirm({ title: 'Prism', message: error?.message || String(error), confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'warning' });
     } }); }, immediate ? 0 : 450); }
     async function saveEditorNow() { clearTimeout(saveTimer); const generation = ++saveGeneration, kind = activeTab === 'persona' ? 'persona' : 'character', personaOptions = kind === 'persona' && modal ? { chatId: state.chat.id, engine: state.config.engine, personaEnabled: modal.root.querySelector('[data-role=persona-enabled]')?.checked ?? state.config.personaEnabled, personaInCast: modal.root.querySelector('[data-role=persona-in-cast]')?.checked ?? state.config.personaInCast, autoUserMode: modal.root.querySelector('[data-role=auto-mode]')?.value ?? state.config.autoUserMode } : null; setSaveStatus('saving'); await saveQueue.catch(() => { }); await saveEditor(kind, false); if (personaOptions) {
@@ -1529,7 +1602,7 @@ export function setup(ctx) {
             }
     } }
     function processMounted(force = false) {
-        if (applying)
+        if (disposed || applying)
             return;
         applying = true;
         observer.disconnect();
@@ -1575,7 +1648,8 @@ export function setup(ctx) {
             observe();
         }
     }
-    function schedule(immediate = false) { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => processMounted(false), immediate ? 0 : 70); }
+    function schedule(immediate = false) { if (disposed)
+        return; clearTimeout(refreshTimer); refreshTimer = setTimeout(() => processMounted(false), immediate ? 0 : 70); }
     function markLatest() { const id = ctx.messages.getLatestMessageId(); if (id)
         dirty.add(id); schedule(); }
     function markMessageEvent(payload = {}) { const message = payload?.message || null, id = String(message?.id || payload?.messageId || ctx.messages.getLatestMessageId() || ''), role = String(message?.role || ''); if (id && role)
@@ -1649,6 +1723,8 @@ export function setup(ctx) {
         ctx.dom.uninject(toolbarInjection); toolbarInjection = null; document.querySelector('.ldc-toolbar-host')?.remove(); }
     function rebuildToolbar() { clearToolbar(); ensureToolbar(); }
     function ensureToolbar() {
+        if (disposed)
+            return;
         const toolbar = document.querySelector('[class*="chatToolbar"]');
         if (!toolbar || toolbar.querySelector('[data-prism-toolbar-button]'))
             return;
@@ -1664,11 +1740,14 @@ export function setup(ctx) {
     const observer = new MutationObserver(records => { if (records.every(record => record.target instanceof Element && record.target.closest('.ldc-toolbar-host,.ldc-shell')))
         return; ensureToolbar(); schedule(); });
     function observationRoot() { return document.querySelector('[class*="chatColumnInner"]') || document.querySelector('[class*="chatColumn"]') || document.body; }
-    function observe() { const root = observationRoot(); if (root) {
+    function observe() { if (disposed)
+        return; const root = observationRoot(); if (root) {
         observer.disconnect();
         observer.observe(root, { childList: true, subtree: true });
     } }
     async function openPalette(resetScroll = true) {
+        if (disposed)
+            return;
         if (modal) {
             const previous = modal;
             previous.dismiss();
@@ -1719,6 +1798,8 @@ export function setup(ctx) {
             render();
         }
         catch (error) {
+            if (disposed || error?.name === 'AbortError')
+                return;
             state = { ok: false, error: error?.message || String(error) };
             render();
         }
@@ -1752,6 +1833,8 @@ export function setup(ctx) {
                 render();
         }
         catch (error) {
+            if (disposed || error?.name === 'AbortError')
+                return;
             state = { ok: false, error: error?.message || String(error) };
             if (modal)
                 render();
@@ -1772,12 +1855,17 @@ export function setup(ctx) {
     observe();
     const action = ctx.ui.registerInputBarAction({ id: 'open-dialogue-colors', label: 'Prism', iconSvg: PRISM_ICON, enabled: true });
     const clearAllStreaming = () => { activeGenerationIds.clear(); streamingMessageIds.clear(); document.querySelectorAll('[data-prism-streaming]').forEach(element => delete element.dataset.prismStreaming); };
-    const unsubAction = action.onClick(openMainPalette), unsubChat = ctx.events.on('CHAT_SWITCHED', () => { state = null; promptDraft = null; reviewOpen = false; settingsOpen = false; hydratingMessages.clear(); messageRoles.clear(); clearAllStreaming(); themeColorCache = null; themeColorSignature = ''; setHydrationStatus('idle'); signatures.clear(); dirty.clear(); ensureToolbar(); observe(); reload(true); }), unsubMessage = ctx.events.on('MESSAGE_SENT', markMessageEvent), unsubMessageEdited = ctx.events.on('MESSAGE_EDITED', markMessageEvent), unsubUserRendered = ctx.events.on('USER_MESSAGE_RENDERED', markUserRendered), unsubGenerationStart = ctx.events.on('GENERATION_STARTED', markStreaming), unsubStream = ctx.events.on('STREAM_TOKEN_RECEIVED', markStreaming), unsubGeneration = ctx.events.on('GENERATION_ENDED', hydrateLatest), unsubGenerationStop = ctx.events.on('GENERATION_STOPPED', payload => { clearStreaming(payload); markLatest(); });
+    const unsubAction = action.onClick(openMainPalette), unsubChat = ctx.events.on('CHAT_SWITCHED', () => { cancelStateLoad(); state = null; promptDraft = null; reviewOpen = false; settingsOpen = false; hydratingMessages.clear(); messageRoles.clear(); clearAllStreaming(); themeColorCache = null; themeColorSignature = ''; setHydrationStatus('idle'); signatures.clear(); dirty.clear(); ensureToolbar(); observe(); reload(true); }), unsubMessage = ctx.events.on('MESSAGE_SENT', markMessageEvent), unsubMessageEdited = ctx.events.on('MESSAGE_EDITED', markMessageEvent), unsubUserRendered = ctx.events.on('USER_MESSAGE_RENDERED', markUserRendered), unsubGenerationStart = ctx.events.on('GENERATION_STARTED', markStreaming), unsubStream = ctx.events.on('STREAM_TOKEN_RECEIVED', markStreaming), unsubGeneration = ctx.events.on('GENERATION_ENDED', hydrateLatest), unsubGenerationStop = ctx.events.on('GENERATION_STOPPED', payload => { clearStreaming(payload); markLatest(); });
     reload();
     return () => {
+        if (disposed)
+            return;
+        disposed = true;
+        ++saveGeneration;
+        cancelStateLoad();
         for (const task of pending.values()) {
             clearTimeout(task.timer);
-            task.reject(new Error('Extension unloaded.'));
+            task.reject(cancelled());
         }
         pending.clear();
         clearTimeout(refreshTimer);
@@ -1800,6 +1888,7 @@ export function setup(ctx) {
         addModal?.dismiss();
         importModal?.dismiss();
         modal?.dismiss();
+        modal = null;
         releaseFullscreenOverlay();
         unsubChat();
         unsubMessage();
