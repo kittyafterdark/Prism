@@ -832,6 +832,49 @@ function colorBankEntries(config, globalState) {
     }
     return [...groups.values(), ...Object.entries(config.bindings).map(([key, entry]) => ({ ...entry, scope: 'chat', key, keys: [key] }))];
 }
+function colorBankDuplicateGroups(entries) {
+    const groups = new Map();
+    for (const entry of entries) {
+        if (entry.scope !== 'library' || !normalizeName(entry.name))
+            continue;
+        const id = JSON.stringify([entry.kind, normalizeName(entry.name)]);
+        if (!groups.has(id))
+            groups.set(id, { id, name: entry.name, kind: entry.kind, entries: [] });
+        groups.get(id).entries.push(entry);
+    }
+    return [...groups.values()].filter(group => group.entries.length > 1);
+}
+async function dedupeColorBank(payload, userId) {
+    if (!Array.isArray(payload.groups) || !payload.groups.length || payload.groups.length > 500
+        || payload.groups.some(group => !group || typeof group.id !== 'string' || typeof group.keepKey !== 'string')
+        || new Set(payload.groups.map(group => group.id)).size !== payload.groups.length)
+        throw new Error('Choose the library versions to preserve.');
+    const chat = await spindle.chats.getActive(userId);
+    if (!chat || String(chat.id) !== String(payload.chatId))
+        throw new Error('The active chat changed. Reopen Color Bank.');
+    await enqueueGlobalPreferenceOperation(userId, async () => {
+        const globalState = await loadGlobalState(userId);
+        const groups = new Map(colorBankDuplicateGroups(colorBankEntries({ bindings: {} }, globalState)).map(group => [group.id, group]));
+        // Include preserved versions in validation: a stale choice must never replace newer colors.
+        const choices = payload.groups.map(choice => {
+            const group = groups.get(choice.id);
+            const keep = group?.entries.find(entry => entry.key === choice.keepKey);
+            if (!keep || JSON.stringify(group) !== choice.expected)
+                throw new Error('A duplicate group changed. Reopen duplicate review and choose again. Nothing was changed.');
+            return { group, keep };
+        });
+        for (const { group, keep } of choices) {
+            const keys = uniqueStrings(group.entries.flatMap(entry => entry.keys));
+            const preserved = { color: keep.color, channels: safeChannels(keep.channels, keep.color), name: keep.name,
+                aliases: uniqueStrings(group.entries.flatMap(entry => entry.aliases || [])), source: 'manual', pinned: true, updatedAt: Date.now() };
+            for (const key of keys)
+                globalState.library[key] = preserved;
+            globalState.colorBankManagedKeys = uniqueStrings([...(globalState.colorBankManagedKeys || []), ...keys]);
+        }
+        await saveGlobalState(globalState, userId);
+    });
+    return buildState({ importCortex: false }, userId);
+}
 function validateColorBankChannels(raw) {
     for (const kind of ['dialogue', 'thought']) {
         const paint = raw?.[kind]?.paint;
@@ -1589,6 +1632,7 @@ async function buildState(options = {}, userId) {
         : null;
     const registry = compileRegistry(config);
     const reviewGroups = pendingReviewGroups(config);
+    const bankEntries = colorBankEntries(config, globalState);
     return {
         ok: true,
         chat: { id: chat.id, name: chat.name, characterId: chat.character_id },
@@ -1620,7 +1664,8 @@ async function buildState(options = {}, userId) {
             lastHydration: config.lastHydration,
             snapshotsOperatorScoped: true,
         },
-        colorBank: colorBankEntries(config, globalState),
+        colorBank: bankEntries,
+        colorBankDuplicates: colorBankDuplicateGroups(bankEntries),
         preferences: globalState.preferences,
         cortexAvailable: scene.cortexAvailable,
         cortex: cortexHealth,
@@ -3588,6 +3633,11 @@ spindle.onFrontendMessage(async (payload, userId) => {
                 case 'ldc_import_registry': {
                     const result = await importRegistry(payload, userId);
                     reply('ldc_import_registry_result', result);
+                    break;
+                }
+                case 'ldc_color_bank_dedupe': {
+                    const state = await dedupeColorBank(payload, userId);
+                    reply('ldc_state', { state, saved: true });
                     break;
                 }
                 case 'ldc_color_bank_mutate': {

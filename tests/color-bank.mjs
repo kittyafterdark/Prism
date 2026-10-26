@@ -32,6 +32,16 @@ const bankFixture={
   async reset(){bankHost.global.clear();bankHost.chats.clear();bankHost.responses=[];bankHost.chatId='chat-a';const config=cloneDefaultConfig();config.bindings['character:entity-a']={kind:'character',targetId:'entity-a',name:'Ada',aliases:[],color:'#112233',channels:safeChannels(null,'#112233'),source:'manual',pinned:true};await saveConfig('chat-a',config);return buildState({importCortex:false},'user-a')},
   async request(entry,action,channels){return this.send({type:'ldc_color_bank_mutate',chatId:bankHost.chatId,scope:entry.scope,key:entry.key,expected:JSON.stringify(entry),action,channels})},
   async seedMany(count=151,chatCount=1){const globalState=await loadGlobalState('user-a');for(let i=0;i<count-1;i++){const name='Guest '+String(i).padStart(3,'0');globalState.library['character-card:guest-'+i]={name,color:'#667788',channels:safeChannels(null,'#667788'),aliases:[],source:'manual',pinned:true,updatedAt:1}}await saveGlobalState(globalState,'user-a');if(chatCount>1){const config=await loadConfig(bankHost.chatId,'user-a');for(let i=1;i<chatCount;i++)config.bindings['character:extra-'+i]={kind:'character',targetId:'extra-'+i,name:'Chat guest '+i,color:'#667788',channels:safeChannels(null,'#667788'),source:'manual',pinned:true,colorBankLocal:true};await saveConfig(bankHost.chatId,config)}return buildState({importCortex:false},'user-a')},
+  async seedDuplicates(){
+    const globalState=await loadGlobalState('user-a');
+    const channels={dialogue:{enabled:false,paint:{mode:'gradient',stops:['#445566','#778899','#AABBCC'],angle:135}},thought:{enabled:true,linkedToDialogue:false,paint:{mode:'solid',stops:['#DDEEFF'],angle:90}}};
+    globalState.library['character-card:ada-other']={name:'Ada',color:'#445566',channels,aliases:['A'],source:'manual',pinned:true,updatedAt:2};
+    globalState.library['character-card:ada-third']={name:'ADA',color:'#445566',channels:safeChannels(null,'#445566'),aliases:['Ada third'],source:'generated',pinned:false,updatedAt:3};
+    globalState.library['persona:ada']={name:'Ada',color:'#778899',channels:safeChannels(null,'#778899'),aliases:[],source:'manual',pinned:true,updatedAt:2};
+    globalState.library['persona:ada-alt']={name:'Ada',color:'#AABBCC',channels:safeChannels(null,'#AABBCC'),aliases:[],source:'manual',pinned:true,updatedAt:3};
+    globalState.library['character-card:different']={name:'Different person',color:'#112233',channels:safeChannels(null,'#112233'),aliases:[],source:'manual',pinned:true,updatedAt:1};
+    await saveGlobalState(globalState,'user-a');return buildState({importCortex:false},'user-a');
+  },
   functions:{safeChannels,loadGlobalState,loadConfig,safeGlobalState,safeConfig,colorBankEntries,seedBindingsFromLibrary,syncBindingsToLibrary,importCortexRegistry,importTranscriptRegistry,saveBinding}
 };
 globalThis.bankFixture=bankFixture;
@@ -136,4 +146,34 @@ assert.equal(response.type,'ldc_state');
 assert.equal(response.state.colorBank.filter(row=>row.scope==='chat').length,1);
 assert.equal(response.state.colorBank.filter(row=>row.scope==='library').length,4,'Bulk chat deletion preserves the library');
 assert.equal((await fixture.state()).colorBank.filter(row=>row.scope==='chat').length,1,'Deleted chat colors cannot reseed after batch deletion');
+await fixture.reset();
+state = await fixture.seedDuplicates();
+assert.equal(state.colorBankDuplicates.length,2,'Name matches are separated by character/persona type');
+const characterDuplicates=state.colorBankDuplicates.find(group=>group.kind==='character');
+const personaDuplicates=state.colorBankDuplicates.find(group=>group.kind==='persona');
+assert.equal(characterDuplicates.entries.length,3,'Case-normalized names with different paints/settings are reviewable');
+assert.ok(characterDuplicates.entries.every(entry=>entry.name.toLowerCase()==='ada'),'A shared color alone is never considered a duplicate');
+const keeper=characterDuplicates.entries.find(entry=>entry.key==='character-card:ada-other');
+const choice={id:characterDuplicates.id,keepKey:keeper.key,expected:JSON.stringify(characterDuplicates)};
+const duplicateBefore=JSON.stringify([...fixture.host.global]);
+response=await fixture.send({type:'ldc_color_bank_dedupe',chatId:'chat-a',groups:[choice,{id:personaDuplicates.id,keepKey:personaDuplicates.entries[0].key,expected:'stale'}]});
+assert.equal(response.type,'ldc_error');
+assert.equal(JSON.stringify([...fixture.host.global]),duplicateBefore,'All groups, including preserved versions, validate before any writes');
+response=await fixture.send({type:'ldc_color_bank_dedupe',chatId:'chat-a',groups:[{...choice,keepKey:personaDuplicates.entries[0].key}]});
+assert.equal(response.type,'ldc_error','Cannot preserve a version outside its group');
+response=await fixture.send({type:'ldc_color_bank_dedupe',chatId:'chat-a',groups:[choice]},'other-user');
+assert.equal(response.type,'ldc_error','Cannot merge another operator’s saved library');
+response=await fixture.send({type:'ldc_color_bank_dedupe',chatId:'chat-a',groups:[choice]});
+assert.equal(response.type,'ldc_state');
+const preserved=response.state.colorBank.find(entry=>entry.scope==='library'&&entry.kind==='character'&&entry.name==='Ada');
+assert.equal(preserved.keys.length,5,'All identity keys now use the chosen version');
+assert.deepEqual(JSON.parse(JSON.stringify(preserved.channels)),JSON.parse(JSON.stringify(keeper.channels)),'Full gradient, enabled and thought-link settings are preserved');
+assert.equal(preserved.color,'#445566');
+assert.ok(preserved.aliases.includes('A')&&preserved.aliases.includes('Ada third'));
+assert.equal(response.state.colorBankDuplicates.length,1);
+assert.equal(JSON.stringify(response.state.colorBankDuplicates[0]),JSON.stringify(personaDuplicates),'Unchosen groups remain byte-for-byte unchanged');
+assert.equal(response.state.colorBank.find(entry=>entry.scope==='chat').color,'#112233','Existing chat assignment stays separate');
+assert.equal((await fixture.state()).colorBankDuplicates.length,1,'Old chat syncing cannot undo consolidation');
+fixture.host.chatId='chat-dedupe-new';
+assert.equal((await fixture.state()).colorBank.find(entry=>entry.scope==='chat').color,'#445566','Fresh chats seed the selected version through preserved identity keys');
 console.log('Passed Color Bank scopes, linked keys, gradient persistence, stale/invalid edits, deletion sync, roster recovery, operator isolation, and unchanged transcript.');

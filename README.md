@@ -91,6 +91,8 @@ Library edits apply when a color is first assigned in a chat; existing chats kee
 
 **Select colors** enables checkboxes and a persistent bottom action strip. Select individual colors or all visible results, clear the selection, copy selected entries, or confirm a bulk delete. Bulk actions stay within Current chat or Saved library; changing the scope or search clears selection. Saving or deleting preserves the list’s scroll position and open edit sections.
 
+**Review duplicates** groups saved-library versions with the same name and character/persona type. Shared hex values alone do not count as duplicates. Compare dialogue and thought paints, channel enablement, linking, gradient angles, and storage keys, then choose a version to preserve or keep all versions. No version is preselected; undecided groups are skipped. After confirmation, all keys in each chosen group use the preserved colors and combined aliases, producing one library entry protected from automatic syncing. Existing chat assignments remain unchanged.
+
 **Copy Color Bank backup** copies a JSON snapshot of the library and current chat entries for inspection or recovery records. This snapshot has its own format; the registry import tool accepts registry exports, not Color Bank backups.
 
 ## Registry and diagnostics
