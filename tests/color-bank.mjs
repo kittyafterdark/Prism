@@ -31,6 +31,7 @@ const bankFixture={
   state:(user='user-a')=>buildState({importCortex:false},user),
   async reset(){bankHost.global.clear();bankHost.chats.clear();bankHost.responses=[];bankHost.chatId='chat-a';const config=cloneDefaultConfig();config.bindings['character:entity-a']={kind:'character',targetId:'entity-a',name:'Ada',aliases:[],color:'#112233',channels:safeChannels(null,'#112233'),source:'manual',pinned:true};await saveConfig('chat-a',config);return buildState({importCortex:false},'user-a')},
   async request(entry,action,channels){return this.send({type:'ldc_color_bank_mutate',chatId:bankHost.chatId,scope:entry.scope,key:entry.key,expected:JSON.stringify(entry),action,channels})},
+  async seedMany(count=151,chatCount=1){const globalState=await loadGlobalState('user-a');for(let i=0;i<count-1;i++){const name='Guest '+String(i).padStart(3,'0');globalState.library['character-card:guest-'+i]={name,color:'#667788',channels:safeChannels(null,'#667788'),aliases:[],source:'manual',pinned:true,updatedAt:1}}await saveGlobalState(globalState,'user-a');if(chatCount>1){const config=await loadConfig(bankHost.chatId,'user-a');for(let i=1;i<chatCount;i++)config.bindings['character:extra-'+i]={kind:'character',targetId:'extra-'+i,name:'Chat guest '+i,color:'#667788',channels:safeChannels(null,'#667788'),source:'manual',pinned:true,colorBankLocal:true};await saveConfig(bankHost.chatId,config)}return buildState({importCortex:false},'user-a')},
   functions:{safeChannels,loadGlobalState,loadConfig,safeGlobalState,safeConfig,colorBankEntries,seedBindingsFromLibrary,syncBindingsToLibrary,importCortexRegistry,importTranscriptRegistry,saveBinding}
 };
 globalThis.bankFixture=bankFixture;
@@ -109,4 +110,30 @@ assert.equal((await fixture.state('other-user')).colorBank.length, 0, 'Library i
 response = await fixture.send({type:'ldc_color_bank_mutate',chatId:'chat-a',scope:'library',key:library.key,action:'delete'});
 assert.equal(response.type, 'ldc_error', 'Chat switch rejects stale requests');
 assert.equal(fixture.host.messages[0].content, '<font color="#112233">Unchanged</font>');
+state = await fixture.reset();
+state = await fixture.seedMany(4);
+const batch = state.colorBank.filter(row => row.scope === 'library' && row.name.startsWith('Guest')).slice(0,2);
+const batchRequests = batch.map(entry=>({scope:entry.scope,key:entry.key,expected:JSON.stringify(entry)}));
+const beforeBatch = JSON.stringify([...fixture.host.global]);
+response = await fixture.send({type:'ldc_color_bank_mutate',chatId:'chat-a',action:'delete',entries:[batchRequests[0],{...batchRequests[1],expected:'stale'}]});
+assert.equal(response.type,'ldc_error');
+assert.equal(JSON.stringify([...fixture.host.global]),beforeBatch,'A stale row prevents the entire batch before writes');
+response = await fixture.send({type:'ldc_color_bank_mutate',chatId:'chat-a',action:'delete',entries:[batchRequests[0],batchRequests[0]]});
+assert.equal(response.type,'ldc_error','Duplicate batch entries are refused');
+const chatEntry = state.colorBank.find(row=>row.scope==='chat');
+response = await fixture.send({type:'ldc_color_bank_mutate',chatId:'chat-a',action:'delete',entries:[batchRequests[0],{scope:'chat',key:chatEntry.key,expected:JSON.stringify(chatEntry)}]});
+assert.equal(response.type,'ldc_error','Mixed scopes are refused');
+response = await fixture.send({type:'ldc_color_bank_mutate',chatId:'chat-a',action:'delete',entries:batchRequests});
+assert.equal(response.type,'ldc_state');
+assert.equal(response.state.colorBank.filter(row=>row.scope==='library').length,2);
+assert.equal(response.state.colorBank.filter(row=>row.scope==='chat').length,1,'Bulk library deletion preserves current chat');
+assert.equal((await fixture.state()).colorBank.filter(row=>row.scope==='library').length,2,'Bulk deletion persists');
+await fixture.reset();
+state = await fixture.seedMany(4,3);
+const chatBatch = state.colorBank.filter(row=>row.scope==='chat').slice(0,2).map(entry=>({scope:entry.scope,key:entry.key,expected:JSON.stringify(entry)}));
+response = await fixture.send({type:'ldc_color_bank_mutate',chatId:'chat-a',action:'delete',entries:chatBatch});
+assert.equal(response.type,'ldc_state');
+assert.equal(response.state.colorBank.filter(row=>row.scope==='chat').length,1);
+assert.equal(response.state.colorBank.filter(row=>row.scope==='library').length,4,'Bulk chat deletion preserves the library');
+assert.equal((await fixture.state()).colorBank.filter(row=>row.scope==='chat').length,1,'Deleted chat colors cannot reseed after batch deletion');
 console.log('Passed Color Bank scopes, linked keys, gradient persistence, stale/invalid edits, deletion sync, roster recovery, operator isolation, and unchanged transcript.');

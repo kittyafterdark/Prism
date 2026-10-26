@@ -35,6 +35,9 @@ try {
     await openBank();
     const library=page.getByRole('article',{name:'Ada · Saved library',exact:true});
     const chat=page.getByRole('article',{name:'Ada · Current chat',exact:true});
+    assert.equal(await page.getByRole('article').count(),1,'Current chat is the default instead of the combined library');
+    assert.equal(await library.count(),0);
+    await page.getByRole('button',{name:'All (2)',exact:true}).click();
     await library.waitFor();
     assert.equal(await page.getByRole('article').count(),2);
     const search=page.getByRole('searchbox',{name:'Search Color Bank'});
@@ -54,7 +57,7 @@ try {
     await library.getByLabel('Enable thought colors',{exact:true}).check();
     await library.getByRole('button',{name:'Save Ada · Saved library',exact:true}).press('Enter');
     await library.getByText('Dialogue · #445566 → #778899 → #AABBCC',{exact:true}).waitFor();
-    await page.waitForFunction(()=>document.querySelector('[data-bank-search]')===document.activeElement);
+    await page.waitForFunction(()=>document.activeElement?.matches('[data-bank-detail=edit] summary'));
     await chat.getByText('Dialogue · #112233',{exact:true}).waitFor();
     if(process.env.PRISM_SCREENSHOT_DIR){await fs.mkdir(process.env.PRISM_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:process.env.PRISM_SCREENSHOT_DIR+'/color-bank-filled-'+width+'.png'})}
     await library.getByRole('button',{name:'Delete Ada · Saved library',exact:true}).click();
@@ -69,6 +72,7 @@ try {
     await page.evaluate(()=>uiFixture.open());
     await openBank();
     assert.equal(await library.count(),0,'Library deletion persists after close/reopen');
+    await search.scrollIntoViewIfNeeded();
     const top=await search.boundingBox();
     assert.ok(top.y>=notch,'Search respects canonical safe top');
     if(width<720){const close=await page.getByRole('button',{name:'Close Prism',exact:true}).boundingBox();assert.ok(close.y>=notch,'Close control respects notch')}
@@ -88,6 +92,71 @@ try {
     await page.evaluate(()=>uiFixture.switchChat('chat-b'));
     await openBank();
     assert.equal(await page.getByRole('article').count(),0,'New chat does not inherit deleted colors');
+    // A realistic bank catches scope leaks, layout failures and scroll jumps
+    // which the two-entry fixture cannot expose.
+    await page.evaluate(async()=>{uiFixture.unload();await bankFixture.reset();await bankFixture.seedMany(151);uiFixture.unload=setup(ctx)});
+    await page.waitForSelector('[data-prism-toolbar-button]');
+    await page.evaluate(()=>uiFixture.open());
+    await openBank();
+    assert.equal(await page.getByRole('article').count(),1,'151 library rows do not leak into Current chat');
+    await page.getByRole('button',{name:'Saved library (151)',exact:true}).click();
+    assert.equal(await page.getByRole('article').count(),151);
+    const columns=await page.locator('[data-bank-list]').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').length);
+    assert.equal(columns,width===1280?2:1,'Columns follow the available bank width');
+    await page.getByRole('button',{name:'Select colors',exact:true}).click();
+    const strip=page.getByRole('group',{name:'Color Bank bulk actions',exact:true});
+    await strip.waitFor();
+    await strip.getByRole('button',{name:'Select visible',exact:true}).click();
+    await strip.getByText('151 selected',{exact:true}).waitFor();
+    await strip.getByRole('button',{name:'Clear selection',exact:true}).click();
+    assert.equal(await strip.getByRole('button',{name:'Delete selected',exact:true}).isDisabled(),true);
+    await search.fill('Guest 08');
+    await strip.getByRole('button',{name:'Select visible',exact:true}).click();
+    await strip.getByText('10 selected',{exact:true}).waitFor();
+    await strip.getByRole('button',{name:'Copy selected',exact:true}).click();
+    assert.equal(await page.evaluate(()=>JSON.parse(uiFixture.copied).entries.length),10);
+    await search.fill('');
+    await strip.getByText('0 selected',{exact:true}).waitFor();
+    const guest=index=>page.getByRole('article',{name:'Guest '+index+' · Saved library',exact:true});
+    await guest('060').getByRole('checkbox',{name:'Select Guest 060 · Saved library',exact:true}).check();
+    await guest('061').getByRole('checkbox',{name:'Select Guest 061 · Saved library',exact:true}).check();
+    await strip.getByText('2 selected',{exact:true}).waitFor();
+    const footer=await strip.boundingBox(),scroller=await page.locator('.ldc-bank-scroll').boundingBox();
+    assert.ok(footer.y>=notch&&footer.y+footer.height<=height+1,'Bulk strip stays inside the safe viewport');
+    assert.ok(scroller.y+scroller.height<=footer.y+1,'Bulk strip does not cover list content');
+    await guest('060').getByText('Edit Guest 060 · Saved library',{exact:true}).press('Enter');
+    await guest('060').getByLabel('Dialogue colors · one to three hex values, separated by commas',{exact:true}).fill('#123456');
+    const save=guest('060').getByRole('button',{name:'Save Guest 060 · Saved library',exact:true});
+    await save.scrollIntoViewIfNeeded();
+    const scrollBeforeSave=await page.locator('.ldc-bank-scroll').evaluate(node=>node.scrollTop);
+    await save.press('Enter');
+    await guest('060').getByText('Dialogue · #123456',{exact:true}).waitFor();
+    await page.waitForFunction(()=>!document.querySelector('[data-bank-search]').disabled);
+    assert.ok(Math.abs(await page.locator('.ldc-bank-scroll').evaluate(node=>node.scrollTop)-scrollBeforeSave)<2,'Saving a deep row does not jump to the top');
+    assert.equal(await guest('060').locator('[data-bank-detail=edit]').evaluate(node=>node.open),true,'Open editor survives saving');
+    await strip.getByText('2 selected',{exact:true}).waitFor();
+    await strip.getByRole('button',{name:'Delete selected',exact:true}).click();
+    await strip.getByRole('button',{name:'Keep selected colors',exact:true}).press('Escape');
+    await strip.getByRole('button',{name:'Delete selected',exact:true}).click();
+    const scrollBeforeDelete=await page.locator('.ldc-bank-scroll').evaluate(node=>node.scrollTop);
+    await strip.getByRole('button',{name:'Confirm deletion',exact:true}).press('Enter');
+    await guest('060').waitFor({state:'detached'});
+    await guest('061').waitFor({state:'detached'});
+    assert.ok(Math.abs(await page.locator('.ldc-bank-scroll').evaluate(node=>node.scrollTop)-scrollBeforeDelete)<2,'Bulk deletion preserves a deep scroll position');
+    await strip.getByText('0 selected',{exact:true}).waitFor();
+    assert.equal(await page.getByRole('article').count(),149);
+    await guest('062').getByRole('button',{name:'Delete Guest 062 · Saved library',exact:true}).click();
+    const deleteSingle=guest('062').getByRole('button',{name:'Delete saved color',exact:true});
+    await deleteSingle.scrollIntoViewIfNeeded();
+    const scrollBeforeSingle=await page.locator('.ldc-bank-scroll').evaluate(node=>node.scrollTop);
+    await deleteSingle.press('Enter');
+    await guest('062').waitFor({state:'detached'});
+    assert.ok(Math.abs(await page.locator('.ldc-bank-scroll').evaluate(node=>node.scrollTop)-scrollBeforeSingle)<2,'Single deletion also preserves deep scroll position');
+    assert.equal(await page.getByRole('article').count(),148);
+    if(process.env.PRISM_SCREENSHOT_DIR){await fs.mkdir(process.env.PRISM_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:process.env.PRISM_SCREENSHOT_DIR+'/color-bank-bulk-'+width+'.png'})}
+    await page.getByRole('button',{name:'Current chat (1)',exact:true}).click();
+    assert.equal(await page.getByRole('article').count(),1,'Bulk library deletion leaves chat assignment');
+    assert.equal(await strip.count(),0,'Changing scope exits bulk selection');
     assert.deepEqual(await page.evaluate(()=>uiFixture.errors),[]);
     assert.deepEqual(errors,[]);
     await page.evaluate(()=>uiFixture.unload());

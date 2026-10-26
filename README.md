@@ -85,9 +85,11 @@ Provisional model echoes do not count as independent evidence. Weak discoveries 
 
 ## Color Bank
 
-Open **Settings → Color Bank** to search the saved color library and current chat assignments by name, hex, source, or scope. Each entry shows dialogue and thought colors, gradients, linking, and expandable storage details. Edit one to three hex stops per channel and save, or delete the entry after reviewing its scope.
+Open **Settings → Color Bank** to search the saved color library and current chat assignments by name, hex, source, or scope. The default **Current chat** view shows only this chat’s saved assignments; **Saved library** and **All** have separate counts. Search applies inside the chosen view. Wide workspaces show two columns, while narrow screens use one. Each entry shows dialogue and thought colors, gradients, linking, and expandable storage details. Edit one to three hex stops per channel and save, or delete the entry after reviewing its scope.
 
 Library edits apply when a color is first assigned in a chat; existing chats keep their assignments. Explicit Color Bank library edits and deletions are protected from automatic chat-to-library syncing. Matching storage keys for the same saved entry are managed together. Deleting a current-chat assignment keeps the roster entry and prevents automatic library, Cortex, and transcript imports for that name in this chat. Assigning a color in the roster editor enables it again. Other chats and existing message tags remain unchanged.
+
+**Select colors** enables checkboxes and a persistent bottom action strip. Select individual colors or all visible results, clear the selection, copy selected entries, or confirm a bulk delete. Bulk actions stay within Current chat or Saved library; changing the scope or search clears selection. Saving or deleting preserves the list’s scroll position and open edit sections.
 
 **Copy Color Bank backup** copies a JSON snapshot of the library and current chat entries for inspection or recovery records. This snapshot has its own format; the registry import tool accepts registry exports, not Color Bank backups.
 

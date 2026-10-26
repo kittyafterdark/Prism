@@ -855,36 +855,47 @@ function validateColorBankChannels(raw) {
 }
 
 async function mutateColorBank(payload, userId) {
-  if (!['chat', 'library'].includes(payload.scope) || !['edit', 'delete'].includes(payload.action)) throw new Error('Choose a Color Bank entry and action.');
+  const requests = Array.isArray(payload.entries) ? payload.entries : [payload];
+  const scope = requests[0]?.scope;
+  if (!requests.length || requests.length > 1000 || !['chat', 'library'].includes(scope)
+    || !['edit', 'delete'].includes(payload.action) || (requests.length > 1 && payload.action !== 'delete')
+    || requests.some(row => !row || row.scope !== scope) || new Set(requests.map(row => row.key)).size !== requests.length) {
+    throw new Error('Choose up to 1,000 distinct Color Bank entries from one scope.');
+  }
   const chat = await spindle.chats.getActive(userId);
   if (!chat || String(chat.id) !== String(payload.chatId)) throw new Error('The active chat changed. Reopen Color Bank.');
   const channels = payload.action === 'edit' ? validateColorBankChannels(payload.channels) : null;
   await enqueueGlobalPreferenceOperation(userId, async () => {
     const globalState = await loadGlobalState(userId);
     const config = await loadConfig(chat.id, userId, globalState);
-    const entry = colorBankEntries(config, globalState).find(row => row.scope === payload.scope && row.key === payload.key);
-    if (!entry) throw new Error('This Color Bank entry changed. Reopen Color Bank and try again.');
-    // Refuse a stale form instead of replacing a newer assignment from another view.
-    if (payload.expected !== JSON.stringify(entry)) throw new Error('This Color Bank entry changed. Reopen Color Bank and try again.');
-    if (payload.scope === 'library') {
-      for (const key of entry.keys) {
-        if (channels) globalState.library[key] = { ...globalState.library[key], color: channels.dialogue.paint.stops[0], channels, source: 'manual', pinned: true, updatedAt: Date.now() };
-        else delete globalState.library[key];
-      }
-      globalState.colorBankManagedKeys = uniqueStrings([...(globalState.colorBankManagedKeys || []), ...entry.keys]);
-      await saveGlobalState(globalState, userId);
-    } else {
-      const binding = config.bindings[entry.key];
-      if (channels) {
-        const color = channels.dialogue.paint.stops[0];
-        binding.previousColors = uniqueStrings([...(binding.previousColors || []), binding.color]).filter(hex => hex !== color).slice(-8);
-        Object.assign(binding, { color, channels, source: 'manual', pinned: true, colorBankLocal: true });
+    const current = new Map(colorBankEntries(config, globalState).filter(row => row.scope === scope).map(row => [row.key, row]));
+    // Validate the whole selection before changing either in-memory state or storage.
+    const entries = requests.map(request => {
+      const entry = current.get(request.key);
+      if (!entry || request.expected !== JSON.stringify(entry)) throw new Error('A Color Bank entry changed. Refresh the view and try again. Nothing was changed.');
+      return entry;
+    });
+    for (const entry of entries) {
+      if (scope === 'library') {
+        for (const key of entry.keys) {
+          if (channels) globalState.library[key] = { ...globalState.library[key], color: channels.dialogue.paint.stops[0], channels, source: 'manual', pinned: true, updatedAt: Date.now() };
+          else delete globalState.library[key];
+        }
+        globalState.colorBankManagedKeys = uniqueStrings([...(globalState.colorBankManagedKeys || []), ...entry.keys]);
       } else {
-        delete config.bindings[entry.key];
-        config.colorBankExcludedNames = uniqueStrings([...(config.colorBankExcludedNames || []), entry.kind + ':' + normalizeName(entry.name)]);
+        const binding = config.bindings[entry.key];
+        if (channels) {
+          const color = channels.dialogue.paint.stops[0];
+          binding.previousColors = uniqueStrings([...(binding.previousColors || []), binding.color]).filter(hex => hex !== color).slice(-8);
+          Object.assign(binding, { color, channels, source: 'manual', pinned: true, colorBankLocal: true });
+        } else {
+          delete config.bindings[entry.key];
+          config.colorBankExcludedNames = uniqueStrings([...(config.colorBankExcludedNames || []), entry.kind + ':' + normalizeName(entry.name)]);
+        }
       }
-      await saveConfig(chat.id, config);
     }
+    if (scope === 'library') await saveGlobalState(globalState, userId);
+    else await saveConfig(chat.id, config);
   });
   return buildState({ importCortex: false }, userId);
 }
