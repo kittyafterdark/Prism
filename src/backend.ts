@@ -268,7 +268,7 @@ function safeGlobalState(raw) {
       };
     }
   }
-  return { version: 7, preferences: safePreferences(source.preferences), library };
+  return { version: 7, preferences: safePreferences(source.preferences), library, colorBankManagedKeys: uniqueStrings(source.colorBankManagedKeys) };
 }
 
 function normalizeHex(value) {
@@ -324,6 +324,7 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
       const name = String(value.name || '').trim();
       if (!color || !name) continue;
       bindings[key] = {
+        colorBankLocal: value.colorBankLocal === true,
         kind: value.kind === 'persona' ? 'persona' : 'character',
         targetId: String(value.targetId || ''),
         name,
@@ -535,6 +536,7 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
     promptTemplate: String(raw.promptTemplate || '').slice(0, 6000),
     hybridDiscovery: raw.hybridDiscovery !== false,
     bindings,
+    colorBankExcludedNames: uniqueStrings(raw.colorBankExcludedNames),
     overrides,
     manualCharacters,
     temporarySpeakers,
@@ -772,7 +774,7 @@ function syncBindingsToLibrary(config, characters, persona, globalState) {
   let changed = false;
   for (const binding of Object.values(config.bindings)) {
     const color = bindingRegistryColor(binding);
-    if (!color) continue;
+    if (!color || binding.colorBankLocal === true) continue;
     const character = binding.kind === 'character' ? characters.find((item) => (
       String(item.id) === String(binding.targetId)
       || normalizeName(item.name) === normalizeName(binding.name)
@@ -782,7 +784,9 @@ function syncBindingsToLibrary(config, characters, persona, globalState) {
       || binding.source === 'cortex'
       || (binding.source === 'manual' && binding.pinned === true);
     if (!stableIdentity) continue;
-    for (const key of bindingLibraryKeys(binding, characters, persona)) {
+    const libraryKeys = bindingLibraryKeys(binding, characters, persona);
+    if (libraryKeys.some(key => globalState.colorBankManagedKeys?.includes(key))) continue;
+    for (const key of libraryKeys) {
       const prior = globalState.library[key];
       const next = { color, channels: safeChannels(binding.channels, color), aliases: uniqueStrings(binding.aliases), name: binding.name, source: binding.source, pinned: binding.pinned !== false, updatedAt: Date.now() };
       if (!prior || prior.color !== next.color || prior.source !== next.source || prior.pinned !== next.pinned || JSON.stringify(prior.aliases || []) !== JSON.stringify(next.aliases) || JSON.stringify(prior.channels) !== JSON.stringify(next.channels)) {
@@ -797,7 +801,7 @@ function syncBindingsToLibrary(config, characters, persona, globalState) {
 function seedBindingsFromLibrary(config, characters, persona, globalState) {
   let seeded = 0;
   for (const character of characters) {
-    if (findBinding(config, 'character', character.id, character.name, character.aliases)) continue;
+    if (colorBankExcluded(config, 'character', character.name) || findBinding(config, 'character', character.id, character.name, character.aliases)) continue;
     const entry = libraryKeysForCharacter(character).map((key) => globalState.library[key]).find(Boolean);
     if (!entry?.color) continue;
     const targetId = String(character.entityId || character.characterId || character.id);
@@ -808,7 +812,7 @@ function seedBindingsFromLibrary(config, characters, persona, globalState) {
     };
     seeded += 1;
   }
-  if (persona && !findBinding(config, 'persona', persona.id, persona.name, [])) {
+  if (persona && !colorBankExcluded(config, 'persona', persona.name) && !findBinding(config, 'persona', persona.id, persona.name, [])) {
     const entry = globalState.library[libraryKeyForPersona(persona)];
     if (entry?.color) {
       const targetId = String(persona.id);
@@ -820,6 +824,69 @@ function seedBindingsFromLibrary(config, characters, persona, globalState) {
     }
   }
   return seeded;
+}
+
+// Color Bank owns explicit library decisions so opening an older chat cannot
+// overwrite an edit or recreate a deleted library row. Chat assignments remain local.
+function colorBankExcluded(config, kind, name) {
+  return config.colorBankExcludedNames?.includes(kind + ':' + normalizeName(name)) === true;
+}
+
+function colorBankEntries(config, globalState) {
+  const groups = new Map();
+  for (const [key, entry] of Object.entries(globalState.library)) {
+    const kind = key.startsWith('persona') ? 'persona' : 'character';
+    const signature = JSON.stringify([kind, entry.name, entry.color, entry.channels, entry.aliases, entry.source, entry.pinned]);
+    if (groups.has(signature)) groups.get(signature).keys.push(key);
+    else groups.set(signature, { ...entry, kind, scope: 'library', key, keys: [key] });
+  }
+  return [...groups.values(), ...Object.entries(config.bindings).map(([key, entry]) => ({ ...entry, scope: 'chat', key, keys: [key] }))];
+}
+
+function validateColorBankChannels(raw) {
+  for (const kind of ['dialogue', 'thought']) {
+    const paint = raw?.[kind]?.paint;
+    if (!paint || !Array.isArray(paint.stops) || paint.stops.length < 1 || paint.stops.length > 3
+      || paint.stops.some(stop => !normalizeHex(stop)) || !Number.isFinite(paint.angle) || paint.angle < 0 || paint.angle > 360) {
+      throw new Error('Use one to three valid hex colors and an angle from 0 to 360 for each channel.');
+    }
+  }
+  return safeChannels(raw, normalizeHex(raw.dialogue.paint.stops[0]));
+}
+
+async function mutateColorBank(payload, userId) {
+  if (!['chat', 'library'].includes(payload.scope) || !['edit', 'delete'].includes(payload.action)) throw new Error('Choose a Color Bank entry and action.');
+  const chat = await spindle.chats.getActive(userId);
+  if (!chat || String(chat.id) !== String(payload.chatId)) throw new Error('The active chat changed. Reopen Color Bank.');
+  const channels = payload.action === 'edit' ? validateColorBankChannels(payload.channels) : null;
+  await enqueueGlobalPreferenceOperation(userId, async () => {
+    const globalState = await loadGlobalState(userId);
+    const config = await loadConfig(chat.id, userId, globalState);
+    const entry = colorBankEntries(config, globalState).find(row => row.scope === payload.scope && row.key === payload.key);
+    if (!entry) throw new Error('This Color Bank entry changed. Reopen Color Bank and try again.');
+    // Refuse a stale form instead of replacing a newer assignment from another view.
+    if (payload.expected !== JSON.stringify(entry)) throw new Error('This Color Bank entry changed. Reopen Color Bank and try again.');
+    if (payload.scope === 'library') {
+      for (const key of entry.keys) {
+        if (channels) globalState.library[key] = { ...globalState.library[key], color: channels.dialogue.paint.stops[0], channels, source: 'manual', pinned: true, updatedAt: Date.now() };
+        else delete globalState.library[key];
+      }
+      globalState.colorBankManagedKeys = uniqueStrings([...(globalState.colorBankManagedKeys || []), ...entry.keys]);
+      await saveGlobalState(globalState, userId);
+    } else {
+      const binding = config.bindings[entry.key];
+      if (channels) {
+        const color = channels.dialogue.paint.stops[0];
+        binding.previousColors = uniqueStrings([...(binding.previousColors || []), binding.color]).filter(hex => hex !== color).slice(-8);
+        Object.assign(binding, { color, channels, source: 'manual', pinned: true, colorBankLocal: true });
+      } else {
+        delete config.bindings[entry.key];
+        config.colorBankExcludedNames = uniqueStrings([...(config.colorBankExcludedNames || []), entry.kind + ':' + normalizeName(entry.name)]);
+      }
+      await saveConfig(chat.id, config);
+    }
+  });
+  return buildState({ importCortex: false }, userId);
 }
 
 function stripStructuredText(value) {
@@ -1297,7 +1364,7 @@ async function importTranscriptRegistry(chat, characters, config, userId) {
   let imported = 0;
   for (const [color, normalizedName] of assignments) {
     const character = matchSceneCharacter(characters, normalizedName);
-    if (!character || findBinding(config, 'character', character.id, character.name, character.aliases)) continue;
+    if (!character || colorBankExcluded(config, 'character', character.name) || findBinding(config, 'character', character.id, character.name, character.aliases)) continue;
     const targetId = String(character.entityId || character.characterId || character.id);
     config.bindings[`character:${targetId}`] = {
       kind: 'character',
@@ -1376,7 +1443,7 @@ async function importCortexRegistry(chat, primaryCharacter, characters, config, 
   const registryNames = new Set(registry.map((item) => normalizeName(item.name)));
   for (const item of registry) {
     const normalized = normalizeName(item.name);
-    if (config.hiddenCharacters?.[normalized]) continue;
+    if (config.hiddenCharacters?.[normalized] || colorBankExcluded(config, 'character', item.name)) continue;
     let sceneCharacter = characters.find((character) => {
       const names = [character.name, ...(character.aliases || [])].map(normalizeName);
       return names.includes(normalized);
@@ -1564,6 +1631,7 @@ async function buildState(options = {}, userId) {
       lastHydration: config.lastHydration,
       snapshotsOperatorScoped: true,
     },
+    colorBank: colorBankEntries(config, globalState),
     preferences: globalState.preferences,
     cortexAvailable: scene.cortexAvailable,
     cortex: cortexHealth,
@@ -1739,6 +1807,7 @@ async function saveBinding(payload, userId) {
     config.promptCharacterColors = payload.promptCharacterColors;
   }
 
+  config.colorBankExcludedNames = (config.colorBankExcludedNames || []).filter(key => key !== `${kind}:${normalizeName(name)}`);
   const old = findBinding(config, kind, targetId, name, aliases);
   const aliasSignature = (values) => uniqueStrings(values)
     .map(normalizeName)
@@ -3432,6 +3501,11 @@ spindle.onFrontendMessage(async (payload, userId) => {
       case 'ldc_import_registry': {
         const result = await importRegistry(payload, userId);
         reply('ldc_import_registry_result', result);
+        break;
+      }
+      case 'ldc_color_bank_mutate': {
+        const state = await mutateColorBank(payload, userId);
+        reply('ldc_state', { state, saved: true });
         break;
       }
       case 'ldc_save_binding': {
