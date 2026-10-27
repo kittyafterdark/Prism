@@ -83,6 +83,10 @@ Provisional model echoes do not count as independent evidence. Weak discoveries 
 
 **Historical persona colors** is a separate opt-in operation for older user messages. Both operations roll back partial failures and expose **Restore last backup**.
 
+## Reuse saved characters
+
+In **Add character**, type a name or alias to filter saved character suggestions. Choose a version to fill its name, aliases, and full dialogue/thought colors, including gradients and channel settings. Different saved versions stay separate; personas are excluded. Selecting a saved version uses its colors instead of any detected segment color and copies the assignment into this chat without changing the saved library. Editing the name clears the saved-color selection. You can still add a new name manually. Use **Refresh saved characters** if the library changes while the dialog is open.
+
 ## Color Bank
 
 Open **Settings → Color Bank** to search the saved color library and current chat assignments by name, hex, source, or scope. The default **Current chat** view shows only this chat’s saved assignments; **Saved library** and **All** have separate counts. Search applies inside the chosen view. Wide workspaces show two columns, while narrow screens use one. Each entry shows dialogue and thought colors, gradients, linking, and expandable storage details. Edit one to three hex stops per channel and save, or delete the entry after reviewing its scope.

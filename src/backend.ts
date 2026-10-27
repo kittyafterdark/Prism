@@ -1936,9 +1936,17 @@ async function addSceneCharacter(payload, userId) {
   }
   const name = cleanSceneName(payload.name);
   if (!name) throw new Error('Enter a short character name without markup.');
-  const aliases = uniqueStrings(payload.aliases)
+  let saved = null;
+  if (payload.savedLibraryKey != null) {
+    const globalState = await loadGlobalState(userId);
+    saved = colorBankEntries({ bindings: {} }, globalState).find(entry => entry.kind === 'character' && entry.keys.includes(String(payload.savedLibraryKey)));
+    if (!saved || normalizeName(saved.name) !== normalizeName(name) || JSON.stringify(saved) !== payload.savedLibraryExpected) {
+      throw new Error('That saved character changed. Refresh saved characters and choose the version again.');
+    }
+  }
+  const aliases = uniqueStrings(payload.aliases ?? saved?.aliases)
     .filter((alias) => normalizeName(alias) !== normalizeName(name));
-  const color = normalizeHex(payload.color);
+  const color = saved ? saved.color : normalizeHex(payload.color);
 
   const config = await loadConfig(chat.id, userId);
   const existing = Object.values(config.manualCharacters || {})
@@ -1951,6 +1959,7 @@ async function addSceneCharacter(payload, userId) {
     source: 'manual-roster',
   };
   delete config.hiddenCharacters[normalizeName(name)];
+  if (color) config.colorBankExcludedNames = (config.colorBankExcludedNames || []).filter(key => key !== `character:${normalizeName(name)}`);
 
   if (color) {
     const old = findBinding(config, 'character', id, name, aliases);
@@ -1969,7 +1978,8 @@ async function addSceneCharacter(payload, userId) {
       name,
       aliases: config.manualCharacters[id].aliases,
       color,
-      channels: safeChannels(payload.channels || old?.channels, color),
+      channels: safeChannels(saved?.channels || payload.channels || old?.channels, color),
+      ...(saved ? { colorBankLocal: true } : {}),
       previousColors,
       source: 'manual',
       pinned: true,

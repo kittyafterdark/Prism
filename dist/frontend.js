@@ -35,6 +35,7 @@ body .ldc-toolbar-save-state[data-prism-save-status=off] i,body .ldc-savebar [da
 .ldc-bank-entry{margin:0;min-width:0;overflow-wrap:anywhere}.ldc-bank-entry[hidden],.ldc-bank-confirm[hidden],.ldc-bank-entry button[hidden]{display:none}.ldc-bank-swatches{display:flex;flex-direction:column;gap:8px;margin:12px 0;font-size:11px}.ldc-bank-paint{display:flex;align-items:center;gap:10px;color:var(--lumiverse-text)}.ldc-bank-swatch{display:inline-block;flex:0 0 42px;height:22px;border:1px solid var(--lumiverse-border);border-radius:6px}.ldc-bank-channel{display:grid;gap:10px;min-width:0;margin:10px 0;padding:12px;border:1px solid var(--lumiverse-border);border-radius:8px}.ldc-bank-channel .ldc-select{width:100%;min-width:0}.ldc-bank-entry .ldc-actions{flex-wrap:wrap}.ldc-bank-entry .ldc-btn{white-space:normal;overflow-wrap:anywhere;min-height:36px}
 .ldc-settings-content[data-bank-workspace]{display:flex;flex-direction:column;overflow:hidden;padding:0;container-type:inline-size;min-height:0}.ldc-bank-scroll{flex:1 1 0;min-height:0;overflow:auto;overflow-anchor:none;overscroll-behavior:contain;padding:18px 20px 28px}.ldc-bank-scopes,.ldc-bank-tools,.ldc-bank-bulk-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.ldc-bank-scopes [aria-pressed=true]{border-color:var(--lumiverse-primary);background:color-mix(in srgb,var(--lumiverse-primary) 14%,var(--lumiverse-bg-elevated))}[data-bank-list]{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start}.ldc-bank-bulk{flex:0 0 auto;padding:12px 16px;border-top:1px solid var(--lumiverse-border);background:var(--lumiverse-bg-elevated);box-shadow:0 -6px 18px #0003;max-height:45%;overflow:auto}.ldc-bank-bulk-summary{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px}.ldc-bank-bulk .ldc-btn{white-space:normal;min-height:36px}.ldc-bank-bulk[hidden],.ldc-bank-select-label[hidden],[data-bank-bulk-confirm][hidden],[data-bank-bulk-controls][hidden]{display:none}.ldc-bank-entry[data-bank-chosen=true]{border-color:var(--lumiverse-primary)}.ldc-bank-select-label{margin:0 0 10px}.ldc-bank-paint>span:last-child{min-width:0;overflow-wrap:anywhere}@container(min-width:740px){[data-bank-list]{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:720px){.ldc-bank-scroll{padding:14px 12px 24px}.ldc-bank-bulk{padding:10px 12px}}
 .ldc-bank-duplicate-group{min-width:0;margin:0;padding:14px}.ldc-bank-duplicate-group legend{padding:0 6px;font-weight:700}.ldc-bank-duplicate-options{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin:10px 0}.ldc-bank-duplicate-option{display:flex;flex-direction:column;gap:10px;min-width:0;padding:12px;border:1px solid var(--lumiverse-border);border-radius:10px;cursor:pointer}.ldc-bank-duplicate-option:has(input:checked){border-color:var(--lumiverse-primary);background:color-mix(in srgb,var(--lumiverse-primary) 9%,transparent)}.ldc-bank-duplicate-choice{display:flex;gap:8px;align-items:center}.ldc-bank-duplicate-keys{overflow-wrap:anywhere}[data-bank-duplicates-actions][hidden],[data-bank-duplicates-confirm][hidden]{display:none}@container(min-width:740px){.ldc-bank-duplicate-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ldc-add-saved-heading{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:12px 0 8px}.ldc-add-suggestions{display:grid;gap:8px;max-height:min(260px,30dvh);overflow:auto;overscroll-behavior:contain}.ldc-add-suggestion{display:grid;gap:8px;width:100%;min-width:0;padding:10px;text-align:left;color:var(--lumiverse-text);background:var(--lumiverse-fill-subtle);border:1px solid var(--lumiverse-border);border-radius:9px;cursor:pointer}.ldc-add-suggestion[data-add-chosen=true],.ldc-add-suggestion:hover,.ldc-add-suggestion:focus-visible{border-color:var(--lumiverse-primary)}.ldc-add-suggestion-paints{display:grid;gap:6px;font-size:10px;overflow-wrap:anywhere}.ldc-add-suggestion .ldc-bank-swatch{flex-basis:28px;height:16px}
 /* Settings is a full workspace, not a cramped side drawer. */
 .ldc-settings{inset:0;width:100%;padding:18px 20px;border-left:0;box-shadow:none;background:color-mix(in srgb,var(--lumiverse-bg-elevated) 98%,transparent)}
 .ldc-settings-heading{margin-bottom:14px;padding-bottom:13px;border-bottom:1px solid var(--lumiverse-border)}
@@ -951,47 +952,109 @@ export function setup(ctx) {
         selectedId = state.characters.find(x => x.name === target.name)?.id || selectedId; if (rerender)
         render(); }
     function openAddPerson(seedColor = null) {
-        const detected = normalizeHex(seedColor);
-        if (addModal) {
-            addModal.dismiss();
-            addModal = null;
-        }
-        addModal = createPortalDialog('Add scene character');
-        addModal.onDismiss(() => { addModal = null; });
-        addModal.root.innerHTML = `<section class="ldc-add-person"><div class="ldc-heading"><div><h3>Add character manually</h3><div class="ldc-sub">Useful when a card, group bubble, or narrator label does not describe the actual speaker.${detected ? ` The detected ${detected} color will be bound to them.` : ''}</div></div></div><label class="ldc-field"><span class="ldc-label">Name</span><input class="ldc-input" data-add-role="name" maxlength="80" placeholder="Lycaon"></label><label class="ldc-field"><span class="ldc-label">Aliases <span class="ldc-hint">Comma-separated; bubble labels work here too</span></span><input class="ldc-input" data-add-role="aliases" placeholder="Von Lycaon, narrator"></label><div class="ldc-add-error" data-add-error hidden></div><div class="ldc-actions"><span class="ldc-autosave">Only affects this chat roster</span><button class="ldc-btn ldc-primary" data-action="confirm-add">Add character</button></div></section>`;
-        const nameInput = addModal.root.querySelector('[data-add-role=name]'), button = addModal.root.querySelector('[data-action=confirm-add]'), coarsePointer = window.matchMedia?.('(pointer: coarse)').matches === true;
-        if (!coarsePointer && window.innerWidth > 820)
-            requestAnimationFrame(() => nameInput?.focus({ preventScroll: true }));
-        const submit = async () => { const name = String(nameInput?.value || '').trim(), aliases = String(addModal?.root.querySelector('[data-add-role=aliases]')?.value || '').split(',').map(x => x.trim()).filter(Boolean); if (!name)
-            return; button.disabled = true; try {
-            clearTimeout(saveTimer);
-            ++saveGeneration;
-            await saveQueue.catch(() => { });
-            const response = await request('ldc_add_character', { chatId: state.chat.id, name, aliases, color: detected || null, channels: detected ? safeChannels({ color: detected }) : null }, 30000);
-            acceptState(response.state);
-            const added = state.characters.find(x => String(x.id) === String(response.addedCharacterId) || x.name.toLowerCase() === name.toLowerCase());
-            if (!added)
-                throw new Error(`${name} was saved but did not appear in the scene roster.`);
-            selectedId = added.id;
-            sideScroll = 0;
-            addModal?.dismiss();
-            addModal = null;
-            render();
-            requestAnimationFrame(() => centerActiveRoster(modal?.root.querySelector('.ldc-roster-scroll'), true));
-        }
-        catch (error) {
-            button.disabled = false;
-            const message = error?.message || String(error), outlet = addModal?.root.querySelector('[data-add-error]');
-            if (outlet) {
-                outlet.hidden = false;
-                outlet.textContent = message;
+        const detected = normalizeHex(seedColor), chatId = state?.chat?.id;
+        addModal?.dismiss();
+        const dialog = createPortalDialog('Add scene character'), opener = document.activeElement;
+        addModal = dialog;
+        let saved = (state?.colorBank || []).filter(entry => entry.scope === 'library' && entry.kind === 'character').sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key)), selected = null, filledAliases = '', submitting = false, refreshing = false;
+        dialog.root.innerHTML = `<section class="ldc-add-person"><div class="ldc-heading"><div><h3 tabindex="-1" data-add-heading>Add character</h3><div class="ldc-sub">Choose a saved character or enter a new name.${detected ? ` New names use the detected ${detected} color.` : ''}</div></div></div><form data-add-form><label class="ldc-field"><span class="ldc-label">Name</span><input class="ldc-input" data-add-role="name" maxlength="80" placeholder="Lycaon" aria-describedby="prism-add-saved-hint" autocomplete="off"></label><p class="ldc-sub" id="prism-add-saved-hint">Type a name or alias to find saved characters. Choose a version to fill its name, aliases, and colors.</p><div class="ldc-add-saved-heading"><strong id="prism-add-suggestions-title">Saved character suggestions</strong><button type="button" class="ldc-btn" data-add-refresh>Refresh saved characters</button></div><div class="ldc-add-suggestions" data-add-suggestions role="group" aria-labelledby="prism-add-suggestions-title"></div><p class="ldc-sub" data-add-saved-status></p><label class="ldc-field"><span class="ldc-label">Aliases <span class="ldc-hint">Comma-separated; bubble labels work here too</span></span><input class="ldc-input" data-add-role="aliases" placeholder="Von Lycaon, narrator"></label><div class="ldc-add-error" data-add-error role="alert" hidden></div><div class="ldc-actions"><span class="ldc-autosave">Only affects this chat roster</span><button type="submit" class="ldc-btn ldc-primary" data-action="confirm-add">Add character</button></div></form></section>`;
+        const card = dialog.root.closest('[role=dialog]'), form = dialog.root.querySelector('[data-add-form]'), nameInput = form.querySelector('[data-add-role=name]'), aliasesInput = form.querySelector('[data-add-role=aliases]'), button = form.querySelector('[data-action=confirm-add]'), status = form.querySelector('[data-add-saved-status]'), outlet = form.querySelector('[data-add-error]'), refresh = form.querySelector('[data-add-refresh]');
+        const showError = error => { outlet.hidden = false; outlet.textContent = error?.message || String(error); };
+        const clearSelection = () => { if (selected && aliasesInput.value === filledAliases)
+            aliasesInput.value = ''; selected = null; filledAliases = ''; };
+        const suggestions = () => {
+            const query = nameInput.value.trim().toLowerCase(), matches = saved.filter(entry => [entry.name, ...(entry.aliases || [])].some(value => String(value).toLowerCase().includes(query))), list = form.querySelector('[data-add-suggestions]');
+            list.innerHTML = matches.slice(0, 8).map(entry => { const index = saved.indexOf(entry), versions = saved.filter(item => item.name.trim().toLowerCase() === entry.name.trim().toLowerCase()), version = versions.length > 1 ? ' · saved version ' + (versions.indexOf(entry) + 1) : '', channels = safeChannels(entry); return `<button type="button" class="ldc-add-suggestion" data-add-saved="${index}" data-add-chosen="${selected?.key === entry.key}"><strong>Use ${esc(entry.name)}${version}</strong><span class="ldc-add-suggestion-paints">${['dialogue', 'thought'].map(kind => `<span class="ldc-bank-paint"><span class="ldc-bank-swatch" aria-hidden="true" style="background:${paintBackground(channels[kind].paint)}"></span><span>${kind === 'dialogue' ? 'Dialogue' : 'Thought'} · ${esc(channels[kind].paint.stops.join(' → '))} · ${channels[kind].enabled ? 'on' : 'off'}${kind === 'thought' && channels.thought.linkedToDialogue ? ' · linked' : ''}</span></span>`).join('')}</span></button>`; }).join('');
+            status.textContent = selected ? 'Using saved colors for ' + selected.name + ' · ' + safeChannels(selected).dialogue.paint.stops.join(' → ') + '.' + (detected ? ' These replace the detected ' + detected + ' assignment.' : '') : !matches.length ? 'No saved characters match. You can still add a new character.' : matches.length > 8 ? 'Showing 8 of ' + matches.length + ' matches. Keep typing to narrow the list.' : 'Choose a suggestion to use saved colors, or add the typed name manually.';
+            list.querySelectorAll('[data-add-saved]').forEach(choice => choice.addEventListener('click', () => { selected = saved[Number(choice.dataset.addSaved)]; nameInput.value = selected.name; filledAliases = (selected.aliases || []).join(', '); aliasesInput.value = filledAliases; outlet.hidden = true; suggestions(); button.focus({ preventScroll: true }); }));
+        };
+        nameInput.addEventListener('input', () => { if (selected && nameInput.value.trim().toLowerCase() !== selected.name.trim().toLowerCase())
+            clearSelection(); outlet.hidden = true; suggestions(); });
+        refresh.addEventListener('click', async () => {
+            if (submitting || refreshing)
+                return;
+            refreshing = true;
+            refresh.disabled = true;
+            button.disabled = true;
+            try {
+                const response = await request('ldc_load_state', { chatId, importCortex: false });
+                if (disposed || addModal !== dialog || state?.chat?.id !== chatId)
+                    return;
+                acceptState(response.state);
+                saved = (state?.colorBank || []).filter(entry => entry.scope === 'library' && entry.kind === 'character').sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
+                clearSelection();
+                outlet.hidden = true;
+                suggestions();
             }
-            else
-                await showPrismConfirm({ title: 'Could not add character', message, confirmLabel: 'Okay', cancelLabel: 'Close', variant: 'warning' });
+            catch (error) {
+                if (addModal === dialog)
+                    showError(error);
+            }
+            finally {
+                refreshing = false;
+                refresh.disabled = false;
+                button.disabled = false;
+            }
+        });
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const name = nameInput.value.trim();
+            if (!name || submitting || refreshing)
+                return;
+            const aliases = aliasesInput.value.split(',').map(value => value.trim()).filter(Boolean);
+            submitting = true;
+            form.querySelectorAll('button,input').forEach(control => { control.disabled = true; });
+            try {
+                clearTimeout(saveTimer);
+                ++saveGeneration;
+                await saveQueue.catch(() => { });
+                const response = await request('ldc_add_character', { chatId, name, aliases, color: selected ? null : detected || null, channels: !selected && detected ? safeChannels({ color: detected }) : null, ...(selected ? { savedLibraryKey: selected.key, savedLibraryExpected: JSON.stringify(selected) } : {}) }, 30000);
+                if (disposed || state?.chat?.id !== chatId)
+                    return;
+                acceptState(response.state);
+                const added = state.characters.find(character => String(character.id) === String(response.addedCharacterId) || character.name.toLowerCase() === name.toLowerCase());
+                if (!added)
+                    throw new Error(name + ' was saved but did not appear in the scene roster.');
+                selectedId = added.id;
+                sideScroll = 0;
+                if (addModal === dialog)
+                    dialog.dismiss();
+                render();
+                requestAnimationFrame(() => { if (!modal || addModal)
+                    return; centerActiveRoster(modal.root.querySelector('.ldc-roster-scroll'), true); [...modal.root.querySelectorAll('[data-character-id]')].find(row => String(row.dataset.characterId) === String(selectedId))?.focus({ preventScroll: true }); });
+            }
+            catch (error) {
+                if (addModal === dialog) {
+                    showError(error);
+                    form.querySelectorAll('button,input').forEach(control => { control.disabled = false; });
+                    button.focus({ preventScroll: true });
+                }
+            }
+            finally {
+                submitting = false;
+            }
+        });
+        const onKeydown = event => { if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            dialog.dismiss();
+            return;
+        } if (event.key !== 'Tab')
+            return; const controls = [...card.querySelectorAll('button,input,[tabindex="0"]')].filter(control => !control.disabled && control.getClientRects().length), first = controls[0], last = controls.at(-1); if (event.shiftKey && (document.activeElement === first || !controls.includes(document.activeElement))) {
+            event.preventDefault();
+            last?.focus();
+        }
+        else if (!event.shiftKey && (document.activeElement === last || !controls.includes(document.activeElement))) {
+            event.preventDefault();
+            first?.focus();
         } };
-        button.onclick = submit;
-        nameInput.onkeydown = e => { if (e.key === 'Enter')
-            submit(); };
+        card.addEventListener('keydown', onKeydown);
+        dialog.onDismiss(() => { card.removeEventListener('keydown', onKeydown); if (addModal === dialog)
+            addModal = null; if (opener?.isConnected)
+            opener.focus({ preventScroll: true }); });
+        suggestions();
+        requestAnimationFrame(() => { if (addModal !== dialog)
+            return; const coarse = window.matchMedia?.('(pointer: coarse)').matches === true; (coarse || window.innerWidth <= 820 ? dialog.root.querySelector('[data-add-heading]') : nameInput)?.focus({ preventScroll: true }); });
     }
     async function renameCurrent() { const character = current(), name = String(modal?.root.querySelector('[data-role=character-name]')?.value || '').trim(); if (!character || name === character.name)
         return; if (!name)
