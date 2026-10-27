@@ -1,4 +1,9 @@
-## Unreleased
+## 1.0.4
+
+- Adds Color Bank to inspect, search, edit, back up, and delete saved dialogue/thought colors while keeping library and chat assignments separate.
+- Adds Current chat, Saved library, and All filters; bulk selection with a persistent bottom action strip; two-column wide layouts; and scroll/editor preservation after changes.
+- Adds reviewed library deduplication: compare saved versions, choose the colors to preserve or keep all versions, and consolidate matching storage keys without changing existing chats.
+- Adds saved-character suggestions to Add character, matching names and aliases and autofilling the selected version’s name, aliases, gradients, thought linking, and channel settings.
 
 - Recovers unanswered startup state loads with bounded retries, cancels stale loads on chat changes, and prevents pending work from restarting Prism after unload.
 - Shows the built-in or custom prompt in an editable **Active prompt** box under Prompt settings, with explicit saving, keyboard saving, reset, and a resolved live-data preview.
