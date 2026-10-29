@@ -48,7 +48,9 @@ The Persona tab separates two jobs that used to overlap:
 - **Color persona messages** automatically colors the active persona's user-role messages. Its enabled/disabled state is remembered as the default for new chats, and existing pre-1.0.2.7 chat state seeds that preference on migration.
 - **Persona is part of the cast** is chat-local and intended for impersonation / Speak for User workflows. It lets assistant-side dialogue resolve to the active persona, includes that persona in the assistant speaker registry, and exposes the persona as a manual recoloring target.
 
-These switches are independent. Cast mode can therefore identify and color an impersonated persona in assistant output even when automatic coloring of user-role messages is disabled.
+These switches are independent. Cast mode can therefore identify and color an impersonated persona in assistant output even when automatic coloring of user-role messages is disabled. Cast registration uses the active persona and prepares its color before automatic or preset-macro prompt delivery. Existing chat colors take priority, followed by saved Color Bank colors; an unassigned cast persona gets a generated color unless its name was explicitly excluded through Color Bank. Switching personas updates the active registry without deleting previous assignments.
+
+The user-message coloring mode is also remembered for new chats. Setting up or assigning scene colors preserves that choice. Persona thoughts use their own enabled paint channel and the configured thought detection, including inside whole-message coloring; solid and gradient thought paint stay separate from dialogue paint.
 
 ## Existing formatting
 
@@ -139,6 +141,8 @@ npm run verify
 ```
 
 `npm run build` compiles both Spindle entrypoints to ESM. The regression harness checks attribution/scene fixtures, canonical color migration, operator-scoped snapshots, exact-message hydration, state garbage collection, prompt budgets and sanitization, provisional anti-feedback behavior, transcript dry runs/rollback, streaming paint lifecycle, and source/dist consistency.
+
+The persona runtime fixture can also be checked with `node tests/persona-pipeline.browser.mjs` when Playwright and its browsers are installed. `PLAYWRIGHT_MODULE` can point to an existing Playwright entrypoint, and `PRISM_BROWSER=webkit` selects WebKit instead of Chromium.
 
 CI rebuilds the distribution and fails if `dist/` differs from source.
 
