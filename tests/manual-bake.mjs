@@ -62,7 +62,13 @@ const spindle = {
     },
   },
   chat: {
-    getMessages: async () => structuredClone(host.messages),
+    getMessages: async (chatId, options) => {
+      assert.equal(chatId, host.activeChat.id);
+      if (options != null && (typeof options !== 'object' || Array.isArray(options))) {
+        throw new Error('options must be an object');
+      }
+      return structuredClone(host.messages);
+    },
     updateMessage: async (chatId, messageId, patch) => {
       host.updateCalls += 1;
       if (host.failUpdateAt && host.updateCalls === host.failUpdateAt) throw new Error('simulated mutation failure');
@@ -108,6 +114,14 @@ function binding(name, color, extra = {}) {
     ...extra,
   };
 }
+
+test('generation hydration reads messages with the current Spindle options contract', async () => {
+  host.messages = [{ id: 'generated-reply', role: 'assistant', content: 'A newly generated reply.' }];
+  const messages = await api.messagesForHydration('chat-a', 'user-hydration', 'generated-reply');
+  assert.deepEqual(messages, host.messages);
+  // A user ID in the options position must fail, just as it does in Lumiverse.
+  await assert.rejects(spindle.chat.getMessages('chat-a', 'user-hydration'), /options must be an object/);
+});
 
 test('manual bake mutates only the active swipe and creates a recovery backup', async () => {
   host.chatVars.clear();

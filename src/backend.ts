@@ -4,7 +4,7 @@ declare const spindle: import("lumiverse-spindle-types").SpindleAPI;
 const CONFIG_VAR = 'lumi_dialogue_colors_v1';
 const GLOBAL_PREFS_VAR = 'prism_preferences_v1';
 const RECOVERY_VAR = 'prism_transcript_recovery_v1';
-const PRISM_VERSION = '1.0.4';
+const PRISM_VERSION = '1.0.5';
 const FAST_OPTIONAL_TIMEOUT_MS = 4500;
 const TRANSCRIPT_TIMEOUT_MS = 12000;
 const HYDRATION_FETCH_TIMEOUT_MS = 5000;
@@ -1219,7 +1219,7 @@ async function getSceneCharacters(chat, cardCharacters, userId, options = {}) {
   if (options.scanTranscript === true) {
     try {
       const messages = await withTimeout(
-        spindle.chat.getMessages(chat.id, userId),
+        spindle.chat.getMessages(chat.id),
         TRANSCRIPT_TIMEOUT_MS,
         'Transcript speaker scan',
       );
@@ -1346,7 +1346,7 @@ async function importTranscriptRegistry(chat, characters, config, userId) {
   let messages = [];
   try {
     messages = await withTimeout(
-      spindle.chat.getMessages(chat.id, userId),
+      spindle.chat.getMessages(chat.id),
       TRANSCRIPT_TIMEOUT_MS,
       'Existing dialogue color scan',
     );
@@ -2508,7 +2508,7 @@ async function bakeManualCorrection(payload, config, chat, userId) {
   const binding = bindingForSpeakerKey(config, payload.speakerKey);
   const color = bindingRegistryColor(binding);
   if (!binding || !color) return { status: 'speaker-has-no-color' };
-  const messages = await spindle.chat.getMessages(chat.id, userId);
+  const messages = await spindle.chat.getMessages(chat.id);
   const message = (messages || []).find((item) => String(item?.id) === String(payload.messageId));
   if (!message) return { status: 'message-not-found' };
   const hasSwipes = Array.isArray(message.swipes) && message.swipes.length > 0;
@@ -2620,7 +2620,7 @@ async function transcriptMutationPlan(chatId, userId, mode) {
   const personaBinding = config.personaEnabled !== false && persona
     ? findBinding(config, 'persona', persona.id, persona.name, [])
     : null;
-  const messages = await spindle.chat.getMessages(chat.id, userId);
+  const messages = await spindle.chat.getMessages(chat.id);
   const characterPlan = legacyColorReplacementPlan(config, 'character');
   const personaPlan = legacyColorReplacementPlan(config, 'persona');
   const updates = [];
@@ -2876,7 +2876,7 @@ async function messagesForHydration(chatId, userId, requestedId) {
   let messages = [];
   for (const wait of waits) {
     if (wait) await delay(wait);
-    messages = await withTimeout(spindle.chat.getMessages(chatId, userId), HYDRATION_FETCH_TIMEOUT_MS, 'Generated message hydration');
+    messages = await withTimeout(spindle.chat.getMessages(chatId), HYDRATION_FETCH_TIMEOUT_MS, 'Generated message hydration');
     if (!requestedId || messages.some((item) => String(item.id) === requestedId)) return messages;
   }
   return messages;
