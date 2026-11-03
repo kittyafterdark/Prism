@@ -82,7 +82,7 @@ try{
     await page.getByRole('button',{name:'Save persona colors',exact:true}).press('Enter');
     await page.waitForFunction(()=>window.fixture.state.persona.binding.color==='#445566');
     await page.getByText('Identity and attribution',{exact:true}).first().press('Enter');
-    assert.equal(await page.locator('details.ldc-details').getAttribute('open'),'');
+    assert.equal(await page.locator('details.ldc-details').filter({hasText:'Identity and attribution'}).getAttribute('open'),'');
     await page.getByRole('button',{name:'Settings',exact:true}).click();
     await page.getByRole('button',{name:'Prompt',exact:true}).click();
     const promptEditor=page.getByRole('textbox',{name:'Prompt instructions',exact:true});

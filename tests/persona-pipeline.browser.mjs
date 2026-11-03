@@ -46,6 +46,9 @@ try {
     await page.evaluate(() => { fixture.state.persona.binding.channels.thought.paint={mode:'gradient',stops:['#CC33AA','#33CCAA'],angle:135,anchor:'#112233'}; prismTest.acceptState(structuredClone(fixture.state)); });
     await page.waitForFunction(() => document.querySelector('#user em')?.dataset.prismPaint === 'gradient');
     assert.match(await page.locator('#user em strong').evaluate(el => getComputedStyle(el).backgroundImage), /204, 51, 170/);
+    await page.evaluate(() => { fixture.state.persona.binding.channels.thought.paint.type='radial';fixture.state.persona.binding.channels.dialogue.paint.type='radial';prismTest.acceptState(structuredClone(fixture.state)); });
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('#user em strong')).backgroundImage.startsWith('radial-gradient'));
+    assert.match(await page.locator('#assistant [data-prism-kind=thought]').evaluate(el=>getComputedStyle(el).backgroundImage),/^radial-gradient/);
     await page.evaluate(() => { fixture.state.persona.binding.channels.thought.paint={mode:'solid',stops:['#CC33AA'],anchor:'#112233'}; prismTest.acceptState(structuredClone(fixture.state)); });
     await page.waitForFunction(() => document.querySelector('#user em')?.dataset.prismPaint === 'solid');
     // Repainting is idempotent and keeps separate thought paint in LLM mode.

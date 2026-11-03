@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { colorBankFixture } from './color-bank.mjs';
 
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
+const playwright = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
 const source = await fs.readFile(new URL('../src/frontend.ts', import.meta.url), 'utf8');
 const frontend = ts.transpileModule(source, {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace('export function setup','function setup');
 const host = `
@@ -21,7 +21,7 @@ ${frontend}
 globalThis.uiFixture={async load(){await bankFixture.reset();this.unload=setup(ctx)},open:()=>openAction(),errors:uiErrors,get copied(){return copiedBank},switchChat(id){bankFixture.host.chatId=id;fixtureEvents.get('CHAT_SWITCHED')?.()}};
 `;
 
-const browser = await chromium.launch({headless:true});
+const browser = await playwright[process.env.PRISM_BROWSER || 'chromium'].launch({headless:true});
 try {
   for (const [width,height,notch] of [[1280,900,0],[390,844,59],[844,390,0]]) {
     const page=await browser.newPage({viewport:{width,height},hasTouch:width<600,isMobile:width<600});
@@ -32,6 +32,104 @@ try {
     await page.waitForSelector('[data-prism-toolbar-button]');
     await page.evaluate(()=>uiFixture.open());
     const openBank=async()=>{await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Color Bank',exact:true}).click()};
+    const assertBankLayout=async actions=>{
+      const shell=await page.locator('.ldc-settings-shell').boundingBox(),content=await page.locator('[data-bank-workspace]').boundingBox(),footer=await actions.boundingBox(),scroller=await page.locator('.ldc-bank-scroll').boundingBox();
+      assert.ok(content.y>=shell.y-1&&content.y+content.height<=shell.y+shell.height+1,'Bank content fits the settings grid row');
+      assert.ok(footer.y>=notch&&footer.y+footer.height<=height+1,'Bank actions stay inside the safe viewport');
+      assert.ok(footer.y>=shell.y-1&&footer.y+footer.height<=shell.y+shell.height+1,'Bank actions are not clipped by the settings workspace');
+      assert.ok(scroller.height>0&&scroller.y+scroller.height<=footer.y+1,'Bank actions leave a separate scrollable list');
+    };
+
+    // Both profile controls and Enter save the complete visible draft.
+    await page.locator('summary').filter({hasText:'Identity and attribution'}).press('Enter');
+    const profileName=page.getByRole('textbox',{name:/^Character name/}),profileAliases=page.getByRole('textbox',{name:/^Aliases/});
+    await profileName.fill('Ada Lovelace');
+    await profileAliases.fill('Countess');
+    await page.getByRole('textbox',{name:'Gradient stop 1',exact:true}).fill('#FF0000');
+    await page.getByRole('button',{name:'Save chat profile',exact:true}).last().click();
+    await page.getByRole('button',{name:/Ada Lovelace/}).first().waitFor();
+    await page.waitForFunction(()=>document.activeElement?.matches('.ldc-save-now'));
+    await page.waitForFunction(async()=>{const binding=(await bankFixture.state()).characters[0].binding;return binding.color==='#FF0000'&&binding.aliases.includes('Countess')&&binding.aliases.includes('Ada')});
+    await profileAliases.fill('Lady Ada');
+    await page.locator('.ldc-identity-card').getByRole('button',{name:'Save chat profile',exact:true}).click();
+    await page.waitForFunction(()=>document.activeElement?.matches('.ldc-identity-card [data-action=save-now]'));
+    await page.waitForFunction(async()=>{const binding=(await bankFixture.state()).characters[0].binding;return binding.aliases.length===1&&binding.aliases[0]==='Lady Ada'});
+    await profileName.fill('Ada Byron');
+    await profileAliases.press('Enter');
+    await page.getByRole('button',{name:/Ada Byron/}).first().waitFor();
+    await page.waitForFunction(()=>document.activeElement?.matches('[data-role=aliases]'));
+    assert.equal(await page.getByRole('button',{name:'Save name',exact:true}).count(),0);
+    await page.getByRole('button',{name:'Close Prism',exact:true}).click();
+    await page.evaluate(()=>uiFixture.open());
+    await page.getByRole('button',{name:/Ada Byron/}).first().waitFor();
+    assert.equal(await page.getByRole('textbox',{name:'Gradient stop 1',exact:true}).inputValue(),'#FF0000');
+
+    // An NPC may have several same-name bank versions. Saving must display the
+    // version just written, even when an older unrelated version is first.
+    await page.evaluate(async()=>{
+      await bankFixture.send({type:'ldc_add_character',chatId:bankFixture.host.chatId,name:'Enji Todoroki',color:'#FF5500'});
+      const key='user-a|prism_preferences_v1',raw=JSON.parse(bankFixture.host.global.get(key));
+      raw.library={'character-card:old-enji':{name:'Enji Todoroki',aliases:[],color:'#FF5500',channels:bankFixture.functions.safeChannels(null,'#FF5500'),source:'manual',pinned:true},...raw.library};
+      bankFixture.host.global.set(key,JSON.stringify(raw));uiFixture.unload();uiFixture.unload=setup(ctx);
+    });
+    await page.waitForSelector('[data-prism-toolbar-button]');
+    await page.evaluate(()=>uiFixture.open());
+    await page.getByRole('button',{name:/Enji Todoroki/}).first().click();
+    await page.getByRole('textbox',{name:'Gradient stop 1',exact:true}).fill('#FF0000');
+    const npcBank=page.locator('.ldc-editor-bank');
+    await npcBank.locator('summary').press('Enter');
+    await npcBank.getByRole('button',{name:'Save to bank',exact:true}).click();
+    await npcBank.getByRole('status').getByText('Saved to bank. This is the shared base for new chats.',{exact:true}).waitFor();
+    assert.match(await npcBank.getByRole('combobox',{name:'Banked identity',exact:true}).locator('option:checked').textContent(),/#FF0000/);
+    assert.match(await npcBank.locator('[data-editor-bank-preview]').textContent(),/#FF0000/);
+    await page.getByRole('button',{name:'Close Prism',exact:true}).click();
+    await page.evaluate(()=>uiFixture.open());
+    await npcBank.locator('summary').press('Enter');
+    assert.match(await npcBank.getByRole('combobox',{name:'Banked identity',exact:true}).locator('option:checked').textContent(),/#FF0000/);
+    console.log('Passed unified profile controls, Enter, reopening and exact NPC bank feedback at '+width+'x'+height+'.');
+    await page.evaluate(()=>uiFixture.unload());
+    await page.evaluate(()=>uiFixture.load());
+    await page.waitForSelector('[data-prism-toolbar-button]');
+    await page.evaluate(()=>uiFixture.open());
+    // Real editor -> backend -> scoped storage, using controlled host data.
+    await page.getByLabel('Paint',{exact:true}).selectOption('gradient');
+    const direction=page.getByRole('slider',{name:'Gradient direction',exact:true});
+    await direction.waitFor();
+    await page.getByRole('combobox',{name:'Stops',exact:true}).selectOption('2');
+    await page.waitForFunction(async()=>(await bankFixture.state()).characters[0].binding.channels.dialogue.paint.stops.length===2);
+    await direction.press('End');
+    await direction.press('ArrowLeft');
+    await page.waitForFunction(async()=>(await bankFixture.state()).characters[0].binding.channels.dialogue.paint.angle===359);
+    assert.equal(await direction.getAttribute('aria-valuetext'),'359 degrees');
+    await page.getByLabel('Paint',{exact:true}).selectOption('radial');
+    await page.waitForFunction(async()=>(await bankFixture.state()).characters[0].binding.channels.dialogue.paint.type==='radial');
+    assert.equal(await page.getByRole('slider',{name:'Gradient direction'}).count(),0);
+    await page.getByRole('textbox',{name:'Gradient stop 1',exact:true}).fill('#445566');
+    const bankDetails=page.locator('.ldc-editor-bank');
+    await bankDetails.locator('summary').press('Enter');
+    assert.equal(await page.getByRole('combobox',{name:'Banked identity',exact:true}).count(),1);
+    assert.deepEqual(await page.evaluate(()=>{const ids=[...document.querySelectorAll('[id]')].map(el=>el.id);return ids.filter((id,index)=>ids.indexOf(id)!==index)}),[]);
+    await page.getByRole('button',{name:'Save to bank',exact:true}).click();
+    await page.waitForFunction(async()=>{const state=await bankFixture.state();return state.colorBank.some(entry=>entry.scope==='library'&&entry.color==='#445566'&&entry.channels.dialogue.paint.type==='radial')});
+    await page.waitForFunction(()=>document.activeElement?.matches('[data-editor-bank-save]'));
+    assert.match(await page.locator('.ldc-preview-dialogue').evaluate(el=>getComputedStyle(el).backgroundImage),/^radial-gradient/);
+    await page.getByRole('textbox',{name:'Gradient stop 1',exact:true}).fill('#AA3366');
+    await page.getByRole('button',{name:'Use banked identity',exact:true}).press('Enter');
+    await page.waitForFunction(async()=>(await bankFixture.state()).characters[0].binding.color==='#445566');
+    await page.waitForFunction(()=>document.activeElement?.matches('[data-editor-bank-use]'));
+    const bankRect=await page.getByRole('button',{name:'Use banked identity',exact:true}).boundingBox();
+    assert.ok(bankRect.y>=notch&&bankRect.y+bankRect.height<=height+1,'Bank action stays within the safe viewport');
+    if(process.env.PRISM_SCREENSHOT_DIR){await fs.mkdir(process.env.PRISM_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:process.env.PRISM_SCREENSHOT_DIR+'/editor-bank-radial-'+width+'.png'})}
+    await page.getByRole('button',{name:'Close Prism',exact:true}).click();
+    await page.evaluate(()=>uiFixture.open());
+    await page.waitForFunction(()=>document.querySelector('[data-role=paint-mode]')?.value==='radial');
+    await page.evaluate(()=>uiFixture.switchChat('bank-editor-new-chat'));
+    await page.waitForFunction(async()=>{const state=await bankFixture.state();return state.chat.id==='bank-editor-new-chat'&&state.characters[0].binding.color==='#445566'&&state.characters[0].binding.channels.dialogue.paint.type==='radial'});
+    await page.evaluate(()=>uiFixture.unload());
+    await page.evaluate(()=>uiFixture.load());
+    await page.waitForSelector('[data-prism-toolbar-button]');
+    await page.evaluate(()=>uiFixture.open());
+    console.log('Passed editor bank save/use, radial preview, keyboard direction slider, focus, close/reopen and new-chat base at '+width+'x'+height+'.');
     await openBank();
     const library=page.getByRole('article',{name:'Ada · Saved library',exact:true});
     const chat=page.getByRole('article',{name:'Ada · Current chat',exact:true});
@@ -121,9 +219,18 @@ try {
     await guest('060').getByRole('checkbox',{name:'Select Guest 060 · Saved library',exact:true}).check();
     await guest('061').getByRole('checkbox',{name:'Select Guest 061 · Saved library',exact:true}).check();
     await strip.getByText('2 selected',{exact:true}).waitFor();
-    const footer=await strip.boundingBox(),scroller=await page.locator('.ldc-bank-scroll').boundingBox();
-    assert.ok(footer.y>=notch&&footer.y+footer.height<=height+1,'Bulk strip stays inside the safe viewport');
-    assert.ok(scroller.y+scroller.height<=footer.y+1,'Bulk strip does not cover list content');
+    await assertBankLayout(strip);
+    if(width===844){
+      const navigation=page.getByRole('navigation',{name:'Prism settings sections',exact:true}),buttons=navigation.getByRole('button'),bounds=await navigation.boundingBox();
+      await buttons.first().focus();
+      for(let index=0;index<await buttons.count();index++){
+        if(index)await page.keyboard.press('Tab');
+        assert.equal(await buttons.nth(index).evaluate(node=>node===document.activeElement),true,'Settings sections stay in keyboard order');
+        const button=await buttons.nth(index).boundingBox();
+        assert.ok(button.y>=bounds.y-1&&button.y+button.height<=bounds.y+bounds.height+1,'Keyboard focus scrolls short-window settings navigation into view');
+      }
+    }
+
     await guest('060').getByText('Edit Guest 060 · Saved library',{exact:true}).press('Enter');
     await guest('060').getByLabel('Dialogue colors · one to three hex values, separated by commas',{exact:true}).fill('#123456');
     const save=guest('060').getByRole('button',{name:'Save Guest 060 · Saved library',exact:true});
@@ -136,6 +243,7 @@ try {
     assert.equal(await guest('060').locator('[data-bank-detail=edit]').evaluate(node=>node.open),true,'Open editor survives saving');
     await strip.getByText('2 selected',{exact:true}).waitFor();
     await strip.getByRole('button',{name:'Delete selected',exact:true}).click();
+    await assertBankLayout(strip);
     await strip.getByRole('button',{name:'Keep selected colors',exact:true}).press('Escape');
     await strip.getByRole('button',{name:'Delete selected',exact:true}).click();
     const scrollBeforeDelete=await page.locator('.ldc-bank-scroll').evaluate(node=>node.scrollTop);
@@ -170,10 +278,12 @@ try {
     await characterGroup.getByRole('radio',{name:/Preserve version 2 for Ada/}).check();
     await personaGroup.getByRole('radio',{name:'Keep all versions for Ada',exact:true}).check();
     await reviewActions.getByText('2 of 2 reviewed · 1 to consolidate',{exact:true}).waitFor();
+    await assertBankLayout(reviewActions);
     await page.getByRole('button',{name:'Copy Color Bank backup',exact:true}).click();
     assert.equal(await page.evaluate(()=>JSON.parse(uiFixture.copied).entries.length),7);
     if(process.env.PRISM_SCREENSHOT_DIR){await fs.mkdir(process.env.PRISM_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:process.env.PRISM_SCREENSHOT_DIR+'/color-bank-dedupe-'+width+'.png'})}
     await reviewActions.getByRole('button',{name:'Apply chosen colors',exact:true}).press('Enter');
+    await assertBankLayout(reviewActions);
     await reviewActions.getByRole('button',{name:'Keep reviewing',exact:true}).press('Escape');
     assert.equal(await reviewActions.getByRole('button',{name:'Apply chosen colors',exact:true}).evaluate(node=>node===document.activeElement),true);
     await reviewActions.getByRole('button',{name:'Apply chosen colors',exact:true}).click();

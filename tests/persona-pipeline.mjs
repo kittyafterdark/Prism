@@ -37,7 +37,7 @@ function fixture() {
   const f = fixture();
   const config = f.config(); config.personaEnabled = false; config.autoUserMode = 'off'; f.save(config);
   const result = await f.host.interceptor([{ role: 'user', content: 'Continue.' }], { chatId: 'chat', userId: 'owner', generationId: 'first' });
-  assert.match(result.messages.find(m => m.role === 'system').content, /"name":"Ada","kind":"persona"/);
+  assert.match(result.messages.find(m => m.role === 'system').content, /"name":"Ada","kind":"character"/);
   const binding = f.config().bindings['persona:persona-a'];
   assert.ok(binding.speakerUid);
   assert.match(result.messages.find(m => m.role === 'system').content, new RegExp(binding.color));
@@ -76,7 +76,7 @@ function fixture() {
   assert.ok(f.config().bindings['persona:persona-a'].aliases.includes('Ada'));
   f.host.persona = { id: 'persona-b', name: 'Bea' };
   const second = await f.host.macros.get('prismPrompt')({ env: { chat: { id: 'chat' } } });
-  assert.match(second, /"name":"Bea","kind":"persona"/);
+  assert.match(second, /"name":"Bea","kind":"character"/);
   assert.doesNotMatch(second, /"name":"Ada Renamed"/);
   assert.ok(f.config().bindings['persona:persona-a']);
   f.host.persona = null;
@@ -140,4 +140,54 @@ function fixture() {
   await f.run(`assignSceneColors({}, 'owner')`);
   assert.equal(f.config().autoUserMode, 'off');
 }
+// A cast persona owns its unique short-name character row, including differently
+// colored historical duplicates. Ambiguous first names remain separate speakers.
+{
+  const f = fixture();
+  f.host.persona = { id: 'persona-a', name: 'Katsuki Bakugo' };
+  f.host.entities = [{ id: 'katsuki', type: 'character', name: 'Katsuki' }];
+  const config = f.config();
+  config.bindings = {
+    'persona:persona-a': { kind: 'persona', targetId: 'persona-a', name: 'Katsuki Bakugo', color: '#FF6A00' },
+    'character:katsuki': { kind: 'character', targetId: 'katsuki', name: 'Katsuki', color: '#E0663B' },
+    'character:kiri': { kind: 'character', targetId: 'kiri', name: 'Kirishima', aliases: ['Eijiro', 'Kiri'], color: '#D3363E' },
+    'character:shoto': { kind: 'character', targetId: 'shoto', name: 'Shoto Todoroki', color: '#72E4D1' },
+  };
+  f.save(config);
+  const state = await f.run(`buildState({importCortex:false}, 'owner')`);
+  assert.equal(state.registry.entries.length, 3);
+  assert.equal(state.characters.length, 0, 'Short-name Cortex duplicate is absent from the roster');
+  assert.ok(state.registry.entries.find(entry => entry.kind === 'persona').aliases.includes('Katsuki'));
+  assert.match(state.prompt.active, /"name":"Katsuki Bakugo","kind":"character","aliases":\["Katsuki"\]/);
+  assert.doesNotMatch(state.prompt.active, /"kind":"persona"|"name":"Katsuki",/);
+  assert.equal(f.config().bindings['character:katsuki'].color, '#E0663B', 'Deduping preserves saved historical data');
+  f.context.spindle.macros.resolve = async () => ({text:'Katsuki: #E0663B'});
+  const imported = await f.run(`buildState({importCortex:true}, 'owner')`);
+  assert.equal(imported.characters.length, 0, 'Cortex cannot reintroduce a suppressed persona duplicate');
+  config.bindings['character:other-katsuki'] = { kind: 'character', targetId: 'other-katsuki', name: 'Katsuki Other', color: '#ABCDEF' };
+  f.save(config);
+  const ambiguous = await f.run(`buildState({importCortex:false}, 'owner')`);
+  assert.ok(ambiguous.registry.entries.some(entry => entry.name === 'Katsuki'), 'Shared short names do not auto-merge');
+  config.personaInCast = false; delete config.bindings['character:other-katsuki']; f.save(config);
+  const off = await f.run(`buildState({importCortex:false}, 'owner')`);
+  assert.ok(!off.registry.entries.some(entry => /Katsuki/.test(entry.name)), 'Turning off cast does not expose its legacy duplicate');
+}
+
+// Inactive bindings must never overwrite the active persona's bank identity.
+{
+  const f = fixture();
+  await f.run(`saveBinding({kind:'persona',targetId:'persona-a',name:'Ada',color:'#112233'}, 'owner')`);
+  f.host.persona = { id: 'persona-b', name: 'Bea' };
+  await f.run(`saveBinding({kind:'persona',targetId:'persona-b',name:'Bea',color:'#445566'}, 'owner')`);
+  const global = await f.run(`loadGlobalState('owner')`);
+  assert.equal(global.library['persona:persona-a'].color, '#112233');
+  assert.equal(global.library['persona:persona-b'].color, '#445566');
+  assert.ok(!global.library['persona-name:ada'], 'Stable IDs stay the bank keys for inactive personas');
+  f.host.chatVars.clear();
+  const next = await f.run(`buildState({importCortex:false}, 'owner')`);
+  assert.equal(next.persona.binding.color, '#445566', 'New chat reuses the active persona base');
+  await f.run(`saveBinding({kind:'persona',targetId:'persona-b',name:'Bea',color:'#778899'}, 'owner')`);
+  assert.equal((await f.run(`loadGlobalState('owner')`)).library['persona:persona-b'].color, '#445566', 'Chat override preserves shared base');
+}
+
 console.log('Passed persona registration before injection, ownership, macro delivery, switching, previews, legacy cast duplicates, and mode persistence.');

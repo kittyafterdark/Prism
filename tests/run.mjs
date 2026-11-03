@@ -10,6 +10,8 @@ import './startup.mjs';
 import './manual-bake.mjs';
 import './persona-pipeline.mjs';
 import './color-bank.mjs';
+import './editor-bank.mjs';
+import './chat-profile.mjs';
 
 const backend = await fs.readFile(new URL('../src/backend.ts', import.meta.url), 'utf8');
 const frontend = await fs.readFile(new URL('../src/frontend.ts', import.meta.url), 'utf8');

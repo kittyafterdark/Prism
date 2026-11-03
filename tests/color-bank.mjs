@@ -15,7 +15,7 @@ const spindle={
   variables:{global:{get:async(key,user)=>bankHost.global.get(user+'|'+key),set:async(key,value,user)=>bankHost.global.set(user+'|'+key,value)},chat:{get:async(id,key)=>bankHost.chats.get(id+'|'+key),set:async(id,key,value)=>bankHost.chats.set(id+'|'+key,value)}},
   chats:{getActive:async()=>({id:bankHost.chatId,name:'Fixture chat',character_id:'card-a'})},
   chat:{getMessages:async()=>bankHost.messages},
-  characters:{get:async()=>({id:'card-a',name:'Ada'})},personas:{getActive:async()=>null},
+  characters:{get:async()=>({id:'card-a',name:'Ada'})},personas:{getActive:async()=>bankHost.persona||null},
   memories:{entities:{list:async()=>[],upsert:async()=>({id:'entity-a'})},cortex:{invalidateCache:async()=>{}}},
   macros:{resolve:async()=>({text:'Ada: #112233'})},
   registerMacro(){},registerInterceptor(){},on(){},onFrontendMessage(fn){backendHandler=fn},
