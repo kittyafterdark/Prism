@@ -515,15 +515,7 @@ function safeConfig(raw, preferredEngine = DEFAULT_CONFIG.engine) {
       }
     : null;
 
-  const speakerKeyMap = new Map();
-  for (const binding of Object.values(bindings)) {
-    const currentKey = `${binding.kind}:${binding.speakerUid}`;
-    speakerKeyMap.set(`${binding.kind}:${binding.targetId}`, currentKey);
-    for (const legacyRef of binding.legacyRefs || []) speakerKeyMap.set(`${binding.kind}:${legacyRef}`, currentKey);
-  }
-  for (const override of Object.values(overrides)) {
-    if (override.speakerKey && speakerKeyMap.has(override.speakerKey)) override.speakerKey = speakerKeyMap.get(override.speakerKey);
-  }
+  ensureBindingIdentities({ bindings, overrides });
 
   return {
     version: 14,
@@ -631,13 +623,12 @@ function findBinding(config, kind, targetId, name, aliases = []) {
   const directKey = `${kind}:${targetId}`;
   if (config.bindings[directKey]) return config.bindings[directKey];
 
+  const bindings = Object.values(config.bindings).filter(binding => binding.kind === kind);
+  const canonical = bindings.filter(binding => normalizeName(binding.name) === normalizeName(name));
+  if (canonical.length) return canonical.length === 1 ? canonical[0] : null;
   const candidates = new Set([name, ...aliases].map(normalizeName).filter(Boolean));
-  for (const binding of Object.values(config.bindings)) {
-    if (binding.kind !== kind) continue;
-    const names = [binding.name, ...(binding.aliases || [])].map(normalizeName);
-    if (names.some((candidate) => candidates.has(candidate))) return binding;
-  }
-  return null;
+  const matches = bindings.filter(binding => [binding.name, ...(binding.aliases || [])].map(normalizeName).some(candidate => candidates.has(candidate)));
+  return matches.length === 1 ? matches[0] : null;
 }
 
 function ensureBindingIdentities(config) {
@@ -653,10 +644,41 @@ function ensureBindingIdentities(config) {
       binding.legacyRefs = refs;
       changed = true;
     }
-    const speakerKey = `${binding.kind}:${binding.speakerUid}`;
-    keyMap.set(`${binding.kind}:${binding.targetId}`, speakerKey);
-    for (const ref of refs) keyMap.set(`${binding.kind}:${ref}`, speakerKey);
   }
+  // Older alias-based saves could carry one speaker UID into another profile.
+  // Keep the original owner and split only distinct identities, preserving paint.
+  const groups = new Map();
+  const reserved = new Set(Object.values(config.bindings || {}).map(binding => binding.speakerUid));
+  const identity = binding => `${binding.kind}:${normalizeName(binding.name) || binding.targetId}`;
+  const defaultUid = binding => `prism-speaker-${hashString(identity(binding)).toString(36)}`;
+  for (const binding of Object.values(config.bindings || {})) {
+    if (!groups.has(binding.speakerUid)) groups.set(binding.speakerUid, []);
+    groups.get(binding.speakerUid).push(binding);
+  }
+  for (const [uid, bindings] of groups) {
+    const owner = bindings.find(binding => defaultUid(binding) === uid) || bindings[0];
+    const repaired = new Map([[identity(owner), uid]]);
+    for (const binding of bindings) {
+      const key = identity(binding);
+      if (!repaired.has(key)) {
+        const base = defaultUid(binding);
+        let next = base;
+        for (let suffix = 1; reserved.has(next); suffix++) next = `${base}-${suffix}`;
+        repaired.set(key, next);
+        reserved.add(next);
+      }
+      if (binding.speakerUid !== repaired.get(key)) {
+        binding.speakerUid = repaired.get(key);
+        changed = true;
+      }
+    }
+  }
+  // Current targets take precedence over stale legacy references.
+  for (const binding of Object.values(config.bindings || {})) {
+    const speakerKey = `${binding.kind}:${binding.speakerUid}`;
+    for (const ref of binding.legacyRefs || []) keyMap.set(`${binding.kind}:${ref}`, speakerKey);
+  }
+  for (const binding of Object.values(config.bindings || {})) keyMap.set(`${binding.kind}:${binding.targetId}`, `${binding.kind}:${binding.speakerUid}`);
   for (const override of Object.values(config.overrides || {})) {
     const migrated = override.speakerKey && keyMap.get(override.speakerKey);
     if (migrated && migrated !== override.speakerKey) {

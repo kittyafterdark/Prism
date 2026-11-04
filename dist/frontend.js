@@ -354,7 +354,7 @@ export function setup(ctx) {
         return; const previous = state?.ok ? state : null, selected = previous?.characters?.find(character => String(character.id) === String(selectedId)) || null, selectedKey = characterStateKey(selected); if (previous && next?.ok && Array.isArray(next.characters)) {
         const order = new Map(previous.characters.map((character, index) => [characterStateKey(character), index]));
         next.characters = next.characters.map((character, index) => ({ character, index })).sort((left, right) => { const leftRank = order.has(characterStateKey(left.character)) ? order.get(characterStateKey(left.character)) : Number.MAX_SAFE_INTEGER, rightRank = order.has(characterStateKey(right.character)) ? order.get(characterStateKey(right.character)) : Number.MAX_SAFE_INTEGER; return leftRank - rightRank || left.index - right.index; }).map(item => item.character);
-        const replacement = next.characters.find(character => characterStateKey(character) === selectedKey);
+        const replacement = next.characters.find(character => String(character.id) === String(selectedId)) || next.characters.find(character => characterStateKey(character) === selectedKey);
         if (replacement)
             selectedId = replacement.id;
     } state = next; if (next?.preferences)
