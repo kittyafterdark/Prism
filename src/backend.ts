@@ -1159,6 +1159,9 @@ function mergeSceneCharacter(characters, candidate) {
   const aliasMatch = candidate.source === 'manual-roster'
     ? null
     : characters.find((entry) => {
+        // Alias overlap cannot override distinct identities supplied by the host.
+        if (entry.entityId && candidate.entityId && String(entry.entityId) !== String(candidate.entityId)) return false;
+        if (entry.characterId && candidate.characterId && String(entry.characterId) !== String(candidate.characterId)) return false;
         const entryNames = [entry.name, ...(entry.aliases || [])].map(normalizeName);
         return entryNames.some((name) => candidateNames.has(name));
       });
@@ -1172,7 +1175,10 @@ function mergeSceneCharacter(characters, candidate) {
   existing.entityId = existing.entityId || candidate.entityId || null;
   existing.characterId = existing.characterId || candidate.characterId || null;
   if (candidate.source === 'manual-roster' && identityMatch) existing.name = candidate.name;
-  existing.aliases = uniqueStrings([...(existing.aliases || []), ...(candidate.aliases || [])])
+  // A chat profile replaces inferred aliases, including an explicitly empty list.
+  existing.aliases = uniqueStrings(candidate.source === 'manual-roster'
+    ? candidate.aliases
+    : [...(existing.aliases || []), ...(candidate.aliases || [])])
     .filter((alias) => normalizeName(alias) !== normalizeName(existing.name));
   existing.status = existing.status || candidate.status || 'active';
   existing.source = uniqueStrings([...(String(existing.source || '').split('+')), ...(String(candidate.source || '').split('+'))]).join('+');
@@ -1197,6 +1203,17 @@ async function getSceneCharacters(chat, cardCharacters, userId, options = {}) {
   }
 
   const characters = [];
+  const profiles = Object.values(options.manualCharacters || {}).filter(profile => profile.source !== 'cortex-registry');
+  const mergeDiscovered = candidate => {
+    const ids = [candidate.id, candidate.entityId, candidate.characterId].filter(Boolean).map(String);
+    const profile = profiles.find(profile => ids.includes(String(profile.id)))
+      || profiles.find(profile => normalizeName(profile.name) === normalizeName(candidate.name));
+    // Apply edits before reconciliation so rejected host aliases cannot swallow
+    // another speaker discovered later from the card or transcript.
+    return mergeSceneCharacter(characters, profile
+      ? { ...candidate, name: profile.name, aliases: uniqueStrings(profile.aliases) }
+      : candidate);
+  };
   const groupIds = new Set(
     Array.isArray(chat?.metadata?.character_ids)
       ? chat.metadata.character_ids.map(String)
@@ -1204,7 +1221,7 @@ async function getSceneCharacters(chat, cardCharacters, userId, options = {}) {
   );
   for (const entity of entities || []) {
     if ((entity?.entityType || entity?.type) !== 'character' || !entity?.name) continue;
-    mergeSceneCharacter(characters, {
+    mergeDiscovered({
       id: String(entity.id),
       key: `character:${entity.id}`,
       entityId: String(entity.id),
@@ -1225,7 +1242,7 @@ async function getSceneCharacters(chat, cardCharacters, userId, options = {}) {
       || extractedNames.filter((name) => normalizeName(name) !== normalizeName(cardName)).length >= 2
     );
     if (cardName && !isContainerCard) {
-      mergeSceneCharacter(characters, {
+      mergeDiscovered({
         id: String(card.id),
         key: `character:${card.id}`,
         entityId: null,
@@ -1237,7 +1254,7 @@ async function getSceneCharacters(chat, cardCharacters, userId, options = {}) {
       });
     }
     for (const name of extractedNames) {
-      mergeSceneCharacter(characters, {
+      mergeDiscovered({
         id: `scene-name:${normalizeName(name)}`,
         key: `character:scene-name:${normalizeName(name)}`,
         entityId: null,
@@ -1261,7 +1278,7 @@ async function getSceneCharacters(chat, cardCharacters, userId, options = {}) {
         const isUser = message?.role === 'user' || message?.is_user === true;
         if (!isUser && message?.name) {
           const name = cleanSceneName(message.name);
-          if (name) mergeSceneCharacter(characters, {
+          if (name) mergeDiscovered({
             id: `scene-name:${normalizeName(name)}`,
             key: `character:scene-name:${normalizeName(name)}`,
             entityId: null,
@@ -1273,7 +1290,7 @@ async function getSceneCharacters(chat, cardCharacters, userId, options = {}) {
           });
         }
         for (const name of extractSceneNamesFromText(message?.content)) {
-          mergeSceneCharacter(characters, {
+          mergeDiscovered({
             id: `scene-name:${normalizeName(name)}`,
             key: `character:scene-name:${normalizeName(name)}`,
             entityId: null,
@@ -1613,10 +1630,11 @@ async function buildState(options = {}, userId) {
   ]);
   const primaryCharacter = cardCharacters.find((character) => String(character.id) === String(chat.character_id)) || cardCharacters[0] || null;
 
+  let config = await loadConfig(chat.id, userId);
   const scene = await getSceneCharacters(chat, cardCharacters, userId, {
     scanTranscript: options.scanTranscript === true,
+    manualCharacters: config.manualCharacters,
   });
-  let config = await loadConfig(chat.id, userId);
   for (const manual of Object.values(config.manualCharacters || {})) {
     mergeSceneCharacter(scene.characters, {
       id: String(manual.id),

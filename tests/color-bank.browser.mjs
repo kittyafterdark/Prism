@@ -356,6 +356,46 @@ try {
     await addDialog.getByText('No saved characters match. You can still add a new character.',{exact:true}).waitFor();
     assert.equal(await suggestions.getByRole('button').count(),0,'Empty library still permits manual entry');
     await addClose.press('Escape');
+    await page.evaluate(async()=>{
+      uiFixture.unload();
+      await bankFixture.reset();
+      bankFixture.host.entities=[
+        {id:'entity-a',type:'character',name:'Ada',aliases:['Charles','Babbage','Charles Babbage','Grace','Hopper','Grace Hopper','Rear Admiral']},
+        {id:'entity-b',type:'character',name:'Charles Babbage',aliases:['Charles']},
+        {id:'entity-c',type:'character',name:'Grace Hopper',aliases:['Grace']},
+      ];
+      uiFixture.unload=setup(ctx);
+    });
+    await page.waitForSelector('[data-prism-toolbar-button]');
+    await page.evaluate(()=>uiFixture.open());
+    await page.locator('summary').filter({hasText:'Identity and attribution'}).press('Enter');
+    assert.equal(await profileAliases.inputValue(),'', 'An empty binding overrides stale discovered aliases in the editor');
+    await profileAliases.fill('Charles, Babbage, Charles Babbage, Grace, Hopper, Grace Hopper, Rear Admiral');
+    await profileAliases.press('Enter');
+    await page.waitForFunction(async()=>(await bankFixture.state()).characters[0].binding.aliases.length===7);
+    await profileAliases.fill('');
+    await page.locator('.ldc-identity-card').getByRole('button',{name:'Save chat profile',exact:true}).click();
+    await page.waitForFunction(async()=>(await bankFixture.state()).characters[0].binding.aliases.length===0);
+    assert.equal(await profileAliases.inputValue(),'','Explicit Save keeps the cleared field empty');
+    await page.getByRole('button',{name:'Close Prism',exact:true}).click();
+    await page.evaluate(()=>uiFixture.open());
+    await page.locator('summary').filter({hasText:'Identity and attribution'}).press('Enter');
+    assert.equal(await profileAliases.inputValue(),'','Cleared aliases stay empty after reopening');
+    await profileAliases.fill('Temporary alias');
+    await page.waitForFunction(async()=>(await bankFixture.state()).characters[0].binding.aliases.includes('Temporary alias'));
+    await profileAliases.fill('');
+    await page.waitForFunction(async()=>(await bankFixture.state()).characters[0].binding.aliases.length===0);
+    assert.equal(await profileAliases.inputValue(),'','Autosave also preserves an empty list');
+    await page.evaluate(()=>{uiFixture.unload();uiFixture.unload=setup(ctx)});
+    await page.waitForSelector('[data-prism-toolbar-button]');
+    await page.evaluate(()=>uiFixture.open());
+    await page.locator('summary').filter({hasText:'Identity and attribution'}).press('Enter');
+    assert.equal(await profileAliases.inputValue(),'','Remount reloads the empty profile despite stale host aliases');
+    assert.equal(await page.evaluate(async()=>(await bankFixture.state()).characters.length),3,'Other characters remain separate');
+    await profileAliases.scrollIntoViewIfNeeded();
+    const aliasBox=await profileAliases.boundingBox();
+    assert.ok(aliasBox.y>=notch&&aliasBox.y+aliasBox.height<=height,'Alias input stays inside the safe viewport');
+    console.log('Passed empty aliases, explicit save, autosave, reopening, remount and separate host identities at '+width+'x'+height+'.');
     assert.deepEqual(await page.evaluate(()=>uiFixture.errors),[]);
     assert.deepEqual(errors,[]);
     await page.evaluate(()=>uiFixture.unload());

@@ -6,6 +6,7 @@ const context = vm.createContext({ console, setTimeout, clearTimeout, structured
 vm.runInContext(colorBankFixture, context);
 const fixture = context.bankFixture;
 const run = code => vm.runInContext(code, context);
+run('var fixtureSceneDiscovery=getSceneCharacters');
 let state = await fixture.reset();
 const uid = state.characters[0].binding.speakerUid;
 await run(`(async()=>{
@@ -90,4 +91,36 @@ await run(`(async()=>{
 })()`);
 response = await fixture.send({ ...command, name: 'Agent_47' });
 assert.equal(response.type, 'ldc_state', 'An unchanged host name does not block paint/alias saving');
-console.log('Passed combined chat-profile persistence, alias replacement, stable IDs, correction preservation, validation, bank feedback identity and chat isolation.');
+await run('getSceneCharacters=fixtureSceneDiscovery');
+
+// Exercise real Cortex/card discovery: a contaminated primary must not swallow
+// other entities, and stale host aliases must not undo a saved empty list.
+await fixture.reset();
+fixture.host.entities = [
+  {id:'entity-a',type:'character',name:'Ada',aliases:['Charles','Babbage','Charles Babbage','Grace','Hopper','Grace Hopper','Rear Admiral']},
+  {id:'entity-b',type:'character',name:'Charles Babbage',aliases:['Charles']},
+  {id:'entity-c',type:'character',name:'Grace Hopper',aliases:['Grace']},
+];
+state = await fixture.state();
+assert.equal(state.characters.length, 3, 'Distinct Cortex entities cannot merge through incidental aliases');
+response = await fixture.send({...command,name:'Ada',aliases:[]});
+assert.equal(response.type, 'ldc_state');
+for (const reload of [response.state, await fixture.state(), (await fixture.send({type:'ldc_load_state',chatId:'chat-a',importCortex:true,scanTranscript:true})).state]) {
+  const primary = reload.characters.find(character=>character.id==='entity-a');
+  assert.deepEqual(Array.from(primary.aliases), [], 'Discovery honors an explicitly cleared chat profile');
+  assert.deepEqual(Array.from(primary.binding.aliases), [], 'The saved binding remains empty');
+  assert.equal(primary.binding.speakerUid, uid);
+  assert.equal(reload.characters.length, 3);
+  assert.ok(!reload.registry.entries.find(entry=>entry.name==='Ada').aliases.length, 'Removed aliases stay out of attribution');
+}
+assert.equal(fixture.host.entities[0].aliases.length, 7, 'Saving does not mutate host entities');
+// Without a separate entity, card-cast discovery must also see the cleared
+// profile before alias reconciliation, so an RP speaker remains independent.
+fixture.host.entities = [fixture.host.entities[0]];
+await run(`spindle.characters.get=async()=>({id:'card-a',name:'Ada',extensions:{cast_names:['Charles Babbage']}});`);
+state = await fixture.state();
+assert.ok(state.characters.some(character=>character.name==='Charles Babbage'), 'Cleared aliases cannot swallow newly discovered card speakers');
+response = await fixture.send({...command,name:'Ada',aliases:['Countess']});
+assert.equal(response.type, 'ldc_state');
+assert.deepEqual(Array.from((await fixture.state()).characters.find(character=>character.id==='entity-a').aliases), ['Countess'], 'Nonempty replacements also override stale host aliases');
+console.log('Passed chat-profile persistence, alias clearing against stale discovery, separate speakers, stable IDs, validation, bank feedback and chat isolation.');

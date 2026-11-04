@@ -16,20 +16,21 @@ const spindle={
   chats:{getActive:async()=>({id:bankHost.chatId,name:'Fixture chat',character_id:'card-a'})},
   chat:{getMessages:async()=>bankHost.messages},
   characters:{get:async()=>({id:'card-a',name:'Ada'})},personas:{getActive:async()=>bankHost.persona||null},
-  memories:{entities:{list:async()=>[],upsert:async()=>({id:'entity-a'})},cortex:{invalidateCache:async()=>{}}},
+  memories:{entities:{list:async()=>bankHost.entities||[],upsert:async()=>({id:'entity-a'})},cortex:{invalidateCache:async()=>{}}},
   macros:{resolve:async()=>({text:'Ada: #112233'})},
   registerMacro(){},registerInterceptor(){},on(){},onFrontendMessage(fn){backendHandler=fn},
   sendToFrontend(response){bankHost.responses.push(response);frontendReceiver?.(response)},
   log:{info(){},warn(){},error(){}},toast:{error(){},success(){}}
 };
 ${backend}
-getSceneCharacters=async()=>({characters:[{id:'entity-a',entityId:'entity-a',characterId:'card-a',name:'Ada',aliases:[],source:'cortex'}],cortexAvailable:true});
+const discoverSceneCharacters=getSceneCharacters;
+getSceneCharacters=async(...args)=>bankHost.entities?discoverSceneCharacters(...args):({characters:[{id:'entity-a',entityId:'entity-a',characterId:'card-a',name:'Ada',aliases:[],source:'cortex'}],cortexAvailable:true});
 const bankFixture={
   host:bankHost,
   connect(fn){frontendReceiver=fn},
   async send(payload,user='user-a'){await backendHandler(payload,user);return bankHost.responses.at(-1)},
   state:(user='user-a')=>buildState({importCortex:false},user),
-  async reset(){bankHost.global.clear();bankHost.chats.clear();bankHost.responses=[];bankHost.chatId='chat-a';const config=cloneDefaultConfig();config.bindings['character:entity-a']={kind:'character',targetId:'entity-a',name:'Ada',aliases:[],color:'#112233',channels:safeChannels(null,'#112233'),source:'manual',pinned:true};await saveConfig('chat-a',config);return buildState({importCortex:false},'user-a')},
+  async reset(){delete bankHost.entities;bankHost.global.clear();bankHost.chats.clear();bankHost.responses=[];bankHost.chatId='chat-a';const config=cloneDefaultConfig();config.bindings['character:entity-a']={kind:'character',targetId:'entity-a',name:'Ada',aliases:[],color:'#112233',channels:safeChannels(null,'#112233'),source:'manual',pinned:true};await saveConfig('chat-a',config);return buildState({importCortex:false},'user-a')},
   async request(entry,action,channels){return this.send({type:'ldc_color_bank_mutate',chatId:bankHost.chatId,scope:entry.scope,key:entry.key,expected:JSON.stringify(entry),action,channels})},
   async seedMany(count=151,chatCount=1){const globalState=await loadGlobalState('user-a');for(let i=0;i<count-1;i++){const name='Guest '+String(i).padStart(3,'0');globalState.library['character-card:guest-'+i]={name,color:'#667788',channels:safeChannels(null,'#667788'),aliases:[],source:'manual',pinned:true,updatedAt:1}}await saveGlobalState(globalState,'user-a');if(chatCount>1){const config=await loadConfig(bankHost.chatId,'user-a');for(let i=1;i<chatCount;i++)config.bindings['character:extra-'+i]={kind:'character',targetId:'extra-'+i,name:'Chat guest '+i,color:'#667788',channels:safeChannels(null,'#667788'),source:'manual',pinned:true,colorBankLocal:true};await saveConfig(bankHost.chatId,config)}return buildState({importCortex:false},'user-a')},
   async seedDuplicates(){
