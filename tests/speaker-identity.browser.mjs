@@ -20,7 +20,7 @@ const ctx={
   }
 };
 ${frontend}
-globalThis.fixture={errors,menus,async load(){await bankFixture.reset();bankFixture.host.entities=[{id:'entity-a',type:'character',name:'Ada',aliases:[]},{id:'entity-b',type:'character',name:'Charles Babbage',aliases:[]}];const key='chat-a|lumi_dialogue_colors_v1',config=JSON.parse(bankFixture.host.chats.get(key)),ada=config.bindings['character:entity-a'];config.bindings['character:entity-b']={...ada,targetId:'entity-b',name:'Charles Babbage',aliases:[],legacyRefs:['entity-b'],color:'#445566',channels:bankFixture.functions.safeChannels(null,'#445566')};bankFixture.host.chats.set(key,JSON.stringify(config));this.mount()},mount(){this.unload=setup(ctx)},open:()=>openAction()};
+globalThis.fixture={errors,menus,async load(){await bankFixture.reset();bankFixture.host.entities=[{id:'entity-a',type:'character',name:'Ada',aliases:[]},{id:'entity-b',type:'character',name:'Charles Babbage',aliases:[]}];const key='chat-a|lumi_dialogue_colors_v1',config=JSON.parse(bankFixture.host.chats.get(key)),ada=config.bindings['character:entity-a'];config.bindings['character:entity-b']={...ada,targetId:'entity-b',name:'Charles Babbage',aliases:[],legacyRefs:['entity-b'],color:'#445566',previousColors:['#112233'],channels:bankFixture.functions.safeChannels(null,'#445566')};bankFixture.host.chats.set(key,JSON.stringify(config));this.mount()},mount(){this.unload=setup(ctx)},open:()=>openAction()};
 `;
 
 const browserName = process.env.PRISM_BROWSER || 'chromium';
@@ -29,12 +29,17 @@ try {
   for (const [width,height,notch] of [[1280,900,0],[390,844,59]]) {
     const page=await browser.newPage({viewport:{width,height},hasTouch:width<600,isMobile:width<600});
     const errors=[];page.on('pageerror',error=>errors.push(error.message));
-    await page.setContent(`<meta name="viewport" content="width=device-width, initial-scale=1"><style>:root{--lumiverse-ui-scale:1;--app-interactive-safe-top:${notch}px;--lumiverse-primary:#b58cff;--lumiverse-text:#eee;--lumiverse-text-muted:#ccc;--lumiverse-text-dim:#aaa;--lumiverse-border:#444;--lumiverse-bg:#111;--lumiverse-bg-elevated:#181820;--lumiverse-fill-subtle:#222;--lumiverse-fill:#222}*{box-sizing:border-box}body{margin:0;background:#09090b;color:#eee;font:14px sans-serif}#message{margin-top:calc(var(--app-interactive-safe-top) + 20px)}.host-backdrop{position:fixed;inset:0;display:grid;place-items:center;background:#0009}.host-card{display:flex;flex-direction:column;overflow:hidden;background:#111;color:#eee;border:1px solid #444;border-radius:12px}.host-body{padding:16px;overflow:auto;display:flex;flex-direction:column;min-height:0}.fixture-menu{position:fixed;inset:var(--app-interactive-safe-top) 10px auto;z-index:2147483647;display:flex;flex-direction:column;background:#111}.fixture-menu button{min-height:32px}</style><div id="root"><div class="chatToolbar"></div><article id="message" data-part="character"><div data-component="MessageContent"><p><font color="#445566">"Wait here."</font></p></div></article></div>`);
+    await page.setContent(`<meta name="viewport" content="width=device-width, initial-scale=1"><style>:root{--lumiverse-ui-scale:1;--app-interactive-safe-top:${notch}px;--lumiverse-primary:#b58cff;--lumiverse-text:#eee;--lumiverse-text-muted:#ccc;--lumiverse-text-dim:#aaa;--lumiverse-border:#444;--lumiverse-bg:#111;--lumiverse-bg-elevated:#181820;--lumiverse-fill-subtle:#222;--lumiverse-fill:#222}*{box-sizing:border-box}body{margin:0;background:#09090b;color:#eee;font:14px sans-serif}#message{margin-top:calc(var(--app-interactive-safe-top) + 20px)}.host-backdrop{position:fixed;inset:0;display:grid;place-items:center;background:#0009}.host-card{display:flex;flex-direction:column;overflow:hidden;background:#111;color:#eee;border:1px solid #444;border-radius:12px}.host-body{padding:16px;overflow:auto;display:flex;flex-direction:column;min-height:0}.fixture-menu{position:fixed;inset:var(--app-interactive-safe-top) 10px auto;z-index:2147483647;display:flex;flex-direction:column;background:#111}.fixture-menu button{min-height:32px}</style><div id="root"><div class="chatToolbar"></div><article id="message" data-part="character"><div data-component="MessageContent"><p id="attributed-line"><font color="#445566">"Wait here."</font></p><p id="current-owner"><font color="#112233">"I will."</font></p></div></article></div>`);
     await page.addScriptTag({content:host});
     await page.evaluate(()=>fixture.load());
-    const segment=page.locator('#message [data-prism-speaker]');
+    const segment=page.locator('#attributed-line [data-prism-speaker]');
     await page.waitForFunction(()=>document.querySelector('#message [data-prism-speaker]')?.dataset.prismSpeaker==='Charles Babbage');
     assert.doesNotMatch(await segment.getAttribute('title'),/claimed by multiple/);
+    const currentOwner=page.locator('#current-owner [data-prism-speaker]');
+    await page.waitForFunction(()=>document.querySelector('#current-owner [data-prism-speaker]')?.dataset.prismSpeaker==='Ada');
+    assert.doesNotMatch(await currentOwner.getAttribute('title'),/claimed by multiple/);
+    assert.equal(await currentOwner.getAttribute('data-prism-unresolved-reason'),null);
+    assert.equal(await currentOwner.evaluate(el=>getComputedStyle(el).color),'rgb(17, 34, 51)');
     await page.waitForSelector('[data-prism-toolbar-button]');
     await page.evaluate(()=>fixture.open());
     const selected=page.locator('[data-character-id="entity-b"]');

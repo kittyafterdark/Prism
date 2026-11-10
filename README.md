@@ -146,7 +146,7 @@ npm run verify
 
 `npm run build` compiles both Spindle entrypoints to ESM. The regression harness checks attribution/scene fixtures, canonical color migration, operator-scoped snapshots, exact-message hydration, state garbage collection, prompt budgets and sanitization, provisional anti-feedback behavior, transcript dry runs/rollback, streaming paint lifecycle, and source/dist consistency.
 
-The persona runtime fixture can also be checked with `node tests/persona-pipeline.browser.mjs` when Playwright and its browsers are installed. `PLAYWRIGHT_MODULE` can point to an existing Playwright entrypoint, and `PRISM_BROWSER=webkit` selects WebKit instead of Chromium.
+The native popover fixture can be checked with `node tests/native-popover.browser.mjs`; it covers regex footnotes, inherited solid/gradient paint, native keyboard controls, and unload/remount at desktop and notched mobile sizes. The persona runtime fixture can also be checked with `node tests/persona-pipeline.browser.mjs` when Playwright and its browsers are installed. `PLAYWRIGHT_MODULE` can point to an existing Playwright entrypoint, and `PRISM_BROWSER=webkit` selects WebKit instead of Chromium.
 
 CI rebuilds the distribution and fails if `dist/` differs from source.
 

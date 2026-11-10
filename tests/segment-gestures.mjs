@@ -56,6 +56,11 @@ run('first.onpointerdown(event(first,"mouse"));timer()');
 assert.equal(run('opened.length'),4);
 run('const linked=event({closest:()=>({})});first.onpointerdown(linked);first.onpointerup(linked)');
 assert.equal(run('opened.length'),4);
+// Native controls and popover content keep their own keyboard/context actions,
+// including when a painted message or portable font wrapper surrounds them.
+run('const nativeControl=event({closest:()=>({})});nativeControl.key="Enter";first.onkeydown(nativeControl);first.oncontextmenu(nativeControl)');
+assert.equal(run('opened.length'),4);
+assert.equal(run('nativeControl.prevented'),undefined);
 // Missing preferences retain the default-on gesture; opting out leaves taps alone.
 assert.equal(run('mobileDoubleTapEnabled()'),true);
 run('state.preferences.mobileDoubleTap=false;tap(first);tap(first)');
