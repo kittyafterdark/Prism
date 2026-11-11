@@ -244,7 +244,6 @@ const VERBS = [
     'retort', 'retorted', 'retorts', 'protest', 'protested', 'protests', 'insist', 'insisted', 'insists', 'warn', 'warned', 'warns', 'demand', 'demanded', 'demands', 'urge', 'urged', 'urges', 'correct', 'corrected', 'corrects', 'admit', 'admitted', 'admits', 'concede', 'conceded', 'concedes', 'agree', 'agreed', 'agrees', 'object', 'objected', 'objects', 'promise', 'promised', 'promises',
     'laugh', 'laughed', 'laughs', 'sigh', 'sighed', 'sighs', 'scoff', 'scoffed', 'scoffs', 'groan', 'groaned', 'groans', 'repeat', 'repeated', 'repeats', 'echo', 'echoed', 'echoes'
 ];
-const uid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 function normalizeHex(value) { const raw = String(value || '').trim(), short = raw.match(/^#?([0-9a-f]{3})$/i); if (short)
     return `#${short[1].split('').map(c => c + c).join('').toUpperCase()}`; const full = raw.match(/^#?([0-9a-f]{6})$/i); return full ? `#${full[1].toUpperCase()}` : null; }
 function safePaint(raw, fallback = '#B58CFF') { const anchor = normalizeHex(raw?.anchor) || normalizeHex(fallback) || '#B58CFF', stops = (Array.isArray(raw?.stops) ? raw.stops : []).map(normalizeHex).filter(Boolean).slice(0, 4); return raw?.mode === 'gradient' && stops.length >= 2 ? { mode: 'gradient', stops, ...(raw.type === 'radial' ? { type: 'radial' } : {}), angle: Math.max(0, Math.min(360, (Number.isFinite(Number(raw.angle)) ? Number(raw.angle) : 90))), anchor } : { mode: 'solid', stops: [stops[0] || anchor], angle: 90, anchor }; }
@@ -279,7 +278,7 @@ export function setup(ctx) {
             reject(cancelled());
             return;
         }
-        const requestId = uid(), startedAt = performance.now(), timer = setTimeout(() => {
+        const requestId = ctx.uuid?.v4() ?? `${Date.now()}-${Math.random()}`, startedAt = performance.now(), timer = setTimeout(() => {
             pending.delete(requestId);
             lastBackendError = `${type} timed out`;
             reject(Object.assign(new Error(`Prism's backend did not answer ${type} within ${Math.round(timeoutMs / 1000)} seconds.`), { retryable: true }));
