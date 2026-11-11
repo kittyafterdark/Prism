@@ -434,7 +434,7 @@ export function setup(ctx: SpindleFrontendContext){
   }
   function editorBankEntries(target,isPersona){const kind=isPersona?'persona':'character',names=[target.name,...(target.binding?.aliases||target.aliases||[])].map(name=>name.toLowerCase().trim());return(state?.colorBank||[]).filter(entry=>entry.scope==='library'&&entry.kind===kind).sort((a,b)=>Number(names.includes(b.name.toLowerCase().trim()))-Number(names.includes(a.name.toLowerCase().trim()))||a.name.localeCompare(b.name))}
   function editorBankMatch(target,entries){
-    const result=state?.editorBankResult,keys=target.colorBankKeys||[],names=[target.name,...(target.binding?.aliases||target.aliases||[])].map(name=>name.toLowerCase().trim());
+    const result=state?.editorBankResult,keys=target.colorBankKeys||[],names=[target.name,target.binding?.name,...(target.binding?.aliases||target.aliases||[])].filter(Boolean).map(name=>name.toLowerCase().trim());
     return(result?.speakerUid&&result.speakerUid===target.binding?.speakerUid?entries.find(entry=>entry.keys?.includes(result.key)):null)
       ||keys.map(key=>entries.find(entry=>entry.keys?.includes(key))).find(Boolean)
       ||entries.find(entry=>[entry.name,...(entry.aliases||[])].some(name=>names.includes(name.toLowerCase().trim())));

@@ -84,4 +84,39 @@ assert.equal(state.persona.binding.channels.dialogue.paint.type, 'radial');
 const wrongKind = state.colorBank.find(row => row.scope === 'library' && row.kind === 'character');
 response = await fixture.send({ type: 'ldc_editor_color_bank', chatId: fixture.host.chatId, action: 'use', bindingKey: 'persona:persona-one', expectedBinding: JSON.stringify(state.config.bindings['persona:persona-one']), savedKey: wrongKind.key, expectedSaved: JSON.stringify(wrongKind) });
 assert.equal(response.type, 'ldc_error', 'Character versions cannot replace a persona assignment');
+// A surname-only host row must keep its canonical bank identity through the
+// same chat save that runs before Save to bank and Use banked identity.
+await fixture.reset();
+fixture.host.persona = null;
+fixture.host.chatId = 'kirishima-chat';
+fixture.host.entities = [{ id:'kirishima', type:'character', name:'Kirishima', aliases:[] }];
+await run(`(async()=>{
+  const global = await loadGlobalState('user-a');
+  global.library = {'character-name:eijiro kirishima':{name:'Eijiro Kirishima',aliases:['Red Riot'],color:'#AA3322',channels:safeChannels(null,'#AA3322'),source:'manual',pinned:true}};
+  await saveGlobalState(global,'user-a');
+})()`);
+state = await fixture.state();
+const kirishima = state.characters.find(character => character.id === 'kirishima');
+assert.equal(kirishima.binding.name, 'Eijiro Kirishima');
+response = await fixture.send({
+  type:'ldc_save_binding', chatId:'kirishima-chat', kind:'character', characterId:'kirishima',
+  targetId:'kirishima', name:'Kirishima', aliases:kirishima.binding.aliases, channels:radial,
+});
+assert.equal(response.type, 'ldc_state');
+const painted = response.state.config.bindings['character:kirishima'];
+assert.equal(painted.name, 'Eijiro Kirishima');
+assert.equal(painted.speakerUid, kirishima.binding.speakerUid);
+assert.ok(painted.aliases.includes('Kirishima'));
+assert.equal(response.state.colorBank.find(row => row.scope === 'library').color, '#AA3322');
+response = await fixture.send({
+  type:'ldc_editor_color_bank', chatId:'kirishima-chat', action:'save',
+  bindingKey:'character:kirishima', expectedBinding:JSON.stringify(painted),
+});
+assert.equal(response.type, 'ldc_state');
+const kirishimaLibrary = response.state.colorBank.filter(row => row.scope === 'library');
+assert.equal(kirishimaLibrary.length, 1);
+assert.equal(kirishimaLibrary[0].name, 'Eijiro Kirishima');
+assert.equal(kirishimaLibrary[0].color, '#445566');
+assert.equal(kirishimaLibrary[0].channels.dialogue.paint.type, 'radial');
+
 console.log('Passed editor bank save/use, stable bases, chat overrides, Cortex precedence, radial persistence, identity replacement, stale state and chat isolation.');

@@ -1953,7 +1953,10 @@ async function saveBinding(payload, userId) {
     ? await buildState({ importCortex: false }, userId) : null;
   const config = await loadConfig(chat.id, userId);
   const profile = profileState ? applySceneProfile(config, profileState.characters, { ...payload, aliases }) : null;
-  if (profile) { name = profile.name; aliases = profile.aliases; }
+  if (profile) {
+    name = profile.bindingName;
+    aliases = profile.aliases;
+  }
   if (ENGINE_VALUES.includes(payload.engine)) {
     config.engine = payload.engine;
     config.promptCharacterColors = usesModelTags(payload.engine);
@@ -2004,7 +2007,7 @@ async function saveBinding(payload, userId) {
   }
 
   for (const [key, binding] of Object.entries(config.bindings)) {
-    if (binding === old || (binding.kind === kind && normalizeName(binding.name) === normalizeName(name))) {
+    if (binding === old || (!profile && binding.kind === kind && normalizeName(binding.name) === normalizeName(name))) {
       delete config.bindings[key];
     }
   }
@@ -2074,9 +2077,18 @@ async function editorColorBank(payload, userId) {
     await saveConfig(chat.id, config);
   } else {
     const state = await buildState({ importCortex: false }, userId);
-    const keys = uniqueStrings([...(saved?.keys || []), ...bindingLibraryKeys(binding, state.characters || [], state.persona)]);
-    // Review the selected version, and update only this identity's keys.
-    const entry = { name: binding.name, aliases: uniqueStrings(binding.aliases), color: bindingRegistryColor(binding), channels: safeChannels(binding.channels, bindingRegistryColor(binding)), source: 'manual', pinned: true, updatedAt: Date.now() };
+    const bindingKeys = bindingLibraryKeys(binding, state.characters || [], state.persona);
+    const matched = !saved && binding.kind === 'character' && !bindingKeys.some(key => globalState.library[key])
+      ? savedCharacterByName(entries.filter(entry => entry.scope === 'library'), binding.name) : null;
+    const banked = matched && !Object.values(config.bindings).some(other => other !== binding
+      && other.kind === binding.kind && normalizeName(other.name) === normalizeName(matched.name)) ? matched : null;
+    const keys = banked ? banked.keys : uniqueStrings([...(saved?.keys || []), ...bindingKeys]);
+    // An alias-only roster target can update its banked base without adding a
+    // second library record under the short name.
+    const name = banked?.name || binding.name;
+    const aliases = banked ? uniqueStrings([...banked.aliases, ...binding.aliases, binding.name])
+      .filter(alias => normalizeName(alias) !== normalizeName(name)) : uniqueStrings(binding.aliases);
+    const entry = { name, aliases, color: bindingRegistryColor(binding), channels: safeChannels(binding.channels, bindingRegistryColor(binding)), source: 'manual', pinned: true, updatedAt: Date.now() };
     for (const key of keys) globalState.library[key] = entry;
     resultKey = keys[0];
     globalState.colorBankManagedKeys = uniqueStrings([...(globalState.colorBankManagedKeys || []), ...keys]);
@@ -2165,21 +2177,28 @@ function applySceneProfile(config, characters, payload) {
   const name = rawName === character.name ? rawName : cleanSceneName(rawName);
   if (!name) throw new Error('Enter a short character name without markup.');
   const binding = findBinding(config, 'character', character.id, character.name, character.aliases);
-  if (characters.some(item => item !== character && [item.name, ...(item.aliases || [])].map(normalizeName).includes(normalizeName(name)))) {
-    throw new Error('Another scene character already uses that name or alias.');
-  }
-  if (Object.values(config.bindings).some(item => item !== binding && [item.name, ...(item.aliases || [])].map(normalizeName).includes(normalizeName(name)))) {
-    throw new Error('Another saved speaker already uses that name or alias.');
-  }
   const renamed = normalizeName(character.name) !== normalizeName(name);
+  const ownsBinding = binding && [character.id, character.entityId, character.characterId]
+    .some(id => id != null && String(id) === String(binding.targetId));
+  if (renamed || !ownsBinding) {
+    if (characters.some(item => item !== character && [item.name, ...(item.aliases || [])].map(normalizeName).includes(normalizeName(name)))) {
+      throw new Error('Another scene character already uses that name or alias.');
+    }
+    if (Object.values(config.bindings).some(item => item !== binding && [item.name, ...(item.aliases || [])].map(normalizeName).includes(normalizeName(name)))) {
+      throw new Error('Another saved speaker already uses that name or alias.');
+    }
+  }
+  const bindingName = !renamed && ownsBinding && binding.aliases.some(alias => normalizeName(alias) === normalizeName(name))
+    ? binding.name : name;
   const aliases = uniqueStrings([
     ...(Array.isArray(payload.aliases) ? payload.aliases : [...(character.aliases || []), ...(binding?.aliases || [])]),
     ...(renamed ? [character.name] : []),
-  ]).filter(alias => normalizeName(alias) !== normalizeName(name));
+    ...(bindingName !== name ? [name] : []),
+  ]).filter(alias => normalizeName(alias) !== normalizeName(bindingName));
   config.manualCharacters[character.id] = { id: String(character.id), name, aliases, source: 'manual-roster' };
   if (renamed) config.hiddenCharacters[normalizeName(character.name)] = true;
   delete config.hiddenCharacters[normalizeName(name)];
-  return { binding, name, aliases };
+  return { binding, name, bindingName, aliases };
 }
 
 async function renameSceneCharacter(payload, userId) {
@@ -2191,7 +2210,7 @@ async function renameSceneCharacter(payload, userId) {
   const state = await buildState({ importCortex: false }, userId);
   const config = await loadConfig(chat.id, userId);
   const profile = applySceneProfile(config, state.characters, payload);
-  if (profile.binding) Object.assign(profile.binding, { name: profile.name, aliases: profile.aliases });
+  if (profile.binding) Object.assign(profile.binding, { name: profile.bindingName, aliases: profile.aliases });
   await saveConfig(chat.id, config);
   return buildState({ importCortex: false }, userId);
 }
