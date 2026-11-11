@@ -1,3 +1,9 @@
+## Unreleased
+
+- Remember **Persona is part of the cast** as the default for new chats.
+- Replace the **Banked identity** dropdown with a searchable name and alias picker that previews saved dialogue and thought colors.
+- Reuse banked character profiles for unique short names and aliases in transcript discovery and generated dialogue. Shared surnames still require review.
+
 ## 1.0.4
 
 - Adds Color Bank to inspect, search, edit, back up, and delete saved dialogue/thought colors while keeping library and chat assignments separate.

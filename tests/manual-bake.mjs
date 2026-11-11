@@ -32,7 +32,7 @@ const backendCompiled = compile('backend.ts', `${backendSource}\n;globalThis.__p
   provisionalRegistryHints, inferTagSpeakerEvidence, classifyTagObservation,
   plausibleInferredSceneName, knownSceneIdentityByName,
   extractSceneNamesFromText, hydrateGeneratedMessage, resetTemporaryEvidence,
-  addSceneCharacter, resolveObservationGroup, mergeSceneCharacter, loadConfig, saveConfig,
+  addSceneCharacter, resolveObservationGroup, mergeSceneCharacter, loadConfig, saveConfig, buildState,
   enqueueConfigOperation, configOperationQueues, enqueueGlobalPreferenceOperation, globalPreferenceQueues, updateOptions, updateUiPreferences,
   previewTranscriptMutation, applyTranscriptMutation, restoreTranscriptRecovery, importRegistry,
   recentRegistrySnapshots, applyPersonaColor, applyPersonaColorToLlmContent, personaColorContext, persistPersonaColorForMessage,
@@ -121,6 +121,55 @@ test('generation hydration reads messages with the current Spindle options contr
   assert.deepEqual(messages, host.messages);
   // A user ID in the options position must fail, just as it does in Lumiverse.
   await assert.rejects(spindle.chat.getMessages('chat-a', 'user-hydration'), /options must be an object/);
+});
+
+test('short dialogue names reuse a unique banked speaker and leave shared surnames ambiguous', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.messages = [{ id: 'short-name', role: 'assistant', content: '"Ready," Kaminari said.' }];
+  const denki = binding('Denki Kaminari', '#445566', { aliases: ['Chargebolt'] });
+  host.globalVars.set('prism_preferences_v1', JSON.stringify({
+    library: { 'character-name:denki kaminari': denki },
+  }));
+
+  const scanned = await api.buildState({ importCortex: false, scanTranscript: true }, 'owner');
+  const banked = scanned.characters.find(character => character.name === 'Kaminari').binding;
+  assert.equal(banked.color, denki.color);
+  assert.equal(banked.name, 'Denki Kaminari');
+  assert.ok(banked.aliases.includes('Kaminari') && banked.aliases.includes('Chargebolt'));
+  assert.equal(scanned.colorBank.filter(row => row.scope === 'library').length, 1);
+
+  host.messages[0].content = '<font color="#AA3300">"Ready."</font> Kaminari said.';
+  await api.saveConfig('chat-a', api.safeConfig({ bindings: { 'character:denki': denki } }));
+  const known = await api.hydrateGeneratedMessage({ messageId: 'short-name' }, 'owner');
+  assert.equal(known.observations.length, 0, 'A different tag color does not make a known surname a new speaker');
+
+  const other = binding('Aiko Kaminari', '#556677');
+  await api.saveConfig('chat-a', api.safeConfig({ bindings: { 'character:denki': denki, 'character:aiko': other } }));
+  const ambiguous = await api.hydrateGeneratedMessage({ messageId: 'short-name' }, 'owner');
+  assert.equal(ambiguous.observations[0]?.inferredName, 'Kaminari');
+
+  host.globalVars.set('prism_preferences_v1', JSON.stringify({
+    library: { 'character-name:denki kaminari': denki },
+  }));
+  await api.saveConfig('chat-a', api.safeConfig({}));
+  const unassigned = await api.hydrateGeneratedMessage({ messageId: 'short-name' }, 'owner');
+  const registered = await api.resolveObservationGroup({ action: 'register', groupKey: unassigned.observations[0].groupKey }, 'owner');
+  const saved = registered.state.registry.entries.find(entry => entry.name === denki.name);
+  assert.equal(saved.color, denki.color);
+  assert.ok(saved.aliases.includes('Kaminari') && saved.aliases.includes('Chargebolt'));
+  assert.equal(registered.state.colorBank.filter(row => row.scope === 'library').length, 1);
+});
+
+test('transcript discovery keeps short references on the full roster identity', async () => {
+  host.chatVars.clear();
+  host.globalVars.clear();
+  host.messages = [{
+    id: 'transcript-roster', role: 'assistant',
+    content: 'Kaminari: "Ready."\nDenki Kaminari: "Let’s go."',
+  }];
+  const state = await api.buildState({ importCortex: false, scanTranscript: true }, 'owner');
+  assert.deepEqual(Array.from(state.characters, character => character.name), ['Denki Kaminari']);
 });
 
 test('manual bake mutates only the active swipe and creates a recovery backup', async () => {

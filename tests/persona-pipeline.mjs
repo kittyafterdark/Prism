@@ -8,7 +8,13 @@ function fixture() {
   const host = { chatVars: new Map(), globalVars: new Map(), persona: { id: 'persona-a', name: 'Ada' }, entities: [], upserts: [], macros: new Map(), writes: 0 };
   const spindle = {
     variables: {
-      chat: { get: async (_, key) => host.chatVars.get(key), set: async (_, key, value) => { host.writes++; host.chatVars.set(key, value); } },
+      chat: {
+        get: async (chatId, key) => host.chatVars.get(`${chatId}:${key}`),
+        set: async (chatId, key, value) => {
+          host.writes++;
+          host.chatVars.set(`${chatId}:${key}`, value);
+        },
+      },
       global: { get: async key => host.globalVars.get(key), set: async (key, value) => host.globalVars.set(key, value) },
     },
     chats: { getActive: async () => ({ id: 'chat' }) },
@@ -24,11 +30,26 @@ function fixture() {
   const context = vm.createContext({ spindle, setTimeout, clearTimeout, structuredClone });
   vm.runInContext(ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
   const run = code => vm.runInContext(code, context);
-  const config = () => JSON.parse(host.chatVars.get('lumi_dialogue_colors_v1'));
-  const save = value => host.chatVars.set('lumi_dialogue_colors_v1', JSON.stringify(value));
+  const config = () => JSON.parse(host.chatVars.get('chat:lumi_dialogue_colors_v1'));
+  const save = value => host.chatVars.set('chat:lumi_dialogue_colors_v1', JSON.stringify(value));
   run(`var config = cloneDefaultConfig('hybrid'); config.personaInCast = true;`);
   save(run('safeConfig(config)'));
   return { host, context, run, config, save };
+}
+
+// Cast membership follows the saved preference in new chats and stays local once saved.
+{
+  const f = fixture();
+  assert.equal((await f.run(`loadConfig('new', 'owner')`)).personaInCast, false);
+  await f.run(`updateOptions({ personaInCast: true }, 'owner')`);
+  const enabled = await f.run(`loadConfig('enabled', 'owner')`);
+  assert.equal(enabled.personaInCast, true);
+  f.context.enabled = enabled;
+  await f.run(`saveConfig('enabled', enabled)`);
+
+  await f.run(`updateOptions({ personaInCast: false }, 'owner')`);
+  assert.equal((await f.run(`loadConfig('new', 'owner')`)).personaInCast, false);
+  assert.equal((await f.run(`loadConfig('enabled', 'owner')`)).personaInCast, true);
 }
 
 // A first generation must register the persona before composing the prompt,

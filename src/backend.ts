@@ -105,6 +105,7 @@ const DEFAULT_PREFERENCES = Object.freeze({
   autoAssignMissing: true,
   personaMode: 'quoted',
   personaColorsEnabled: true,
+  personaInCast: DEFAULT_CONFIG.personaInCast,
   markUncertain: true,
   mobileDoubleTap: true,
   thoughtDetection: 'off',
@@ -119,13 +120,13 @@ const DEFAULT_PREFERENCES = Object.freeze({
   showSaveIndicator: true,
 });
 
-function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine, personaEnabled = DEFAULT_CONFIG.personaEnabled, personaMode = DEFAULT_CONFIG.autoUserMode) {
+function cloneDefaultConfig(preferredEngine = DEFAULT_CONFIG.engine, personaEnabled = DEFAULT_CONFIG.personaEnabled, personaMode = DEFAULT_CONFIG.autoUserMode, personaInCast = DEFAULT_CONFIG.personaInCast) {
   return {
     version: DEFAULT_CONFIG.version,
     engine: normalizeEngine(preferredEngine),
     autoUserMode: ['off', 'quoted', 'whole'].includes(personaMode) ? personaMode : DEFAULT_CONFIG.autoUserMode,
     personaEnabled: personaEnabled !== false,
-    personaInCast: DEFAULT_CONFIG.personaInCast,
+    personaInCast: personaInCast === true,
     promptCharacterColors: DEFAULT_CONFIG.promptCharacterColors,
     promptThoughtColors: DEFAULT_CONFIG.promptThoughtColors,
     promptDelivery: DEFAULT_CONFIG.promptDelivery,
@@ -158,6 +159,7 @@ function safePreferences(raw) {
       ? source.personaMode
       : DEFAULT_PREFERENCES.personaMode,
     personaColorsEnabled: source.personaColorsEnabled !== false,
+    personaInCast: typeof source.personaInCast === 'boolean' ? source.personaInCast : DEFAULT_PREFERENCES.personaInCast,
     markUncertain: source.markUncertain !== false,
     mobileDoubleTap: source.mobileDoubleTap !== false,
     thoughtDetection: ['off', 'italics', 'single-quotes', 'italics-and-single-quotes'].includes(source.thoughtDetection)
@@ -571,7 +573,7 @@ async function loadConfig(chatId, userId, suppliedGlobalState = null) {
   const globalState = suppliedGlobalState || await loadGlobalState(userId);
   try {
     const text = await spindle.variables.chat.get(chatId, CONFIG_VAR);
-    if (!text) return cloneDefaultConfig(globalState.preferences.preferredEngine, globalState.preferences.personaColorsEnabled, globalState.preferences.personaMode);
+    if (!text) return cloneDefaultConfig(globalState.preferences.preferredEngine, globalState.preferences.personaColorsEnabled, globalState.preferences.personaMode, globalState.preferences.personaInCast);
     const parsed = JSON.parse(text);
     const safe = safeConfig(parsed, globalState.preferences.preferredEngine);
     if (globalState.personaPreferenceInitialized === false && typeof parsed.personaEnabled === 'boolean') {
@@ -584,7 +586,7 @@ async function loadConfig(chatId, userId, suppliedGlobalState = null) {
     return safe;
   } catch (error) {
     spindle.log.warn(`Could not read dialogue color config: ${error?.message || error}`);
-    return cloneDefaultConfig(globalState.preferences.preferredEngine, globalState.preferences.personaColorsEnabled, globalState.preferences.personaMode);
+    return cloneDefaultConfig(globalState.preferences.preferredEngine, globalState.preferences.personaColorsEnabled, globalState.preferences.personaMode, globalState.preferences.personaInCast);
   }
 }
 
@@ -822,17 +824,27 @@ function syncBindingsToLibrary(config, characters, persona, globalState) {
   return changed;
 }
 
+function savedCharacterByName(entries, name) {
+  return matchSceneCharacter(entries.filter(entry => entry.kind === 'character'), name);
+}
+
 function seedBindingsFromLibrary(config, characters, persona, globalState) {
   let seeded = 0;
+  let savedEntries;
   for (const character of characters) {
     if (colorBankExcluded(config, 'character', character.name) || findBinding(config, 'character', character.id, character.name, character.aliases)) continue;
-    const entry = libraryKeysForCharacter(character).map((key) => globalState.library[key]).find(Boolean);
+    const direct = libraryKeysForCharacter(character).map((key) => globalState.library[key]).find(Boolean);
+    const entry = direct || savedCharacterByName(savedEntries ??= colorBankEntries({ bindings: {} }, globalState), character.name);
     if (!entry?.color) continue;
+    if (!direct && characters.some(other => other !== character && savedCharacterByName([entry], other.name))) continue;
     const targetId = String(character.entityId || character.characterId || character.id);
+    const name = direct ? character.name : entry.name;
     config.bindings[`character:${targetId}`] = {
-      kind: 'character', targetId, name: character.name,
-      aliases: uniqueStrings([...(character.aliases || []), ...(entry.aliases || [])]),
+      kind: 'character', targetId, name,
+      aliases: uniqueStrings([...(character.aliases || []), ...(entry.aliases || []), character.name])
+        .filter(alias => normalizeName(alias) !== normalizeName(name)),
       color: entry.color, channels: safeChannels(entry.channels, entry.color), previousColors: [], source: entry.source === 'generated' ? 'generated' : 'library', pinned: entry.pinned !== false,
+      ...(!direct ? { colorBankLocal: true } : {}),
     };
     seeded += 1;
   }
@@ -1110,10 +1122,7 @@ function sceneIdentityEntries(config) {
 }
 
 function knownSceneIdentityByName(config, value) {
-  const normalized = normalizeName(value);
-  if (!normalized) return null;
-  const matches = sceneIdentityEntries(config).filter((entry) => [entry.name, ...(entry.aliases || [])].map(normalizeName).includes(normalized));
-  return matches.length === 1 ? matches[0] : null;
+  return matchSceneCharacter(sceneIdentityEntries(config), value);
 }
 
 const REPORTING_VERB_SOURCE = '(?:say|said|says|ask|asked|asks|reply|replied|replies|answer|answered|answers|announce|announced|announces|observe|observed|observes|remark|remarked|remarks|state|stated|states|declare|declared|declares|note|noted|notes|explain|explained|explains|add|added|adds|continue|continued|continues|whisper|whispered|whispers|murmur|murmured|murmurs|mutter|muttered|mutters|breathe|breathed|breathes|hiss|hissed|hisses|growl|growled|growls|drawl|drawled|drawls|intone|intoned|intones|shout|shouted|shouts|yell|yelled|yells|cry|cried|cries|call|called|calls|snap|snapped|snaps|bark|barked|barks|exclaim|exclaimed|exclaims|retort|retorted|retorts|protest|protested|protests|insist|insisted|insists|warn|warned|warns|demand|demanded|demands|urge|urged|urges|correct|corrected|corrects|admit|admitted|admits|concede|conceded|concedes|agree|agreed|agrees|object|objected|objects|promise|promised|promises|laugh|laughed|laughs|sigh|sighed|sighs|scoff|scoffed|scoffs|groan|groaned|groans|repeat|repeated|repeats|echo|echoed|echoes|offer|offered|offers|assure|assured|assures)';
@@ -1339,7 +1348,14 @@ async function getSceneCharacters(chat, cardCharacters, userId, options = {}) {
     return a.name.localeCompare(b.name);
   });
 
-  return { characters, cortexAvailable };
+  const inferred = character => !character.characterId && !character.entityId
+    && character.source.split('+').every(source => source === 'transcript' || source === 'card-cast');
+  const canonical = characters.filter(character => !inferred(character) || /\s/u.test(character.name.trim()));
+  return {
+    characters: characters.filter(character => !inferred(character) || canonical.includes(character)
+      || !matchSceneCharacter(canonical, character.name)),
+    cortexAvailable,
+  };
 }
 
 function sceneReferenceNames(character, characters) {
@@ -1354,15 +1370,23 @@ function sceneReferenceNames(character, characters) {
   return uniqueStrings(names);
 }
 
-function matchSceneCharacter(characters, name) {
+function sceneCharacterMatches(characters, name) {
   const needle = normalizeName(name);
-  if (!needle) return null;
-  const exact = characters.find((character) => (
+  if (!needle) return [];
+  const exact = characters.filter((character) => (
     [character.name, ...(character.aliases || [])].map(normalizeName).includes(needle)
   ));
-  if (exact) return exact;
-  const partial = characters.filter((character) => sceneReferenceNames(character, characters).map(normalizeName).includes(needle));
-  return partial.length === 1 ? partial[0] : null;
+  if (exact.length) return exact;
+  if (needle.length < 3 || /\s/u.test(needle)) return [];
+  return characters.filter((character) => {
+    const parts = String(character.name || '').trim().split(/\s+/u);
+    return parts.length > 1 && [parts[0], parts.at(-1)].map(normalizeName).includes(needle);
+  });
+}
+
+function matchSceneCharacter(characters, name) {
+  const matches = sceneCharacterMatches(characters, name);
+  return matches.length === 1 ? matches[0] : null;
 }
 
 function characterNearStyledRange(text, start, end, characters, messageName) {
@@ -2258,6 +2282,9 @@ async function updateOptions(payload, userId) {
     if (typeof payload.personaEnabled === 'boolean') {
       globalState.preferences.personaColorsEnabled = payload.personaEnabled;
     }
+    if (typeof payload.personaInCast === 'boolean') {
+      globalState.preferences.personaInCast = payload.personaInCast;
+    }
     await saveGlobalState(globalState, userId);
   });
   return buildState({ importCortex: false }, userId);
@@ -2889,10 +2916,7 @@ function extractPortableColorTags(content) {
 }
 
 function knownRegistrySpeakerByName(registry, value) {
-  const name = normalizeName(value);
-  if (!name) return null;
-  const matches = registry.entries.filter((entry) => [entry.name, ...(entry.aliases || [])].map(normalizeName).includes(name));
-  return matches.length === 1 ? matches[0] : null;
+  return matchSceneCharacter(registry.entries, value);
 }
 
 function inferTagSpeakerEvidence(content, tag) {
@@ -3206,13 +3230,18 @@ async function resolveObservationGroup(payload, userId) {
   }
 
   const name = cleanSceneName(payload.name || first.inferredName);
-  const color = normalizeHex(payload.color) || first.observedColor;
+  const requestedColor = normalizeHex(payload.color);
+  const observedColor = requestedColor || first.observedColor;
   if (!name) throw new Error('Give this character a valid name.');
-  if (!color) throw new Error('Choose a valid six-digit registry color.');
-  const collision = visibleRegistryBindings(config).find((candidate) => bindingRegistryColor(candidate) === color);
-  if (collision) throw new Error(`${color} already belongs to ${collision.name}. Choose another color.`);
+  if (!observedColor) throw new Error('Choose a valid six-digit registry color.');
+  const requireAvailableColor = color => {
+    const collision = visibleRegistryBindings(config).find(candidate => bindingRegistryColor(candidate) === color);
+    if (collision) throw new Error(`${color} already belongs to ${collision.name}. Choose another color.`);
+  };
 
   if (action === 'temporary') {
+    const color = observedColor;
+    requireAvailableColor(color);
     const key = temporarySpeakerKey(name, color);
     const existing = temporarySpeakerFor(config, name, color);
     config.temporarySpeakers[key] = {
@@ -3234,9 +3263,14 @@ async function resolveObservationGroup(payload, userId) {
     return { state, pendingCount: state.pendingReviewCount, temporary: observations.length };
   }
 
-  // Register only genuinely new speakers. If the same primary name was added
-  // manually while this card was open, reuse that stable roster target silently.
-  const existingBinding = visibleRegistryBindings(config).find((candidate) => normalizeName(candidate.name) === normalizeName(name));
+  const bindings = visibleRegistryBindings(config);
+  const matches = sceneCharacterMatches(bindings, name);
+  const globalState = matches.length === 0 ? await loadGlobalState(userId) : null;
+  const saved = globalState && !colorBankExcluded(config, 'character', name)
+    ? savedCharacterByName(colorBankEntries({ bindings: {} }, globalState), name) : null;
+  const rosterName = saved?.name || name;
+  const existingBinding = matches.length === 1 ? matches[0]
+    : saved ? matchSceneCharacter(bindings, rosterName) : null;
   if (existingBinding) {
     for (const observation of observations) {
       observation.status = 'approved';
@@ -3248,23 +3282,30 @@ async function resolveObservationGroup(payload, userId) {
     return { state, pendingCount: state.pendingReviewCount, approved: observations.length, speakerUid: existingBinding.speakerUid };
   }
 
-  const matchingManual = Object.values(config.manualCharacters || {}).find((item) => normalizeName(item.name) === normalizeName(name)) || null;
-  const manualId = matchingManual?.id || `manual:${hashString(normalizeName(name)).toString(36)}`;
+  const customColor = requestedColor && requestedColor !== first.observedColor;
+  const color = customColor ? requestedColor : saved?.color || observedColor;
+  requireAvailableColor(color);
+  const matchingManual = matchSceneCharacter(Object.values(config.manualCharacters || {}), rosterName);
+  const bindingName = matchingManual?.name || rosterName;
+  const aliases = uniqueStrings([...(matchingManual?.aliases || []), ...(saved?.aliases || []), name, rosterName])
+    .filter(alias => normalizeName(alias) !== normalizeName(bindingName));
+  const manualId = matchingManual?.id || `manual:${hashString(normalizeName(bindingName)).toString(36)}`;
   let targetId = matchingManual?.id || manualId;
   if (!matchingManual) {
     try {
-      const entity = await spindle.memories.entities.upsert(chat.id, { name, type: 'character', aliases: [], confidence: 1 }, { userId });
+      const entity = await spindle.memories.entities.upsert(chat.id, { name: bindingName, type: 'character', aliases, confidence: 1 }, { userId });
       if (entity?.id) targetId = String(entity.id);
     } catch (error) {
       spindle.log.warn(`New character Cortex upsert skipped: ${error?.message || error}`);
     }
   }
-  config.manualCharacters[manualId] = { id: manualId, name, aliases: [], source: 'manual-roster' };
-  delete config.hiddenCharacters[normalizeName(name)];
+  config.manualCharacters[manualId] = { id: manualId, name: bindingName, aliases, source: 'manual-roster' };
+  delete config.hiddenCharacters[normalizeName(bindingName)];
   const binding = {
-    kind: 'character', targetId, name, aliases: [], color,
-    channels: safeChannels(null, color), previousColors: [], source: 'manual', pinned: true,
-    speakerUid: `prism-speaker-${hashString(`character:${normalizeName(name)}`).toString(36)}`,
+    kind: 'character', targetId, name: bindingName, aliases, color,
+    channels: safeChannels(saved?.channels, color), previousColors: [], source: saved ? 'library' : 'manual', pinned: true,
+    ...(saved ? { colorBankLocal: true } : {}),
+    speakerUid: `prism-speaker-${hashString(`character:${normalizeName(bindingName)}`).toString(36)}`,
     legacyRefs: uniqueStrings([manualId, targetId]),
   };
   config.bindings[`character:${targetId}`] = binding;

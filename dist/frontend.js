@@ -267,7 +267,7 @@ function engineLabel(value) { return ({ dom: 'Local', hybrid: 'Hybrid', llm: 'LL
 function engineDescription(value) { return ({ dom: 'Visual only · heuristic paint', hybrid: 'Model tags first · local repair', llm: 'Model tags only · no local fill' })[normalizeEngine(value)]; }
 export function setup(ctx) {
     const removeStyle = ctx.dom.addStyle(CSS), pending = new Map(), signatures = new Map(), dirty = new Set(), hydratingMessages = new Set(), activeGenerationIds = new Set(), streamingMessageIds = new Set(), messageRoles = new Map();
-    let modal = null, modalHostHandle = null, fullscreenOverlay = null, addModal = null, importModal = null, state = null, uiPreferenceCache = null, activeTab = 'character', activeChannel = 'dialogue', activeEditorPage = 'paint', settingsSection = 'look', promptDraft = null, selectedId = null, sideScroll = 0, sideScrollLeft = 0, panelScroll = 0, settingsOpen = false, reviewOpen = false, busy = false, saveStatus = 'saved', hydrationStatus = 'idle', pendingReviewCount = 0, reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, personaRefreshTimer = 0, saveTimer = 0, longTimer = 0, editorPageTimer = 0, applying = false, revision = 0, saveGeneration = 0, saveQueue = Promise.resolve(), stateLoadPromise = null, lastRoundtripMs = 0, lastBackendError = '', themeColorCache = null, themeColorSignature = '';
+    let modal = null, modalHostHandle = null, fullscreenOverlay = null, pickerModal = null, importModal = null, state = null, uiPreferenceCache = null, activeTab = 'character', activeChannel = 'dialogue', activeEditorPage = 'paint', settingsSection = 'look', promptDraft = null, selectedId = null, sideScroll = 0, sideScrollLeft = 0, panelScroll = 0, settingsOpen = false, reviewOpen = false, busy = false, saveStatus = 'saved', hydrationStatus = 'idle', pendingReviewCount = 0, reviewIndex = 0, toolbarInjection = null, refreshTimer = 0, personaRefreshTimer = 0, saveTimer = 0, longTimer = 0, editorPageTimer = 0, applying = false, revision = 0, saveGeneration = 0, saveQueue = Promise.resolve(), stateLoadPromise = null, lastRoundtripMs = 0, lastBackendError = '', themeColorCache = null, themeColorSignature = '';
     let bankScope = 'chat', bankQuery = '', bankBulk = false, bankSelected = new Set(), bankScroll = 0, bankExpanded = new Set(), bankConfirmBulk = false;
     let bankDeduping = false, bankDuplicateReview = [], bankDuplicateChoices = new Map(), bankDuplicateConfirm = false, bankDuplicateScroll = 0;
     let disposed = false, stateLoadGeneration = 0;
@@ -587,7 +587,7 @@ export function setup(ctx) {
     } }
     function current() { return state?.characters?.find(c => String(c.id) === String(selectedId)) || state?.characters?.[0] || null; }
     function missingCount() { return (state?.characters || []).filter(c => !bindingRegistryColor(c.binding)).length + ((state?.config?.personaEnabled !== false || state?.config?.personaInCast === true) && state?.persona && !bindingRegistryColor(state.persona.binding) ? 1 : 0); }
-    function setBusy(value) { busy = value; modal?.root.querySelectorAll('button,input,select,textarea').forEach(el => { el.disabled = value; }); refreshColorBank(); refreshColorBankDuplicates(); }
+    function setBusy(value) { busy = value; modal?.root.querySelectorAll('button,input,select,textarea').forEach(el => { el.disabled = value || el.dataset.bankSelection === 'false'; }); refreshColorBank(); refreshColorBankDuplicates(); }
     function visiblePrismStatus() { if (saveStatus === 'error' || hydrationStatus === 'error')
         return { state: 'error', label: 'Prism error' }; if (saveStatus === 'saving' || saveStatus === 'pending' || hydrationStatus === 'syncing')
         return { state: 'syncing', label: 'Syncing…' }; if (!prismEnabled())
@@ -649,18 +649,59 @@ export function setup(ctx) {
     }
     function editorBankPanel(target, isPersona) {
         const entries = editorBankEntries(target, isPersona), matched = editorBankMatch(target, entries), result = state?.editorBankResult?.speakerUid === target.binding?.speakerUid ? state?.editorBankResult : null;
-        return `<details class="ldc-details ldc-editor-bank"><summary>Color Bank · ${result?.action === 'save' ? 'Saved to bank' : matched ? 'Saved base available' : 'No saved base'}</summary><div class="ldc-editor-bank-content"><p class="ldc-sub">Paint edits apply to this chat. Save to bank makes this paint the shared base for new chats. To edit a saved base, use it here, adjust the paint above, then save to bank.</p><div class="ldc-field"><label class="ldc-label" for="prism-editor-bank-select">Banked identity</label><select id="prism-editor-bank-select" class="ldc-select" data-editor-bank-select><option value="">Choose a saved identity…</option>${entries.map((entry, index) => `<option value="${index}" ${entry === matched ? 'selected' : ''}>${esc(entry.name)} · ${esc(entry.color)} · ${entry.channels?.dialogue?.paint?.type === 'radial' ? 'Radial' : entry.channels?.dialogue?.paint?.mode === 'gradient' ? 'Linear gradient' : 'Solid'}</option>`).join('')}</select></div><div class="ldc-preview" data-editor-bank-preview>${matched ? editorBankPreview(matched) : 'No saved identity selected.'}</div><div class="ldc-panel-buttons"><button type="button" class="ldc-btn" data-editor-bank-use ${matched ? '' : 'disabled'}>Use banked identity</button><button type="button" class="ldc-btn" data-editor-bank-save>Save to bank</button></div><p class="ldc-sub" data-editor-bank-status role="status">${result?.action === 'save' ? 'Saved to bank. This is the shared base for new chats.' : result?.action === 'use' ? 'Banked identity applied to this chat.' : ''}</p></div></details>`;
+        return `<details class="ldc-details ldc-editor-bank"><summary>Color Bank · ${result?.action === 'save' ? 'Saved to bank' : matched ? 'Saved base available' : 'No saved base'}</summary><div class="ldc-editor-bank-content"><p class="ldc-sub">Paint edits apply to this chat. Save to bank makes this paint the shared base for new chats. To edit a saved base, use it here, adjust the paint above, then save to bank.</p><div class="ldc-field"><span class="ldc-label">Banked identity</span><button type="button" class="ldc-btn" aria-haspopup="dialog" data-editor-bank-choose>Choose a saved identity…</button></div><div class="ldc-preview" data-editor-bank-preview>${matched ? editorBankPreview(matched) : 'No saved identity selected.'}</div><div class="ldc-panel-buttons"><button type="button" class="ldc-btn" data-editor-bank-use data-bank-selection="${Boolean(matched)}" ${matched ? '' : 'disabled'}>Use banked identity</button><button type="button" class="ldc-btn" data-editor-bank-save>Save to bank</button></div><p class="ldc-sub" data-editor-bank-status role="status">${result?.action === 'save' ? 'Saved to bank. This is the shared base for new chats.' : result?.action === 'use' ? 'Banked identity applied to this chat.' : ''}</p></div></details>`;
     }
-    function editorBankPreview(entry) { const channels = safeChannels(entry), swatch = paint => `<i class="ldc-editor-bank-swatch" aria-hidden="true" style="background:${paintBackground(paint)}"></i>`; return `<b>${esc(entry.name)}</b><span class="ldc-preview-line">${swatch(channels.dialogue.paint)}Dialogue · ${channels.dialogue.enabled ? esc(channels.dialogue.paint.stops.join(' → ')) : 'Off'}</span><span class="ldc-preview-line">${swatch(channels.thought.paint)}Thoughts · ${channels.thought.enabled ? esc(channels.thought.paint.stops.join(' → ')) : 'Off'}${channels.thought.linkedToDialogue ? ' · Linked' : ''}</span>`; }
+    function editorBankPreview(entry, label = entry.name) { const channels = safeChannels(entry), swatch = paint => `<i class="ldc-editor-bank-swatch" aria-hidden="true" style="background:${paintBackground(paint)}"></i>`; return `<b>${esc(label)}</b><span class="ldc-preview-line">${swatch(channels.dialogue.paint)}Dialogue · ${channels.dialogue.enabled ? esc(channels.dialogue.paint.stops.join(' → ')) : 'Off'}</span><span class="ldc-preview-line">${swatch(channels.thought.paint)}Thoughts · ${channels.thought.enabled ? esc(channels.thought.paint.stops.join(' → ')) : 'Off'}${channels.thought.linkedToDialogue ? ' · Linked' : ''}</span>`; }
+    function openBankedIdentityPicker(opener, entries, onChoose) {
+        pickerModal?.dismiss();
+        const dialog = createPortalDialog('Choose a saved identity');
+        pickerModal = dialog;
+        dialog.root.innerHTML = `<section class="ldc-add-person"><label class="ldc-field"><span class="ldc-label">Search saved identities</span><input type="search" class="ldc-input" placeholder="Name or alias" autocomplete="off"></label><div class="ldc-add-saved-heading"><strong id="prism-banked-results">Saved identities</strong></div><div class="ldc-add-suggestions" role="group" aria-labelledby="prism-banked-results"></div><p class="ldc-sub" role="status"></p></section>`;
+        const search = dialog.root.querySelector('input'), list = dialog.root.querySelector('.ldc-add-suggestions'), status = dialog.root.querySelector('[role=status]');
+        const versions = new Map();
+        for (const entry of entries) {
+            const name = entry.name.trim().toLowerCase();
+            if (!versions.has(name))
+                versions.set(name, []);
+            versions.get(name).push(entry);
+        }
+        const updateResults = () => {
+            const query = search.value.trim().toLowerCase();
+            const matches = entries.filter(entry => [entry.name, ...(entry.aliases || [])].some(name => name.toLowerCase().includes(query)));
+            list.innerHTML = matches.map((entry, index) => {
+                const group = versions.get(entry.name.trim().toLowerCase());
+                const label = group.length > 1 ? `${entry.name} · saved version ${group.indexOf(entry) + 1}` : entry.name;
+                const aliases = entry.aliases?.length ? `<span class="ldc-sub">${esc(entry.aliases.join(', '))}</span>` : '';
+                return `<button type="button" class="ldc-add-suggestion" data-banked-result="${index}"><span class="ldc-add-suggestion-paints">${editorBankPreview(entry, label)}${aliases}</span></button>`;
+            }).join('');
+            list.scrollTop = 0;
+            status.textContent = !entries.length ? 'No saved identities yet.' : !matches.length ? 'No saved identities match.' : `${matches.length} saved ${matches.length === 1 ? 'identity' : 'identities'}`;
+            list.querySelectorAll('[data-banked-result]').forEach(button => button.addEventListener('click', () => {
+                if (opener.isConnected)
+                    onChoose(matches[Number(button.dataset.bankedResult)]);
+                dialog.dismiss();
+            }));
+        };
+        search.addEventListener('input', updateResults);
+        wirePickerFocus(dialog, opener, search);
+        updateResults();
+    }
     function wireEditorBank() {
-        const select = modal?.root.querySelector('[data-editor-bank-select]');
-        if (!select)
+        const choose = modal?.root.querySelector('[data-editor-bank-choose]');
+        if (!choose)
             return;
         const target = activeTab === 'persona' ? state.persona : current(), kind = activeTab === 'persona' ? 'persona' : 'character', entries = editorBankEntries(target, kind === 'persona');
-        select.addEventListener('change', () => { const entry = select.value === '' ? null : entries[Number(select.value)]; modal.root.querySelector('[data-editor-bank-preview]').innerHTML = entry ? editorBankPreview(entry) : 'No saved identity selected.'; modal.root.querySelector('[data-editor-bank-use]').disabled = !entry; });
+        const preview = modal.root.querySelector('[data-editor-bank-preview]'), use = modal.root.querySelector('[data-editor-bank-use]');
+        let selected = editorBankMatch(target, entries);
+        choose.addEventListener('click', () => openBankedIdentityPicker(choose, entries, entry => {
+            selected = entry;
+            preview.innerHTML = editorBankPreview(entry);
+            use.dataset.bankSelection = 'true';
+            use.disabled = false;
+        }));
         for (const action of ['save', 'use'])
             modal.root.querySelector('[data-editor-bank-' + action + ']').addEventListener('click', () => perform(async () => {
-                const saved = select.value === '' ? null : entries[Number(select.value)];
+                const saved = selected;
                 if (action === 'use' && !saved)
                     return;
                 await saveEditorNow();
@@ -682,7 +723,7 @@ export function setup(ctx) {
     }
     function editorPanel(target, isPersona) {
         const tabsLayout = resolvedModalLayout() === 'tabs', showSaveIndicator = uiPreferences().showSaveIndicator, b = target.binding || {}, channels = safeChannels(b), color = channels.dialogue.paint.stops[0] || (isPersona ? '#7DB7FF' : '#B58CFF'), aliases = (b.aliases ?? target.aliases ?? []).join(', '), channel = channels[activeChannel], thoughtLinked = channels.thought.linkedToDialogue !== false, paint = channel.paint, gradient = paint.mode === 'gradient', stopCount = gradient ? (paint.stops.length >= 3 ? 3 : 2) : 1, stop1 = paint.stops[0], stop2 = paint.stops[1] || harmonicColor(stop1), stop3 = paint.stops[2] || stop1, stops = stopCount === 3 ? [stop1, stop2, stop3] : stopCount === 2 ? [stop1, stop2] : [stop1], rail = paintBackground(paint), subtitle = isPersona ? (target.title || (target.isNarrator ? 'Narrator persona' : 'Active persona')) : `${target.status || 'active'} · ${(b.aliases || target.aliases || []).length} aliases`, swatches = stops.map((stop, index) => `${index ? '<div class="ldc-gradient-rail"></div>' : ''}<label class="ldc-stop" title="${index === 1 && stopCount === 3 ? 'Center' : 'Color stop'} ${index + 1}"><input aria-label="Color stop ${index + 1}" data-role="picker${index ? `-${index + 1}` : ''}" type="color" value="${stop}"><span style="--stop:${stop}"></span></label>`).join(''), hexes = stops.map((stop, index) => `<input class="ldc-input" data-role="hex${index ? `-${index + 1}` : ''}" value="${stop}" maxlength="7" aria-label="Gradient stop ${index + 1}">`).join('');
-        const personaMaster = isPersona ? `<div class="ldc-persona-options"><label class="ldc-persona-master"><span><strong>Color persona messages</strong><small>Automatically paints your user-role persona dialogue. This choice becomes the default for new chats.</small></span><input type="checkbox" data-role="persona-enabled" ${state.config.personaEnabled !== false ? 'checked' : ''}></label><label class="ldc-persona-master"><span><strong>Persona is part of the cast</strong><small>For impersonation / Speak for User. Lets assistant-side dialogue resolve to ${esc(target.name)} and exposes the persona in manual recoloring.</small></span><input type="checkbox" data-role="persona-in-cast" ${state.config.personaInCast === true ? 'checked' : ''}></label></div>` : '';
+        const personaMaster = isPersona ? `<div class="ldc-persona-options"><label class="ldc-persona-master"><span><strong>Color persona messages</strong><small>Automatically paints your user-role persona dialogue. This choice becomes the default for new chats.</small></span><input type="checkbox" data-role="persona-enabled" ${state.config.personaEnabled !== false ? 'checked' : ''}></label><label class="ldc-persona-master"><span><strong>Persona is part of the cast</strong><small>For impersonation / Speak for User. Lets assistant-side dialogue resolve to ${esc(target.name)} and exposes the persona in manual recoloring. This choice becomes the default for new chats.</small></span><input type="checkbox" data-role="persona-in-cast" ${state.config.personaInCast === true ? 'checked' : ''}></label></div>` : '';
         const personaSave = isPersona ? `<div class="ldc-persona-save"><button type="button" class="ldc-btn" data-action="save-now">${SAVE_ICON}<span>Save persona colors</span></button></div>` : '';
         const preview = `<div class="ldc-preview"><span ${paintAttrs(channels.dialogue.paint, 'ldc-preview-dialogue')}>“Prism keeps this local and reversible.”</span><span ${paintAttrs(channels.thought.paint, 'ldc-preview-line ldc-preview-thought')}><i>This was, categorically, not safe.</i></span></div>`;
         const paintControls = `<div class="ldc-editor-controls" data-thought-linked="${activeChannel === 'thought' && thoughtLinked}"><div class="ldc-editor-switch"><div class="ldc-channel-tabs"><button data-channel="dialogue" aria-pressed="${activeChannel === 'dialogue'}" data-active="${activeChannel === 'dialogue'}">Dialogue</button><button data-channel="thought" aria-pressed="${activeChannel === 'thought'}" data-active="${activeChannel === 'thought'}">Thoughts</button></div><div class="ldc-mode-select"><label for="prism-paint-mode">Paint</label><select id="prism-paint-mode" class="ldc-select" data-role="paint-mode"><option value="solid" ${!gradient ? 'selected' : ''}>Solid</option><option value="gradient" ${gradient && paint.type !== 'radial' ? 'selected' : ''}>Linear gradient</option><option value="radial" ${gradient && paint.type === 'radial' ? 'selected' : ''}>Radial gradient</option></select></div></div>${activeChannel === 'thought' ? `<div class="ldc-thought-link"><label><input type="checkbox" data-role="thought-linked" ${thoughtLinked ? 'checked' : ''}> Match dialogue paint</label><span>${thoughtLinked ? 'Linked until customized' : 'Custom thought paint'}</span></div>` : ''}<label class="ldc-enable"><input type="checkbox" data-role="channel-enabled" ${channel.enabled ? 'checked' : ''}> Enable ${activeChannel} paint</label><div class="ldc-gradient-editor" data-stops="${stopCount}" style="--editor-gradient:${rail};--editor-solid:${stop1}">${swatches}</div><div class="ldc-hex-row" data-stops="${stopCount}">${hexes}</div>${gradient ? `<div class="ldc-direction">${paint.type !== 'radial' ? `<label><span>Direction <output data-angle-output>${paint.angle}°</output></span><input class="ldc-input" data-role="angle" type="range" min="0" max="360" step="1" value="${paint.angle}" aria-label="Gradient direction" aria-valuetext="${paint.angle} degrees"></label>` : ''}<div class="ldc-stop-field"><label for="prism-gradient-stops">Stops</label><select id="prism-gradient-stops" class="ldc-select ldc-stop-count" data-role="stop-count"><option value="2" ${stopCount === 2 ? 'selected' : ''}>2</option><option value="3" ${stopCount === 3 ? 'selected' : ''}>3</option></select></div><button class="ldc-btn ldc-reverse-button" data-action="swap-colors" title="Reverse gradient colors" aria-label="Reverse gradient colors">${REVERSE_ICON}</button></div>` : ''}</div>`;
@@ -994,12 +1035,12 @@ export function setup(ctx) {
         render(); }
     function openAddPerson(seedColor = null) {
         const detected = normalizeHex(seedColor), chatId = state?.chat?.id;
-        addModal?.dismiss();
+        pickerModal?.dismiss();
         const dialog = createPortalDialog('Add scene character'), opener = document.activeElement;
-        addModal = dialog;
+        pickerModal = dialog;
         let saved = (state?.colorBank || []).filter(entry => entry.scope === 'library' && entry.kind === 'character').sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key)), selected = null, filledAliases = '', submitting = false, refreshing = false;
         dialog.root.innerHTML = `<section class="ldc-add-person"><div class="ldc-heading"><div><h3 tabindex="-1" data-add-heading>Add character</h3><div class="ldc-sub">Choose a saved character or enter a new name.${detected ? ` New names use the detected ${detected} color.` : ''}</div></div></div><form data-add-form><label class="ldc-field"><span class="ldc-label">Name</span><input class="ldc-input" data-add-role="name" maxlength="80" placeholder="Lycaon" aria-describedby="prism-add-saved-hint" autocomplete="off"></label><p class="ldc-sub" id="prism-add-saved-hint">Type a name or alias to find saved characters. Choose a version to fill its name, aliases, and colors.</p><div class="ldc-add-saved-heading"><strong id="prism-add-suggestions-title">Saved character suggestions</strong><button type="button" class="ldc-btn" data-add-refresh>Refresh saved characters</button></div><div class="ldc-add-suggestions" data-add-suggestions role="group" aria-labelledby="prism-add-suggestions-title"></div><p class="ldc-sub" data-add-saved-status></p><label class="ldc-field"><span class="ldc-label">Aliases <span class="ldc-hint">Comma-separated; bubble labels work here too</span></span><input class="ldc-input" data-add-role="aliases" placeholder="Von Lycaon, narrator"></label><div class="ldc-add-error" data-add-error role="alert" hidden></div><div class="ldc-actions"><span class="ldc-autosave">Only affects this chat roster</span><button type="submit" class="ldc-btn ldc-primary" data-action="confirm-add">Add character</button></div></form></section>`;
-        const card = dialog.root.closest('[role=dialog]'), form = dialog.root.querySelector('[data-add-form]'), nameInput = form.querySelector('[data-add-role=name]'), aliasesInput = form.querySelector('[data-add-role=aliases]'), button = form.querySelector('[data-action=confirm-add]'), status = form.querySelector('[data-add-saved-status]'), outlet = form.querySelector('[data-add-error]'), refresh = form.querySelector('[data-add-refresh]');
+        const form = dialog.root.querySelector('[data-add-form]'), nameInput = form.querySelector('[data-add-role=name]'), aliasesInput = form.querySelector('[data-add-role=aliases]'), button = form.querySelector('[data-action=confirm-add]'), status = form.querySelector('[data-add-saved-status]'), outlet = form.querySelector('[data-add-error]'), refresh = form.querySelector('[data-add-refresh]');
         const showError = error => { outlet.hidden = false; outlet.textContent = error?.message || String(error); };
         const clearSelection = () => { if (selected && aliasesInput.value === filledAliases)
             aliasesInput.value = ''; selected = null; filledAliases = ''; };
@@ -1019,7 +1060,7 @@ export function setup(ctx) {
             button.disabled = true;
             try {
                 const response = await request('ldc_load_state', { chatId, importCortex: false });
-                if (disposed || addModal !== dialog || state?.chat?.id !== chatId)
+                if (disposed || pickerModal !== dialog || state?.chat?.id !== chatId)
                     return;
                 acceptState(response.state);
                 saved = (state?.colorBank || []).filter(entry => entry.scope === 'library' && entry.kind === 'character').sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
@@ -1028,7 +1069,7 @@ export function setup(ctx) {
                 suggestions();
             }
             catch (error) {
-                if (addModal === dialog)
+                if (pickerModal === dialog)
                     showError(error);
             }
             finally {
@@ -1058,14 +1099,14 @@ export function setup(ctx) {
                     throw new Error(name + ' was saved but did not appear in the scene roster.');
                 selectedId = added.id;
                 sideScroll = 0;
-                if (addModal === dialog)
+                if (pickerModal === dialog)
                     dialog.dismiss();
                 render();
-                requestAnimationFrame(() => { if (!modal || addModal)
+                requestAnimationFrame(() => { if (!modal || pickerModal)
                     return; centerActiveRoster(modal.root.querySelector('.ldc-roster-scroll'), true); [...modal.root.querySelectorAll('[data-character-id]')].find(row => String(row.dataset.characterId) === String(selectedId))?.focus({ preventScroll: true }); });
             }
             catch (error) {
-                if (addModal === dialog) {
+                if (pickerModal === dialog) {
                     showError(error);
                     form.querySelectorAll('button,input').forEach(control => { control.disabled = false; });
                     button.focus({ preventScroll: true });
@@ -1075,6 +1116,11 @@ export function setup(ctx) {
                 submitting = false;
             }
         });
+        wirePickerFocus(dialog, opener, nameInput, dialog.root.querySelector('[data-add-heading]'));
+        suggestions();
+    }
+    function wirePickerFocus(dialog, opener, input, mobileFocus = dialog.root.closest('[role=dialog]').querySelector('[data-portal-close]')) {
+        const card = dialog.root.closest('[role=dialog]');
         const onKeydown = event => { if (event.key === 'Escape') {
             event.preventDefault();
             event.stopPropagation();
@@ -1090,12 +1136,15 @@ export function setup(ctx) {
             first?.focus();
         } };
         card.addEventListener('keydown', onKeydown);
-        dialog.onDismiss(() => { card.removeEventListener('keydown', onKeydown); if (addModal === dialog)
-            addModal = null; if (opener?.isConnected)
+        dialog.onDismiss(() => { card.removeEventListener('keydown', onKeydown); if (pickerModal === dialog)
+            pickerModal = null; if (opener?.isConnected)
             opener.focus({ preventScroll: true }); });
-        suggestions();
-        requestAnimationFrame(() => { if (addModal !== dialog)
-            return; const coarse = window.matchMedia?.('(pointer: coarse)').matches === true; (coarse || window.innerWidth <= 820 ? dialog.root.querySelector('[data-add-heading]') : nameInput)?.focus({ preventScroll: true }); });
+        requestAnimationFrame(() => {
+            if (pickerModal !== dialog || card.contains(document.activeElement))
+                return;
+            const coarse = window.matchMedia?.('(pointer: coarse)').matches === true;
+            (coarse || window.innerWidth <= 820 ? mobileFocus : input).focus({ preventScroll: true });
+        });
     }
     async function removeCurrent() { const character = current(); if (!character)
         return; const { confirmed } = await showPrismConfirm({ title: `Remove ${character.name}?`, message: 'Prism will hide this discovered entry in this chat. Its saved color is kept in case you add it again.', confirmLabel: 'Remove', cancelLabel: 'Keep', variant: 'warning' }); if (!confirmed)
@@ -2155,7 +2204,7 @@ export function setup(ctx) {
             render();
         }
     }
-    async function closePalette() { clearTimeout(saveTimer); const shouldSave = saveStatus === 'pending'; ++saveGeneration; if (shouldSave && modal && state?.ok) {
+    async function closePalette() { pickerModal?.dismiss(); clearTimeout(saveTimer); const shouldSave = saveStatus === 'pending'; ++saveGeneration; if (shouldSave && modal && state?.ok) {
         setSaveStatus('saving');
         await saveQueue.catch(() => { });
         await saveEditor(activeTab === 'persona' ? 'persona' : 'character', false);
@@ -2217,7 +2266,7 @@ export function setup(ctx) {
     observe();
     const action = ctx.ui.registerInputBarAction({ id: 'open-dialogue-colors', label: 'Prism', iconSvg: PRISM_ICON, enabled: true });
     const clearAllStreaming = () => { activeGenerationIds.clear(); streamingMessageIds.clear(); document.querySelectorAll('[data-prism-streaming]').forEach(element => delete element.dataset.prismStreaming); };
-    const unsubAction = action.onClick(openMainPalette), unsubChat = ctx.events.on('CHAT_SWITCHED', () => { cancelStateLoad(); state = null; promptDraft = null; bankScope = 'chat'; bankQuery = ''; bankBulk = false; bankSelected.clear(); bankScroll = 0; bankExpanded.clear(); bankConfirmBulk = false; bankDeduping = false; bankDuplicateReview = []; bankDuplicateChoices.clear(); bankDuplicateConfirm = false; bankDuplicateScroll = 0; reviewOpen = false; settingsOpen = false; hydratingMessages.clear(); messageRoles.clear(); clearAllStreaming(); themeColorCache = null; themeColorSignature = ''; setHydrationStatus('idle'); signatures.clear(); dirty.clear(); ensureToolbar(); observe(); reload(true); }), unsubPersona = ctx.events.on('PERSONA_CHANGED', payload => { if (!payload?.id || String(payload.id) === String(state?.persona?.id))
+    const unsubAction = action.onClick(openMainPalette), unsubChat = ctx.events.on('CHAT_SWITCHED', () => { pickerModal?.dismiss(); cancelStateLoad(); state = null; promptDraft = null; bankScope = 'chat'; bankQuery = ''; bankBulk = false; bankSelected.clear(); bankScroll = 0; bankExpanded.clear(); bankConfirmBulk = false; bankDeduping = false; bankDuplicateReview = []; bankDuplicateChoices.clear(); bankDuplicateConfirm = false; bankDuplicateScroll = 0; reviewOpen = false; settingsOpen = false; hydratingMessages.clear(); messageRoles.clear(); clearAllStreaming(); themeColorCache = null; themeColorSignature = ''; setHydrationStatus('idle'); signatures.clear(); dirty.clear(); ensureToolbar(); observe(); reload(true); }), unsubPersona = ctx.events.on('PERSONA_CHANGED', payload => { if (!payload?.id || String(payload.id) === String(state?.persona?.id))
         refreshPersona(); }), unsubPersonaSettings = ctx.events.on('SETTINGS_UPDATED', payload => { if (payload?.key === 'activePersonaId' || payload?.keys?.includes('activePersonaId'))
         refreshPersona(); }), unsubMessage = ctx.events.on('MESSAGE_SENT', markMessageEvent), unsubMessageEdited = ctx.events.on('MESSAGE_EDITED', markMessageEvent), unsubUserRendered = ctx.events.on('USER_MESSAGE_RENDERED', markUserRendered), unsubGenerationStart = ctx.events.on('GENERATION_STARTED', markStreaming), unsubStream = ctx.events.on('STREAM_TOKEN_RECEIVED', markStreaming), unsubGeneration = ctx.events.on('GENERATION_ENDED', hydrateLatest), unsubGenerationStop = ctx.events.on('GENERATION_STOPPED', payload => { clearStreaming(payload); markLatest(); });
     reload();
@@ -2250,7 +2299,7 @@ export function setup(ctx) {
         window.visualViewport?.removeEventListener('resize', onViewportChange);
         window.visualViewport?.removeEventListener('scroll', onViewportChange);
         clearAllStreaming();
-        addModal?.dismiss();
+        pickerModal?.dismiss();
         importModal?.dismiss();
         modal?.dismiss();
         modal = null;
