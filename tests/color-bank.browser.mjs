@@ -340,6 +340,11 @@ try {
     const addBounds=await addDialog.boundingBox();
     assert.ok(addBounds.y>=notch&&addBounds.y+addBounds.height<=height+1,'Add character stays inside the notched safe viewport');
     assert.ok(await addDialog.evaluate(node=>node.scrollWidth<=node.clientWidth+1),'Suggestions do not widen the dialog');
+    const addButton=addDialog.getByRole('button',{name:'Add character',exact:true});
+    assert.equal(await addButton.evaluate(button=>{
+      const rect=button.getBoundingClientRect();
+      return button.contains(document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2));
+    }),true,'Add character remains clickable before scrolling a populated dialog');
     const addName=addDialog.getByRole('textbox',{name:'Name',exact:true});
     const suggestions=addDialog.getByRole('group',{name:'Saved character suggestions',exact:true});
     assert.equal(await suggestions.getByRole('button').count(),4,'Only saved characters are suggested; persona entries are excluded');
@@ -355,7 +360,6 @@ try {
     assert.equal(await addDialog.getByRole('textbox',{name:/^Aliases/}).inputValue(),'','Changing the name clears autofilled aliases and saved colors');
     await addName.fill('Ada');
     await gradientSuggestion.click();
-    const addButton=addDialog.getByRole('button',{name:'Add character',exact:true});
     const addClose=addDialog.getByRole('button',{name:'Close',exact:true});
     await addClose.focus();
     await addClose.press('Shift+Tab');
